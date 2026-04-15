@@ -1,0 +1,59 @@
+# FoG Roblox Studio Command — Roblox Game Studio Agent Architecture
+
+Roblox game development managed through coordinated Claude Code subagents.
+Each agent owns a specific domain within the Roblox ecosystem, enforcing
+separation of concerns and quality.
+
+## Technology Stack
+
+- **Engine**: Roblox Studio
+- **Language**: Luau
+- **Runtime**: Roblox Engine (client-server architecture)
+- **Version Control**: Git with trunk-based development (synced via Rojo/Argon)
+- **Sync Tool**: [CHOOSE: Rojo / Argon / Manual Studio]
+- **Data Layer**: DataStoreService + MemoryStoreService
+- **Networking**: RemoteEvents, RemoteFunctions, UnreliableRemoteEvents
+- **UI Framework**: [CHOOSE: Native ScreenGui / Roact / Fusion]
+
+## Project Structure
+
+@.claude/docs/directory-structure.md
+
+## Roblox Architecture Guide
+
+@.claude/docs/roblox-architecture-guide.md
+
+## Luau Style Guide
+
+@.claude/docs/luau-style-guide.md
+
+## Technical Preferences
+
+@.claude/docs/coding-standards.md
+
+## Coordination Rules
+
+@.claude/docs/coordination-rules.md
+
+## Collaboration Protocol
+
+**User-driven collaboration, not autonomous execution.**
+Every task follows: **Question → Options → Decision → Draft → Approval**
+
+- Agents MUST ask "May I write this to [filepath]?" before using Write/Edit tools
+- Agents MUST show drafts or summaries before requesting approval
+- Multi-file changes require explicit approval for the full changeset
+- No commits without user instruction
+
+See `docs/COLLABORATIVE-DESIGN-PRINCIPLE.md` for full protocol and examples.
+
+> **First session?** If the project has no game concept or existing code,
+> run `/start` to begin the guided onboarding flow.
+
+## Coding Standards
+
+@.claude/docs/coding-standards.md
+
+## Context Management
+
+@.claude/docs/context-management.md

@@ -1,0 +1,29 @@
+# Roblox
+*.rbxlx
+*.rbxl
+*.rbxm
+*.rbxmx
+
+# Build
+/build/
+/dist/
+/node_modules/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Session state (personal)
+production/session-state/*.txt
+production/session-state/*.json
+
+# Rojo
+/rojo.lock
