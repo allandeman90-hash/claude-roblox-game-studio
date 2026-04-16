@@ -44,6 +44,10 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/validate-assets.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/validate-wiki.sh"
           }
         ]
       }

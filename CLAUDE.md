@@ -35,6 +35,27 @@ separation of concerns and quality.
 
 @.claude/docs/coordination-rules.md
 
+## Roblox/Luau Wiki (Persistent Knowledge Base)
+
+This project maintains a persistent, LLM-curated wiki at `wiki/` following
+[Karpathy's LLM Wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
+It is the source of truth for deep Roblox/Luau knowledge — services, concepts,
+Luau features, anti-patterns, exploits, performance, monetization, studio
+workflows, and game patterns. Rules in `.claude/rules/` stay prescriptive;
+the wiki provides the descriptive backing.
+
+@wiki/SCHEMA.md
+
+**Operations:**
+- `/wiki-seed` — one-time bootstrap from existing repo content
+- `/wiki-ingest <source>` — integrate a new raw source
+- `/wiki-query <question>` — answer from the wiki
+- `/wiki-lint` — health check
+- `/wiki-update <page>` — targeted page edit
+
+**Owner:** `wiki-curator` agent coordinates; domain specialists own their pages.
+**Raw sources:** `wiki/raw/` (immutable, captured from external sources).
+
 ## Collaboration Protocol
 
 **User-driven collaboration, not autonomous execution.**

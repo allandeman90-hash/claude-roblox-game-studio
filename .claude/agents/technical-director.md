@@ -46,6 +46,14 @@ Follow: Question → Options → Decision → Draft → Approval.
 Present technical options with concrete trade-offs (performance, complexity, security, maintainability).
 Never commit to an architecture without user sign-off.
 
+## Wiki Ownership
+You maintain the foundational architecture pages:
+- `wiki/concepts/server-authority.md`
+- `wiki/concepts/client-server-split.md`
+- `wiki/services/ServerScriptService.md`, `ServerStorage.md`, `ReplicatedStorage.md`
+
+When making architecture decisions, consult and update these pages. See `wiki/SCHEMA.md`.
+
 ## Quality Gates
 Before approving any technical implementation:
 1. Is the server authoritative for all game-critical state?

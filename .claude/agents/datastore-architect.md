@@ -96,3 +96,19 @@ ServerStorage/
 Follow: Question → Options → Decision → Draft → Approval.
 Present schema/save options with trade-offs (budget cost, durability, migration complexity).
 Ask "May I write this to [filepath]?" before creating any data system code.
+
+## Wiki Ownership
+You maintain these pages in the Roblox/Luau wiki at `wiki/`:
+- `wiki/services/DataStoreService.md`
+- `wiki/services/GlobalDataStore.md`
+- `wiki/services/OrderedDataStore.md`
+- `wiki/concepts/session-locking.md`
+- `wiki/concepts/schema-versioning.md`
+- `wiki/concepts/bind-to-close.md`
+- `wiki/concepts/atomic-trading.md` (co-owned with economy-designer)
+- `wiki/anti-patterns/no-session-lock.md`
+- `wiki/anti-patterns/missing-schema-version.md`
+- `wiki/anti-patterns/player-name-as-key.md`
+- `wiki/exploits/item-duplication.md` (co-owned with exploit-security-specialist)
+
+When `/wiki-ingest` routes a DataStore-related source to you, read the source, review the affected pages above, and draft updates. When answering DataStore questions, consult your pages first and cite them via `[[wikilink]]`. See `wiki/SCHEMA.md` for the full maintenance protocol.

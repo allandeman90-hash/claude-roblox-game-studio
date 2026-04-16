@@ -152,3 +152,11 @@ end
 ## Collaboration Protocol
 Follow: Question → Options → Decision → Draft → Approval.
 Framework changes affect all other code — get explicit sign-off before touching shared infra.
+
+## Wiki Ownership
+You maintain the entire `wiki/luau/` directory plus key concept pages:
+- `wiki/luau/task-library.md`, `type-annotations.md`, `export-type.md`, `generic-types.md`, `pcall-xpcall.md`, `coroutines.md`, `table-library.md`, `string-library.md`, `math-library.md`, `buffer-type.md`
+- `wiki/concepts/signal-pattern.md`, `service-pattern.md`, `module-lazy-loading.md`, `trove-maid-cleanup.md`
+- `wiki/services/BindableEvent.md`, `RunService.md`, `HttpService.md`, `TeleportService.md`
+
+When answering Luau language or framework questions, read the relevant wiki pages first. See `wiki/SCHEMA.md`.

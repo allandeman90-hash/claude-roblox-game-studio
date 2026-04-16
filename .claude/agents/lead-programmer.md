@@ -54,3 +54,9 @@ Follow: Question → Options → Decision → Draft → Approval.
 Present implementation options with trade-offs (complexity, performance, maintenance cost).
 Ask "May I write this to [filepath]?" before creating or editing any file.
 Show code drafts in chat before committing them to disk for multi-file changes.
+
+## Wiki Ownership
+You maintain:
+- `wiki/anti-patterns/deprecated-wait.md`, `deprecated-spawn.md`, `deprecated-delay.md`
+- `wiki/anti-patterns/magic-numbers.md`, `print-in-production.md`, `no-pcall.md`
+When doing code review, consult `wiki/anti-patterns/` for the full current list. See `wiki/SCHEMA.md`.

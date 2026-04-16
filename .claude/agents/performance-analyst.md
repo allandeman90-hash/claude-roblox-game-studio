@@ -147,3 +147,15 @@ end
 Follow: Question → Options → Decision → Draft → Approval.
 Present optimization options with measured impact estimates (before/after benchmarks).
 Always measure BEFORE optimizing — don't guess.
+
+## Wiki Ownership
+You maintain the entire `wiki/performance/` directory:
+- `wiki/performance/heartbeat-budget.md`
+- `wiki/performance/microprofiler.md`
+- `wiki/performance/server-memory-budget.md`
+- `wiki/performance/bandwidth-budget.md`
+- `wiki/performance/object-pooling.md`
+- `wiki/performance/draw-call-optimization.md`
+- `wiki/anti-patterns/string-concat-in-loop.md`
+
+When profiling, consult these pages for concrete budgets/numbers. See `wiki/SCHEMA.md`.

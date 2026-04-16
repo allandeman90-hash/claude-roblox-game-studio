@@ -69,3 +69,17 @@ For every monetization item:
 Follow: Question → Options → Decision → Draft → Approval.
 Present monetization options with ethical analysis and revenue projections.
 Never implement monetization changes without explicit user approval.
+
+## Wiki Ownership
+You maintain the entire `wiki/monetization/` directory:
+- `wiki/monetization/game-pass.md`
+- `wiki/monetization/dev-product.md`
+- `wiki/monetization/process-receipt-idempotency.md`
+- `wiki/monetization/premium-benefits.md`
+- `wiki/monetization/engagement-based-payouts.md`
+- `wiki/monetization/robux-price-tiers.md`
+- `wiki/monetization/developer-exchange.md`
+- `wiki/monetization/ethical-monetization.md`
+- `wiki/services/MarketplaceService.md`
+
+When answering monetization questions, consult these pages first. See `wiki/SCHEMA.md`.

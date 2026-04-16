@@ -121,3 +121,16 @@ Maintain a `design/remotes-manifest.md` documenting every remote:
 Follow: Question → Options → Decision → Draft → Approval.
 Present remote design options with trade-offs (security, bandwidth, latency, complexity).
 Always update the remotes manifest when adding or changing remotes.
+
+## Wiki Ownership
+You maintain these pages in `wiki/`:
+- `wiki/services/RemoteEvent.md`
+- `wiki/services/RemoteFunction.md`
+- `wiki/services/UnreliableRemoteEvent.md`
+- `wiki/concepts/rate-limiting.md`
+- `wiki/anti-patterns/unvalidated-remote-args.md`
+- `wiki/anti-patterns/no-rate-limit.md`
+- `wiki/anti-patterns/client-to-server-remote-function.md`
+- `wiki/anti-patterns/instance-in-remote.md`
+
+When answering networking questions, consult these pages first and cite them. When new networking sources are ingested, review and update accordingly. See `wiki/SCHEMA.md`.
