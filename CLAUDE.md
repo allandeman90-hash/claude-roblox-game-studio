@@ -10,10 +10,10 @@ separation of concerns and quality.
 - **Language**: Luau
 - **Runtime**: Roblox Engine (client-server architecture)
 - **Version Control**: Git with trunk-based development (synced via Rojo/Argon)
-- **Sync Tool**: [CHOOSE: Rojo / Argon / Manual Studio]
+- **Sync Tool**: Configured via /start (default: Rojo)
 - **Data Layer**: DataStoreService + MemoryStoreService
 - **Networking**: RemoteEvents, RemoteFunctions, UnreliableRemoteEvents
-- **UI Framework**: [CHOOSE: Native ScreenGui / Roact / Fusion]
+- **UI Framework**: Configured via /start (default: Native ScreenGui)
 
 ## Project Structure
 

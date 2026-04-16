@@ -6,7 +6,7 @@ Get up and running with FoG Roblox Studio Command in 5 minutes.
 
 - **Claude Code** (latest) — [Install](https://docs.claude.com/en/docs/claude-code/overview)
 - **Git**
-- **Rojo** or **Argon** (optional, for Roblox Studio sync)
+- **Rojo** (primary), **Argon** (compatible), or **Manual Studio** (supported) — for Roblox Studio sync
 - **Bash** (Git Bash on Windows, native on Mac/Linux)
 
 ## 2. Clone the Template
@@ -26,7 +26,22 @@ git add .
 git commit -m "feat: initial FoG Roblox Studio Command setup"
 ```
 
-## 3. Open Claude Code
+## 3. Install Toolchain & Packages
+
+```bash
+# Install toolchain (Rojo, Selene, StyLua, Wally) via Aftman
+aftman install
+
+# Install Luau packages via Wally
+wally install
+
+# Verify installations
+rojo --version
+selene --version
+stylua --version
+```
+
+## 4. Open Claude Code
 
 ```bash
 claude
@@ -34,7 +49,7 @@ claude
 
 Claude Code will read `CLAUDE.md` automatically.
 
-## 4. Run `/start`
+## 5. Run `/start`
 
 Type in Claude Code:
 
@@ -45,11 +60,11 @@ Type in Claude Code:
 The onboarding flow will ask:
 
 1. **Where are you?** — no idea / vague concept / clear design / existing code
-2. **Sync tool** — Rojo / Argon / Manual Studio
+2. **Sync tool** — Rojo (primary), Argon (compatible), Manual Studio (supported)
 3. **UI framework** — Native / Roact / Fusion
 4. **Review mode** — full / lean / solo
 
-## 5. Your First Task
+## 6. Your First Task
 
 Based on your starting point:
 
@@ -70,7 +85,7 @@ Based on your starting point:
 2. `/map-systems` — create systems index
 3. `/sprint-plan` — plan implementation
 
-## 6. Everyday Workflow
+## 7. Everyday Workflow
 
 ### Creating a Feature
 1. `/design-system` — write the spec
@@ -87,7 +102,7 @@ Based on your starting point:
 ### Incident Response
 1. `/hotfix` — emergency fix workflow
 
-## 7. Getting Help
+## 8. Getting Help
 
 - `/onboard` — full contributor onboarding
 - `CLAUDE.md` — session config (always loaded)
@@ -95,7 +110,7 @@ Based on your starting point:
 - `.claude/agents/` — list of all available agents
 - `.claude/skills/` — list of all slash commands
 
-## 8. Customization
+## 9. Customization
 
 Every file in `.claude/` is plain text. Edit to match your studio's conventions.
 Your customizations survive template updates (see `UPGRADING.md`).

@@ -3,8 +3,14 @@
   "tree": {
     "$className": "DataModel",
     "ServerScriptService": { "$path": "src/ServerScriptService" },
-    "ServerStorage": { "$path": "src/ServerStorage" },
-    "ReplicatedStorage": { "$path": "src/ReplicatedStorage" },
+    "ServerStorage": {
+      "$path": "src/ServerStorage",
+      "ServerPackages": { "$path": "ServerPackages" }
+    },
+    "ReplicatedStorage": {
+      "$path": "src/ReplicatedStorage",
+      "Packages": { "$path": "Packages" }
+    },
     "StarterGui": { "$path": "src/StarterGui" },
     "StarterPlayer": {
       "StarterPlayerScripts": { "$path": "src/StarterPlayer/StarterPlayerScripts" },

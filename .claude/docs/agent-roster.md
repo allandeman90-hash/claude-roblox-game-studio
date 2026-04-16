@@ -1,6 +1,6 @@
 # Agent Roster
 
-Full table of all 33 agents with their tier, model, domain, and key files they own.
+Full table of all 36 agents with their tier, model, domain, and key files they own.
 
 ## Tier 1 — Directors (opus)
 
@@ -81,6 +81,14 @@ Full table of all 33 agents with their tier, model, domain, and key files they o
 |-------|-------|--------|-----------|
 | `devops-engineer` | sonnet | Rojo, CI/CD, Open Cloud API | `.github/workflows/*`, `default.project.json` |
 | `roblox-studio-specialist` | sonnet | Studio API, plugins, Attributes | Studio-specific code |
+
+### Knowledge & Integration
+
+| Agent | Model | Domain | Key Files |
+|-------|-------|--------|-----------|
+| `wiki-curator` | sonnet | Wiki maintenance, ingest, lint, schema | `wiki/*`, `wiki/SCHEMA.md` |
+| `studio-mcp-operator` | sonnet | Roblox Studio MCP integration, live testing | Studio MCP tools |
+| `blender-mcp-operator` | sonnet | Blender MCP 3D asset generation | Blender MCP tools, `assets/models/` |
 
 ## Model Selection Rationale
 

@@ -2,9 +2,9 @@
 
 > Turn Claude Code into a Roblox-native game development studio — specialized agents, Luau-first workflows, and a coordination system built for Roblox publishing.
 
-![Agents](https://img.shields.io/badge/agents-33-blue)
-![Skills](https://img.shields.io/badge/skills-40-green)
-![Hooks](https://img.shields.io/badge/hooks-8-orange)
+![Agents](https://img.shields.io/badge/agents-36-blue)
+![Skills](https://img.shields.io/badge/skills-50-green)
+![Hooks](https://img.shields.io/badge/hooks-9-orange)
 ![Rules](https://img.shields.io/badge/rules-11-yellow)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 ![Built for Claude Code](https://img.shields.io/badge/built%20for-Claude%20Code-8A2BE2)
@@ -34,12 +34,12 @@ No wasted tokens on C#, GDScript, or Blueprints. No generic "game engine" abstra
 
 | Category | Count | What It Does |
 |----------|-------|--------------|
-| **Agents** | 33 | Specialized subagents organized by studio hierarchy (Directors → Leads → Specialists) |
-| **Skills** | 40 | Slash commands for common workflows (GDD, code review, security audits, release prep) |
-| **Hooks** | 8 | Validation and session management automation |
+| **Agents** | 36 | Specialized subagents organized by studio hierarchy (Directors → Leads → Specialists) |
+| **Skills** | 50 | Slash commands for common workflows (GDD, code review, security audits, release prep) |
+| **Hooks** | 9 | Validation and session management automation |
 | **Rules** | 11 | Path-scoped coding standards (server, client, DataStores, remotes, UI, etc.) |
 | **Templates** | 26 | Ready-to-use Markdown templates for GDDs, ADRs, reports, manifests |
-| **Docs** | 10 | Roblox architecture guide, Luau style guide, coordination rules, quick start |
+| **Docs** | 11 | Roblox architecture guide, Luau style guide, coordination rules, quick start |
 
 ---
 
@@ -66,6 +66,8 @@ Tier 3 — Specialists (sonnet / haiku)
   qa-tester                      performance-analyst
   accessibility-specialist       devops-engineer
   community-manager              roblox-studio-specialist
+  wiki-curator                   studio-mcp-operator
+  blender-mcp-operator
 ```
 
 ---
@@ -134,7 +136,7 @@ Tier 3 — Specialists (sonnet / haiku)
 
 - **Claude Code** (latest) — [Install instructions](https://docs.claude.com/en/docs/claude-code/overview)
 - **Git** — for version control
-- **Rojo** or **Argon** (optional, recommended) — for Roblox project sync
+- **Rojo** (primary), **Argon** (compatible), or **Manual Studio** (supported) — for Roblox project sync
 - **Bash** — for hook scripts (Git Bash on Windows, native on Mac/Linux)
 
 ### Setup
@@ -155,6 +157,10 @@ rm -rf .git
 git init
 git add .
 git commit -m "feat: initial FoG Roblox Studio Command setup"
+
+# Install toolchain and packages
+aftman install
+wally install
 ```
 
 ### First Run
@@ -175,7 +181,7 @@ Then type:
 The onboarding flow will guide you through:
 
 1. Where you are with the project (no idea / vague concept / clear design / existing code)
-2. Sync tool selection (Rojo / Argon / Manual Studio)
+2. Sync tool selection — Rojo (primary), Argon (compatible), Manual Studio (supported)
 3. UI framework preference (Native / Roact / Fusion)
 4. Review intensity (full / lean / solo)
 5. First GDD or reverse-documentation of existing code
@@ -189,12 +195,12 @@ FoG-Roblox-Studio-Command/
 ├── CLAUDE.md                    # Master configuration (loaded every session)
 ├── .claude/
 │   ├── settings.json            # Hooks, permissions, safety rules
-│   ├── agents/                  # 33 agent definitions
-│   ├── skills/                  # 40 slash commands
-│   ├── hooks/                   # 8 validation/session scripts
+│   ├── agents/                  # 36 agent definitions
+│   ├── skills/                  # 50 slash commands
+│   ├── hooks/                   # 9 validation/session scripts
 │   ├── rules/                   # 11 path-scoped coding standards
 │   └── docs/                    # Guides + 26 templates
-├── src/                         # Roblox project (Rojo/Argon mapping)
+├── src/                         # Roblox project (Rojo mapping, Argon compatible)
 │   ├── ServerScriptService/
 │   ├── ServerStorage/
 │   ├── ReplicatedStorage/

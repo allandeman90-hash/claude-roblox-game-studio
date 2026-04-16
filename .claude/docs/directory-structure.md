@@ -12,7 +12,7 @@ FoG-Roblox-Studio-Command/
 ├── LICENSE            # MIT
 ├── .gitignore         # Roblox file types, env files, session state
 ├── .claude/           # Claude Code config
-├── src/               # Roblox source code (Rojo/Argon mapping)
+├── src/               # Roblox source code (Rojo mapping, Argon compatible)
 ├── assets/            # Images, audio, models, data
 ├── design/            # Design docs (GDDs, economy, narrative, levels)
 ├── docs/              # Project docs (architecture, workflows)
@@ -29,9 +29,9 @@ Claude Code configuration. Everything here affects how Claude Code behaves.
 ```
 .claude/
 ├── settings.json      # Permissions, hooks, behavior
-├── agents/            # 33 agent definitions (Markdown + YAML frontmatter)
-├── skills/            # 40 slash commands (one subdirectory per skill)
-├── hooks/             # 8 bash scripts for events (session-start, validate-commit, etc.)
+├── agents/            # 36 agent definitions (Markdown + YAML frontmatter)
+├── skills/            # 50 slash commands (one subdirectory per skill)
+├── hooks/             # 9 bash scripts for events (session-start, validate-commit, etc.)
 ├── rules/             # 11 path-scoped coding standards
 └── docs/              # Guides + 26 templates
     └── templates/     # GDD templates, ADRs, reports, manifests
@@ -66,7 +66,7 @@ Ready-to-use Markdown templates for GDDs, reports, and manifests.
 
 ## `src/`
 
-Roblox project source code, organized to match the Roblox service hierarchy via Rojo or Argon.
+Roblox project source code, organized to match the Roblox service hierarchy via Rojo (primary; Argon compatible).
 
 ```
 src/
@@ -130,21 +130,21 @@ Unit and integration tests.
 ```
 tests/
 ├── ServerScriptService/    # Server code tests
-├── ReplicatedStorage/       # Shared module tests
-└── init.spec.lua            # Test runner
+└── ReplicatedStorage/       # Shared module tests
 ```
 
-Test files follow `<Module>.spec.lua` or `<Module>.spec.luau` naming.
+Test files follow `<Module>.spec.lua` or `<Module>.spec.luau` naming. Configure the test runner (TestEZ or Jest-Lua) via Wally.
 
 ## `tools/`
 
-Build, deploy, and tooling scripts.
+Build, lint, and tooling scripts.
 
 ```
 tools/
+├── setup.sh               # Install toolchain (aftman) and packages (wally)
 ├── build.sh               # Build the Rojo project
-├── deploy.sh              # Deploy via Open Cloud API
-└── lint.sh                # Run selene + stylua
+├── lint.sh                # Run selene + stylua
+└── test.sh                # Run test suite (placeholder)
 ```
 
 ## `prototypes/`
