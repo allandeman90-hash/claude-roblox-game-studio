@@ -290,7 +290,7 @@ This template bakes in deep Roblox knowledge at every level:
 2. **Roblox-native architecture** — Agents understand the client-server security boundary, DataStore patterns, Roblox service hierarchy, and platform constraints.
 3. **Publishing-pipeline aware** — This isn't just for building games; it's for shipping them. Live ops, monetization, analytics, retention are first-class concerns.
 4. **FoG Studios workflow** — Supports multi-title publishing, comprehensive GDD-first documentation, sprint-based production.
-5. **ForgeLight-compatible** — Designed to serve as the organizational/orchestration layer that a Luau code generation system (like ForgeLight) plugs into.
+5. **Standalone** — Everything you need in one template. Clone, `/start`, build.
 
 ---
 
@@ -305,19 +305,6 @@ Every agent, skill, hook, rule, and template is a plain Markdown or bash file. Y
 - **Change hook behavior** — edit the bash scripts in `.claude/hooks/`
 
 When you upgrade to a new version of FoG Roblox Studio Command, any files you've modified will stay unless you explicitly overwrite them. See `UPGRADING.md`.
-
----
-
-## ForgeLight Integration
-
-FoG Roblox Studio Command is the **organizational layer**. For raw Luau code generation at scale, pair it with [ForgeLight](https://github.com/fog-studios/forgelight) — a Luau-specific code generator that this template can orchestrate.
-
-Workflow:
-
-1. FoG agents design the system (GDD, data schema, RemoteEvent contracts)
-2. Lead programmer delegates implementation to ForgeLight with the design contract
-3. FoG agents review ForgeLight output against the design and quality gates
-4. User approves and commits
 
 ---
 
