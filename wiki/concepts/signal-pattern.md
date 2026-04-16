@@ -8,7 +8,7 @@ status: stub
 created: 2026-04-16
 updated: 2026-04-16
 sources:
-  - wiki/raw/community/devforum/goodsignal-fastsignal-comparison.md
+  - wiki/raw/community/devforum/goodsignal-lua-signal-comparison.md
 related:
   - "[[trove-maid-cleanup]]"
   - "[[BindableEvent]]"
@@ -40,4 +40,4 @@ Custom event/signal libraries like GoodSignal (stravant) and FastSignal (LucasMZ
 
 ## Sources
 
-- [wiki/raw/community/devforum/goodsignal-fastsignal-comparison.md](../raw/community/devforum/goodsignal-fastsignal-comparison.md)
+- [wiki/raw/community/devforum/goodsignal-lua-signal-comparison.md](../raw/community/devforum/goodsignal-lua-signal-comparison.md)

@@ -9,7 +9,7 @@ created: 2026-04-16
 updated: 2026-04-16
 sources:
   - .claude/agents/luau-systems-programmer.md
-  - wiki/raw/community/devforum/janitor-trove-maid-comparison.md
+  - wiki/raw/community/devforum/using-janitor-memory-leaks.md
 related:
   - "[[signal-pattern]]"
   - "[[RemoteEvent]]"
@@ -180,4 +180,4 @@ janitor:Cleanup()
 
 - [Trove by Sleitnick (GitHub)](https://github.com/Sleitnick/RbxUtil/tree/main/modules/trove)
 - [.claude/agents/luau-systems-programmer.md](../../.claude/agents/luau-systems-programmer.md)
-- [wiki/raw/community/devforum/janitor-trove-maid-comparison.md](../raw/community/devforum/janitor-trove-maid-comparison.md)
+- [wiki/raw/community/devforum/using-janitor-memory-leaks.md](../raw/community/devforum/using-janitor-memory-leaks.md)
