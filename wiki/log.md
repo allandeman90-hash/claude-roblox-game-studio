@@ -217,6 +217,28 @@ Researched and created testing wiki pages from raw sources covering TestEZ, Jest
 - Roact/Fusion component testing patterns
 - E2E testing with Open Cloud Luau Execution API
 
+## [2026-04-16] ingest | Phase 1 security — anti-patterns and exploits from raw sources
+
+Fleshed out 12 anti-pattern stubs and 7 exploit stubs to `status: draft`, and created 3 new pages from security raw sources.
+
+### Anti-pattern stubs upgraded (stub -> draft): 12 pages
+- deprecated-spawn, deprecated-delay, magic-numbers, no-pcall, no-session-lock, no-rate-limit, client-to-server-remote-function, instance-in-remote, player-name-as-key, missing-schema-version, print-in-production, string-concat-in-loop
+
+### Exploit stubs upgraded (stub -> draft): 7 pages
+- teleport-hack, fly-hack, noclip, remote-spam, argument-spoofing, transaction-replay, session-hijack
+
+### New pages created: 3 pages
+- direct-cross-system-coupling (anti-pattern), localscript-injection (exploit), memory-editing (exploit)
+
+### Raw sources consumed: 22 files
+- 13 from wiki/raw/roblox-creator-docs/best-practices/security/
+- 6 from wiki/raw/community/devforum/ (anti-exploit, security, session-locking, pcalls, remotes)
+- 3 from wiki/raw/community/articles/security/
+
+### Index updated: 140 -> 143 pages, 19 stubs upgraded to draft, 3 new drafts
+
+---
+
 ## [2026-04-16] research | Phase 2 — Game Architecture Patterns
 
 Phase 2 research agent captured raw sources and created wiki pages for six game architecture pattern topics previously missing from both layers.

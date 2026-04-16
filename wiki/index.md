@@ -9,7 +9,7 @@ page_count: 140
 
 **Last updated:** 2026-04-16
 **Total pages:** 143
-**Status:** complete: 33, draft: 77, stub: 31
+**Status:** complete: 33, draft: 93, stub: 15
 
 ---
 
