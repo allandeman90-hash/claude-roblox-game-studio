@@ -9,7 +9,7 @@ source_repo: https://github.com/Roblox/creator-docs
 
 # Roblox Service Reference Index
 
-Raw capture of the official Roblox Creator Documentation class reference pages for Tier 1 services. Each row links to the rendered doc; underlying text was pulled from the official `Roblox/creator-docs` GitHub repository (authoritative YAML source) on 2026-04-16.
+Raw capture of the official Roblox Creator Documentation class reference pages. Each row links to the rendered doc; underlying text was pulled from the official `Roblox/creator-docs` GitHub repository (authoritative YAML source) on 2026-04-16.
 
 ## Tier 1 (captured)
 
@@ -58,6 +58,38 @@ Raw capture of the official Roblox Creator Documentation class reference pages f
 | [GuiService](GuiService.md) | gui | [GuiService docs](https://create.roblox.com/docs/reference/engine/classes/GuiService) | 2026-04-16 | Offers numerous properties and methods for working with `Class.GuiObject\|GuiObjects`, player preferences, and other UI‑related tasks. |
 | [ProximityPrompt](ProximityPrompt.md) | interaction | [ProximityPrompt docs](https://create.roblox.com/docs/reference/engine/classes/ProximityPrompt) | 2026-04-16 | An object that lets you prompt players to interact with an object in the 3D world. |
 | [ClickDetector](ClickDetector.md) | interaction | [ClickDetector docs](https://create.roblox.com/docs/reference/engine/classes/ClickDetector) | 2026-04-16 | An object that provides user input on in-experience `Class.BasePart\|BaseParts` and `Class.Model\|Models`. |
+
+## Tier 2 — Foundational Classes (captured)
+
+| Class | Category | Source URL | Captured | Summary |
+|-------|----------|------------|----------|---------|
+| [Instance](Instance.md) | core | [Instance docs](https://create.roblox.com/docs/reference/engine/classes/Instance) | 2026-04-16 | The base class for all classes in the Roblox class hierarchy which can be part of the DataModel tree. |
+| [BasePart](BasePart.md) | core | [BasePart docs](https://create.roblox.com/docs/reference/engine/classes/BasePart) | 2026-04-16 | The abstract base class for in-world objects that physically interact. |
+| [Part](Part.md) | world | [Part docs](https://create.roblox.com/docs/reference/engine/classes/Part) | 2026-04-16 | A common type of BasePart that comes in different primitive shapes. |
+| [MeshPart](MeshPart.md) | world | [MeshPart docs](https://create.roblox.com/docs/reference/engine/classes/MeshPart) | 2026-04-16 | A form of BasePart that includes a physically simulated custom mesh. |
+| [Model](Model.md) | world | [Model docs](https://create.roblox.com/docs/reference/engine/classes/Model) | 2026-04-16 | Container objects that group BaseParts together. |
+| [Camera](Camera.md) | rendering | [Camera docs](https://create.roblox.com/docs/reference/engine/classes/Camera) | 2026-04-16 | A class which defines a view of the 3D world. |
+| [Terrain](Terrain.md) | world | [Terrain docs](https://create.roblox.com/docs/reference/engine/classes/Terrain) | 2026-04-16 | A voxel-based terrain system for building large-scale environments. |
+| [Attachment](Attachment.md) | physics | [Attachment docs](https://create.roblox.com/docs/reference/engine/classes/Attachment) | 2026-04-16 | Defines a CFrame relative to a BasePart for use with constraints and other objects. |
+| [Motor6D](Motor6D.md) | physics | [Motor6D docs](https://create.roblox.com/docs/reference/engine/classes/Motor6D) | 2026-04-16 | A joint that animates between two parts, used for character rigs. |
+| [WeldConstraint](WeldConstraint.md) | physics | [WeldConstraint docs](https://create.roblox.com/docs/reference/engine/classes/WeldConstraint) | 2026-04-16 | Joins two BaseParts as a rigid body. |
+| [Debris](Debris.md) | utility | [Debris docs](https://create.roblox.com/docs/reference/engine/classes/Debris) | 2026-04-16 | Service for scheduling cleanup of instances after a delay. |
+| [Frame](Frame.md) | gui | [Frame docs](https://create.roblox.com/docs/reference/engine/classes/Frame) | 2026-04-16 | A GuiObject that renders as a plain rectangle, generally used as a container. |
+| [TextLabel](TextLabel.md) | gui | [TextLabel docs](https://create.roblox.com/docs/reference/engine/classes/TextLabel) | 2026-04-16 | A 2D user interface element that displays non-interactive text. |
+| [TextButton](TextButton.md) | gui | [TextButton docs](https://create.roblox.com/docs/reference/engine/classes/TextButton) | 2026-04-16 | A 2D user interface element that displays interactive text. |
+| [ImageLabel](ImageLabel.md) | gui | [ImageLabel docs](https://create.roblox.com/docs/reference/engine/classes/ImageLabel) | 2026-04-16 | A 2D user interface element that displays a non-interactive image. |
+| [ImageButton](ImageButton.md) | gui | [ImageButton docs](https://create.roblox.com/docs/reference/engine/classes/ImageButton) | 2026-04-16 | A 2D user interface element that displays an interactive image. |
+| [ScrollingFrame](ScrollingFrame.md) | gui | [ScrollingFrame docs](https://create.roblox.com/docs/reference/engine/classes/ScrollingFrame) | 2026-04-16 | A Frame with scrollable content area. |
+| [UIListLayout](UIListLayout.md) | gui-layout | [UIListLayout docs](https://create.roblox.com/docs/reference/engine/classes/UIListLayout) | 2026-04-16 | Lays out sibling GuiObjects in a list. |
+| [UIGridLayout](UIGridLayout.md) | gui-layout | [UIGridLayout docs](https://create.roblox.com/docs/reference/engine/classes/UIGridLayout) | 2026-04-16 | Lays out sibling GuiObjects in a grid. |
+| [UIAspectRatioConstraint](UIAspectRatioConstraint.md) | gui-layout | [UIAspectRatioConstraint docs](https://create.roblox.com/docs/reference/engine/classes/UIAspectRatioConstraint) | 2026-04-16 | Constrains the aspect ratio of a GuiObject. |
+| [UIScale](UIScale.md) | gui-layout | [UIScale docs](https://create.roblox.com/docs/reference/engine/classes/UIScale) | 2026-04-16 | Scales a GuiObject and its descendants. |
+| [UICorner](UICorner.md) | gui-layout | [UICorner docs](https://create.roblox.com/docs/reference/engine/classes/UICorner) | 2026-04-16 | Applies rounded corners to a GuiObject. |
+| [UIStroke](UIStroke.md) | gui-layout | [UIStroke docs](https://create.roblox.com/docs/reference/engine/classes/UIStroke) | 2026-04-16 | Applies an outline to a GuiObject or text. |
+| [UIPadding](UIPadding.md) | gui-layout | [UIPadding docs](https://create.roblox.com/docs/reference/engine/classes/UIPadding) | 2026-04-16 | Applies padding to a GuiObject. |
+| [Animator](Animator.md) | animation | [Animator docs](https://create.roblox.com/docs/reference/engine/classes/Animator) | 2026-04-16 | The main class responsible for the playback and replication of animations. |
+| [AnimationTrack](AnimationTrack.md) | animation | [AnimationTrack docs](https://create.roblox.com/docs/reference/engine/classes/AnimationTrack) | 2026-04-16 | Controls the playback of an animation on an Animator. |
+| [Animation](Animation.md) | animation | [Animation docs](https://create.roblox.com/docs/reference/engine/classes/Animation) | 2026-04-16 | References an animation asset for use with an Animator. |
 
 ## Capture methodology
 

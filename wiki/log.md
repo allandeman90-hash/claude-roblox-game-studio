@@ -81,3 +81,97 @@ All 108 pages have required frontmatter (title, type, category, owner, status, c
 - New agent: `wiki-curator` (Tier 2, sonnet, coordinates wiki operations)
 - New hook: `validate-wiki.sh` (frontmatter and wikilink checks)
 - New tools: `tools/wiki-bootstrap.sh`, `tools/wiki-search.sh`, `tools/wiki-stats.sh`
+
+## [2026-04-16] ingest | Phase 1 Luau pages from raw sources
+
+Fleshed out 9 Luau stub pages to `status: draft` and created 3 new stub pages for major Luau topics discovered in raw sources.
+
+### Updated pages (stub -> draft)
+- [[strict-vs-nonstrict]] — Three type-checking modes, .luaurc config, cross-module interaction, migration patterns, new nonstrict RFC
+- [[export-type]] — Export/import syntax, re-exporting, generic exports, OOP patterns, module-scoped semantics
+- [[generic-types]] — Type aliases, generic functions, type packs, Rank-N polymorphism, no turbofish, tagged unions
+- [[pcall-xpcall]] — Full signatures, yield-through-pcall, error objects, xpcall with debug.traceback, retry patterns
+- [[coroutines]] — Full API (create/resume/yield/wrap/close/isyieldable), lifecycle states, producer pattern, deviation from Lua 5.1
+- [[table-library]] — All functions including Luau extensions (create/find/clear/clone/freeze/isfrozen), deep clone/freeze patterns, deprecated functions
+- [[string-library]] — All functions, pattern language reference, gsub replacement types, string.split, string.format specifiers, string.pack/unpack, interpolation syntax
+- [[math-library]] — All functions and constants, Luau extensions (clamp/sign/round/noise/lerp/map/isfinite), Perlin noise usage, lerp precision guarantees
+- [[buffer-type]] — Full API (integer/float/string/bit read-write), zero-based offsets, network serialization examples, platform support table, compression notes
+
+### New stub pages created
+- [[metatables]] — Metamethods, __index, __newindex, __call, OOP patterns, weak tables
+- [[string-interpolation]] — Backtick syntax, escaping, comparison with string.format
+- [[module-scripts]] — ModuleScript, require caching, circular dependencies, server/client environments
+
+### Raw sources consumed
+- `wiki/raw/roblox-creator-docs/luau/type-checking.md`
+- `wiki/raw/roblox-creator-docs/luau/coroutine-library.md`
+- `wiki/raw/roblox-creator-docs/luau/table-library.md`
+- `wiki/raw/roblox-creator-docs/luau/tables.md`
+- `wiki/raw/roblox-creator-docs/luau/string-library.md`
+- `wiki/raw/roblox-creator-docs/luau/strings.md`
+- `wiki/raw/roblox-creator-docs/luau/math-library.md`
+- `wiki/raw/roblox-creator-docs/luau/buffer-library.md`
+- `wiki/raw/roblox-creator-docs/luau/functions.md`
+- `wiki/raw/roblox-creator-docs/luau/metatables.md`
+- `wiki/raw/roblox-creator-docs/luau/module-scripts.md`
+- `wiki/raw/luau-spec/types/types-intro.md`
+- `wiki/raw/luau-spec/types/generics.md`
+- `wiki/raw/luau-spec/types/unions-and-intersections.md`
+- `wiki/raw/luau-spec/types/type-refinements.md`
+- `wiki/raw/luau-spec/library/standard-library.md`
+- `wiki/raw/luau-spec/rfcs/new-nonstrict.md`
+- `wiki/raw/luau-spec/rfcs/config-luaurc.md`
+- `wiki/raw/luau-spec/rfcs/generic-functions.md`
+- `wiki/raw/luau-spec/rfcs/syntax-string-interpolation.md`
+- `wiki/raw/luau-spec/rfcs/type-byte-buffer.md`
+- `wiki/raw/luau-spec/rfcs/function-buffer-bits.md`
+- `wiki/raw/luau-spec/rfcs/function-table-clone.md`
+- `wiki/raw/luau-spec/rfcs/function-table-freeze.md`
+- `wiki/raw/luau-spec/rfcs/function-math-lerp.md`
+- `wiki/raw/luau-spec/rfcs/function-math-map.md`
+- `wiki/raw/community/performance/network/luau-buffer-type.md`
+
+### Index updated
+- Luau section: 11 -> 14 pages (2 complete, 9 draft, 3 stub)
+- Total pages: 122 -> 125
+- Status breakdown: complete 33, draft 43, stub 47
+
+## [2026-04-15] ingest | Phase 1 studio tooling pages from raw sources
+
+Fleshed out 6 stub studio pages to `status: draft` and created 3 new studio pages from raw source material in `wiki/raw/community/articles/tooling/` and `wiki/raw/community/monetization/`.
+
+### Updated pages (stub -> draft)
+- [[rojo-mapping]] — Full project.json reference, file extension mapping, live sync workflow, build commands, typical project layout, Argon comparison, pitfalls
+- [[wally-packages]] — wally.toml manifest format, core commands, realm system, lockfile, Rojo integration, publishing, private registries
+- [[collection-service-tags]] — Full API surface, Binder pattern with cleanup, comparison with alternatives, replication caveats, practical uses
+- [[attributes]] — API reference, supported types, designer-editable workflow, attributes vs tags vs value objects, limits
+- [[open-cloud-api]] — All 5 APIs (Place Publishing, DataStore v1, MessagingService, Assets, Luau Execution), authentication (API key + OAuth2), rate limits, rbxcloud CLI, field constraints
+- [[play-solo-team-test]] — All testing modes, client/server perspective toggle, device emulator, VR emulator, player emulator, real-device testing flows, universe/place structure, publishing workflow
+
+### New pages created
+- [[selene-linting]] — Selene linter: configuration, usage, what it catches, CI integration, comparison with Luacheck
+- [[stylua-formatting]] — StyLua formatter: Roblox convention config, check mode, ignore directives, pre-commit hooks
+- [[github-actions-cicd]] — Full CI/CD pipeline: lint/format gates, Rojo build, staging/production deploy, Luau Execution testing, branch strategy
+
+### Raw sources consumed
+- `wiki/raw/community/articles/tooling/rojo-readme.md`
+- `wiki/raw/community/articles/tooling/wally-readme.md`
+- `wiki/raw/community/articles/tooling/selene-readme.md`
+- `wiki/raw/community/articles/tooling/stylua-readme.md`
+- `wiki/raw/community/articles/tooling/github-actions-roblox-cicd.md`
+- `wiki/raw/community/monetization/open-cloud/assets-api-upload.md`
+- `wiki/raw/community/monetization/open-cloud/datastore-api-v1-reference.md`
+- `wiki/raw/community/monetization/open-cloud/messaging-service-api.md`
+- `wiki/raw/community/monetization/open-cloud/oauth2-authentication.md`
+- `wiki/raw/community/monetization/open-cloud/place-publishing-cicd-github-actions.md`
+- `wiki/raw/community/monetization/publishing/bindtoclose-deployment.md`
+- `wiki/raw/community/monetization/publishing/device-testing-emulator.md`
+- `wiki/raw/community/monetization/publishing/universe-place-structure.md`
+- `wiki/raw/community/reddit/collectionservice-tags-pattern.md`
+- `wiki/raw/community/reddit/rojo-vscode-workflow.md`
+- `wiki/raw/roblox-creator-docs/services/CollectionService.md`
+
+### Index updated
+- Studio section: 6 -> 9 pages, all at `draft` status
+- Total pages: 119 -> 122
+- Status breakdown: complete 33, draft 34, stub 53

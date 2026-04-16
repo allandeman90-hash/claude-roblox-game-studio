@@ -2,14 +2,14 @@
 title: Wiki Index
 type: wiki-index
 updated: 2026-04-16
-page_count: 119
+page_count: 128
 ---
 
 # Wiki Index
 
 **Last updated:** 2026-04-16
-**Total pages:** 119
-**Status:** complete: 33, draft: 25, stub: 59
+**Total pages:** 125
+**Status:** complete: 33, draft: 43, stub: 47
 
 ---
 
@@ -67,19 +67,22 @@ page_count: 119
 - [[ftue-design]] — First-time user experience. `game-designer` `stub`
 - [[core-loop]] — 30s/5min/session/meta loops. `game-designer` `stub`
 
-## Luau (11)
+## Luau (14)
 
 - [[type-annotations]] — Gradual type system. `luau-systems-programmer` `complete`
 - [[task-library]] — Modern concurrency primitives. `luau-systems-programmer` `complete`
-- [[strict-vs-nonstrict]] — Type checking modes. `luau-systems-programmer` `stub`
-- [[export-type]] — Sharing types across modules. `luau-systems-programmer` `stub`
-- [[generic-types]] — Type parameters. `luau-systems-programmer` `stub`
-- [[pcall-xpcall]] — Error handling. `luau-systems-programmer` `stub`
-- [[coroutines]] — Raw cooperative threads. `luau-systems-programmer` `stub`
-- [[table-library]] — Luau-specific table extensions. `luau-systems-programmer` `stub`
-- [[string-library]] — String manipulation. `luau-systems-programmer` `stub`
-- [[math-library]] — Math with Luau extensions. `luau-systems-programmer` `stub`
-- [[buffer-type]] — Binary byte buffers. `luau-systems-programmer` `stub`
+- [[strict-vs-nonstrict]] — Type checking modes and .luaurc config. `luau-systems-programmer` `draft`
+- [[export-type]] — Sharing types across modules. `luau-systems-programmer` `draft`
+- [[generic-types]] — Type parameters and polymorphism. `luau-systems-programmer` `draft`
+- [[pcall-xpcall]] — Error handling and retry patterns. `luau-systems-programmer` `draft`
+- [[coroutines]] — Cooperative threads, yield/resume. `luau-systems-programmer` `draft`
+- [[table-library]] — Array/table manipulation with Luau extensions. `luau-systems-programmer` `draft`
+- [[string-library]] — String manipulation and pattern matching. `luau-systems-programmer` `draft`
+- [[math-library]] — Math functions with Luau extensions (clamp, lerp, noise). `luau-systems-programmer` `draft`
+- [[buffer-type]] — Binary byte buffers for serialization. `luau-systems-programmer` `draft`
+- [[metatables]] — Metamethods and OOP patterns. `luau-systems-programmer` `stub`
+- [[string-interpolation]] — Backtick interpolation syntax. `luau-systems-programmer` `stub`
+- [[module-scripts]] — ModuleScript, require, caching. `luau-systems-programmer` `stub`
 
 ## Anti-Patterns (15)
 
@@ -137,14 +140,17 @@ page_count: 119
 - [[developer-exchange]] — DevEx conversion. `monetization-lead` `stub`
 - [[ethical-monetization]] — Child-safe design. `monetization-lead` `stub`
 
-## Studio (6)
+## Studio (9)
 
-- [[rojo-mapping]] — File-to-instance sync. `devops-engineer` `stub`
-- [[wally-packages]] — Package manager. `devops-engineer` `stub`
-- [[collection-service-tags]] — Binder pattern. `roblox-studio-specialist` `stub`
-- [[attributes]] — Typed key-value on instances. `roblox-studio-specialist` `stub`
-- [[open-cloud-api]] — External REST APIs. `devops-engineer` `stub`
-- [[play-solo-team-test]] — Studio testing modes. `roblox-studio-specialist` `stub`
+- [[rojo-mapping]] — File-to-instance sync via Rojo project files. `devops-engineer` `draft`
+- [[wally-packages]] — Roblox package manager with wally.toml manifests. `devops-engineer` `draft`
+- [[collection-service-tags]] — Binder pattern for tag-based behavior. `roblox-studio-specialist` `draft`
+- [[attributes]] — Typed key-value pairs on Instances. `roblox-studio-specialist` `draft`
+- [[open-cloud-api]] — External REST APIs for publishing, DataStores, messaging, assets. `devops-engineer` `draft`
+- [[play-solo-team-test]] — Studio testing modes and device emulators. `roblox-studio-specialist` `draft`
+- [[selene-linting]] — Luau linter for bug detection. `devops-engineer` `draft`
+- [[stylua-formatting]] — Deterministic Luau code formatter. `devops-engineer` `draft`
+- [[github-actions-cicd]] — CI/CD pipeline with Rojo + Open Cloud. `devops-engineer` `draft`
 
 ## Patterns (6)
 
