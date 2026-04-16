@@ -1,15 +1,15 @@
 ---
 title: Wiki Index
 type: wiki-index
-updated: 2026-04-16
-page_count: 140
+updated: 2026-04-15
+page_count: 167
 ---
 
 # Wiki Index
 
-**Last updated:** 2026-04-16
-**Total pages:** 144
-**Status:** complete: 33, draft: 93, stub: 15
+**Last updated:** 2026-04-15
+**Total pages:** 167
+**Status:** complete: 56, draft: 93, stub: 15
 
 ---
 
@@ -156,8 +156,12 @@ page_count: 140
 - [[stylua-formatting]] — Deterministic Luau code formatter. `devops-engineer` `draft`
 - [[github-actions-cicd]] — CI/CD pipeline with Rojo + Open Cloud. `devops-engineer` `draft`
 
-## Patterns (21)
+## Patterns (44)
 
+- [[achievement-system]] — BadgeService + custom progress tracking for achievements. `luau-gameplay-programmer` `complete`
+- [[notification-system]] — Queue-based notification manager with tween animations. `ui-programmer` `complete`
+- [[building-placement-system]] — Grid-based placement with ghost preview and server validation. `luau-gameplay-programmer` `complete`
+- [[farming-system]] — Resource nodes, tool-based collection, crop growth state machine. `game-designer` `complete`
 - [[ui-framework-comparison]] — Roact vs React-lua vs Fusion vs Native UI. `ui-programmer` `draft`
 - [[responsive-design]] — Mobile-first adaptive layouts, UDim2, accessibility. `ui-programmer` `draft`
 - [[accessibility-patterns]] — Reduced motion, transparency, color contrast, touch targets. `accessibility-specialist` `draft`
@@ -179,10 +183,29 @@ page_count: 140
 - [[testing-with-testez]] — BDD unit testing with TestEZ and Jest-Lua. `qa-tester` `draft`
 - [[mocking-strategies]] — Mocking DataStoreService, HttpService, RemoteEvents. `qa-tester` `draft`
 - [[integration-testing]] — Client-server integration and load testing. `qa-tester` `draft`
+- [[npc-ai-system]] — Server-side NPC brain: FSM with aggro, target selection, leash, deaggro. `luau-gameplay-programmer` `complete`
+- [[pathfinding-system]] — PathfindingService, agent parameters, waypoint following, SimplePath. `luau-gameplay-programmer` `complete`
+- [[boss-patterns]] — Phase-based boss design: telegraph-windup-attack-recovery, enrage, adds. `luau-gameplay-programmer` `complete`
+- [[behavior-trees]] — Selector/Sequence/Decorator for complex AI, comparison with FSM. `luau-gameplay-programmer` `complete`
+- [[rpg-progression]] — XP curves, level-up stat scaling, prestige/rebirth loops. `luau-gameplay-programmer` `complete`
+- [[equipment-system]] — Slot-based gear, rarity tiers, upgrades, set bonuses. `luau-gameplay-programmer` `complete`
+- [[skill-tree]] — Node graph with prerequisites, passives, actives, respec. `luau-gameplay-programmer` `complete`
+- [[crafting-system]] — Config-driven recipes, material checks, crafting stations. `luau-gameplay-programmer` `complete`
+- [[shop-system]] — In-game currency shop, purchase validation, rotating items. `luau-gameplay-programmer` `complete`
+- [[combat-system]] — Server-authoritative combat flow, hit detection (raycast/region), melee combos, parry/block. `luau-gameplay-programmer` `complete`
+- [[ability-system]] — Cooldown manager, buff/debuff stacking, status effects, ability slots. `luau-gameplay-programmer` `complete`
+- [[damage-formulas]] — Config-driven damage pipeline: defense reduction, crit, type effectiveness, level scaling. `luau-gameplay-programmer` `complete`
+- [[loot-tables]] — Weighted random selection, pity counters, rarity tiers, guaranteed drops. `luau-gameplay-programmer` `complete`
+- [[projectile-system]] — Hitscan and physics-based projectiles, FastCast pattern, object pooling, server reconciliation. `luau-gameplay-programmer` `complete`
+- [[simulator-mechanics]] — Click/collect/rebirth simulator formula, multiplier stacking, prestige layers, AFK handling. `game-designer` `complete`
+- [[tycoon-mechanics]] — Dropper-conveyor-collector pipeline, button purchases, upgrade tiers, plot ownership. `game-designer` `complete`
+- [[obby-mechanics]] — Checkpoint system, kill bricks, moving platforms, speedrun timer, stage progression. `game-designer` `complete`
+- [[tower-defense-mechanics]] — Tower placement, targeting AI, wave spawning, upgrade trees, enemy pathing. `game-designer` `complete`
+- [[pet-system]] — Egg hatching (weighted random), pet inventory, follow AI, leveling, fusion, trading. `game-designer` `complete`
 
 ---
 
-## Raw Sources (424 files)
+## Raw Sources (447 files)
 
 See `wiki/raw/README.md` for full inventory.
 

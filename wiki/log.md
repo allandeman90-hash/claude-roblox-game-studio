@@ -10,6 +10,227 @@ Parse with: `grep "^## \[" wiki/log.md | tail -N`
 
 ---
 
+## [2026-04-15] research | Game Mechanics — Simulator, Tycoon, Obby, Tower Defense, Pet System (Genre Mechanics)
+
+Genre-mechanics research agent captured raw sources from DevForum, community wikis, and tutorials, then created 5 complete wiki pattern pages for the major Roblox game genres.
+
+### Raw Sources Captured (12 files in wiki/raw/community/articles/game-mechanics/)
+
+**Simulator/Clicker (4 files):**
+- `simulator-clicker-core-loop.md` — Backpack system, clicker tool, pets, rebirth reset mechanic
+- `simulator-rebirth-math.md` — Rebirth cost formula (exponential scaling), implementation code
+- `multiplier-prestige-systems.md` — Multiplier stacking, prestige layer progression (Rebirth -> Ascension -> Darkness)
+- `idle-game-mechanics.md` — GUI-based idle design, AFK handling, offline progress, Cookie Clicker vs Antimatter Dimensions
+
+**Tycoon (2 files):**
+- `tycoon-dropper-best-practices.md` — Client-side rendering, single-loop optimization, server-side currency calculation
+- `tycoon-button-system.md` — Button structure, purchase logic, dependency chains, progression unlocking
+
+**Obby (1 file):**
+- `obby-checkpoint-system.md` — Checkpoint setup, DataStore saving, kill brick scripts, CollectionService approach
+
+**Tower Defense (2 files):**
+- `tower-defense-guide.md` — Path/waypoint system, enemy movement, EnemyHandler module, performance notes
+- `tower-defense-targeting.md` — Waypoint-based grouping, first-in-path targeting, path-distance optimization
+
+**Pet System (3 files):**
+- `pet-hatching-framework.md` — Weighted random selection algorithm, rarity colors, egg configuration, hatching animation
+- `pet-system-2025.md` — Full architecture (ReplicatedStorage/Server/Client modules), inventory, equipped system, follow system
+- `pet-follow-system.md` — CFrame lerp vs MoveTo, client-side rendering consensus, multi-pet positioning
+
+### Wiki Pages Created (5 complete pattern pages)
+
+- [[simulator-mechanics]] — Click/collect/rebirth formula, multiplier stacking, prestige layers, AFK handling, economy integration
+- [[tycoon-mechanics]] — Dropper-conveyor-collector pipeline, button purchases, upgrade tiers, plot ownership, template architecture
+- [[obby-mechanics]] — Checkpoint system (DataStore-backed), kill bricks (CollectionService), moving platforms, speedrun timers
+- [[tower-defense-mechanics]] — Tower placement, targeting AI (First/Last/Strongest/Closest), wave spawning, upgrade trees, enemy pathing
+- [[pet-system]] — Egg hatching (weighted random), pet inventory, follow AI (client-side), leveling, fusion, trading, rarity display
+
+### Web Sources Researched
+
+- DevForum: 10 targeted searches, 15+ threads fetched and extracted
+- Community wikis: Power Simulator, Run to Speed Simulator, Grow a Garden (prestige/multiplier data)
+- Tutorials: GameDev Academy tycoon guide, Obby Wiki development guide
+
+---
+
+## [2026-04-15] research | Game Mechanics — Combat Systems, Ability Systems, Damage Formulas, Loot Tables, Projectiles
+
+Phase 6 research agent captured raw sources and created wiki pages for five combat/gameplay mechanics topics.
+
+### Raw Sources Captured (8 files in wiki/raw/community/articles/game-mechanics/)
+
+**Combat & Hit Detection (4 files):**
+- `server-authority-combat.md` — Server Authority tutorial: rollback netcode, BindToSimulation, InputActionSystem, required workspace settings
+- `raycast-hitbox-melee.md` — Raycast Hitbox 4.01: attachment-based raycasting for melee, ShapecastHitbox successor
+- `combat-melee-parry.md` — Melee combat patterns: state machine, parry/block, combo chains, i-frames, anti-exploit
+- `spatial-queries-overlap.md` — GetPartBoundsInBox/InRadius/GetPartsInPart, OverlapParams, Region3 deprecation
+
+**Projectiles (1 file):**
+- `fastcast-projectiles.md` — FastCast/FastCast2/SecureCast: segmented raycast, parallel Luau, bullet drop, 3-stage hit detection
+
+**Ability Systems (1 file):**
+- `ability-cooldown-buff-systems.md` — Cooldowns module, ModifierManager, Effectify status effects
+
+**Damage Formulas (1 file):**
+- `damage-formulas.md` — ATK/(ATK+DEF) defense formula, damage falloff, community consensus
+
+**Loot Tables (1 file):**
+- `loot-tables-rarity.md` — Weighted random selection, rarity tiers, LootPlan/LootR libraries
+
+### Wiki Pages Created (5 pages, all status: complete)
+
+- `wiki/patterns/combat-system.md` — Full server-authoritative combat flow, hit detection comparison table, melee combo system, parry/block/i-frames, client input handler
+- `wiki/patterns/ability-system.md` — CooldownManager, ModifierStack, StatusEffectController, AbilityService orchestrator, 5 variants
+- `wiki/patterns/damage-formulas.md` — Explicit formula pipeline, ATK/(ATK+DEF) deep dive, type effectiveness 5x5 matrix, three level scaling curves, distance falloff
+- `wiki/patterns/loot-tables.md` — LootRoller with weighted selection, pity counters, luck multiplier, 6 rarity tiers with expected drop rates
+- `wiki/patterns/projectile-system.md` — HitscanWeapon, ProjectileSimulator (FastCast pattern), ProjectilePool, server reconciliation, hitscan vs physics comparison
+
+### WebFetch calls used: 17
+
+### Index updated
+- Patterns section: 34 -> 39 pages (5 new complete)
+- Total pages: 157 -> 162
+- Status breakdown: complete 51, draft 93, stub 15
+
+---
+
+## [2026-04-15] research | Game Mechanics — RPG Progression, Equipment, Skill Trees, Crafting, Shops
+
+Phase 5 research agent captured raw sources and created wiki pages for five RPG game mechanics topics.
+
+### Raw Sources Captured (11 files in wiki/raw/community/articles/game-mechanics/)
+
+**XP/Leveling (2 files):**
+- `level-systems-part1.md` — Linear XP formula, recursive AddExp, progress bar math
+- `level-up-system-math.md` — Quadratic formula, inverse XP calculation, constant-time multi-level-up
+
+**Skill Trees (1 file):**
+- `creating-basic-skill-tree.md` — Prerequisite chains, GUI structure, community critique on missing server validation
+
+**Crafting (1 file):**
+- `crafting-system-minecraft-style.md` — Grid-based recipes, tag matching, CheckRecipes verification code
+
+**Prestige/Rebirth (1 file):**
+- `prestige-rebirth-system.md` — Prestige/rebirth terminology, XP scaling per prestige tier, community design debate
+
+**Shop/Currency (2 files):**
+- `fullshop-currency-shop.md` — ObjectModule catalog pattern, viewport previews, inventory persistence
+- `shop-gui-currency-purchases.md` — Leaderstats currency, RemoteEvent purchase flow, server-side validation
+
+**Equipment/Rarity (1 file):**
+- `weighted-rarity-system.md` — Cumulative weight rolling, rarity tier definitions
+
+**DataStore/Inventory (1 file):**
+- `datastore-inventory-saving.md` — GUID-based item storage, AddItem pattern, save-on-leave
+
+**Stats/Classes (2 files):**
+- `stat-system-design.md` — Module-based stat storage, single DataStore table pattern
+- `class-loadout-system.md` — Class config modules, tool assignment, spawning architecture
+
+### Wiki Pages Created (5 complete)
+
+- [[rpg-progression]] — XP curve formulas (linear, quadratic, exponential), level-up stat scaling, prestige/rebirth with permanent multipliers, soft/hard caps, session-friendly milestones
+- [[equipment-system]] — Gear slots, rarity tiers (Common-Mythic) with stat multipliers, set bonuses, upgrade paths (+1 to +10 with success rates), equipment comparison UI, server-authoritative equip validation
+- [[skill-tree]] — Node graph data structure, prerequisite chains, point allocation with respec, passive vs active skills, server-side unlock validation, UI patterns
+- [[crafting-system]] — Recipe registry (config-driven), material requirements check, crafting stations (ProximityPrompt), success/failure rates, discovery vs known recipes
+- [[shop-system]] — In-game currency shop, item catalog from config, purchase validation server-side, dynamic pricing, featured/rotating items, comparison with GamePass shop
+
+## [2026-04-15] research | Game Mechanics — NPC AI, Pathfinding, Boss Patterns, Behavior Trees
+
+Phase 5 research agent captured raw sources and created wiki pages for four AI/combat game mechanics topics.
+
+### Raw Sources Captured (12 files)
+
+- `wiki/raw/community/articles/game-mechanics/ai-pathfinding-tutorial.md`
+- `wiki/raw/community/articles/game-mechanics/pathfinding-service-2.md`
+- `wiki/raw/community/articles/game-mechanics/simplepath-module.md`
+- `wiki/raw/community/articles/game-mechanics/combat-npc-tutorial.md`
+- `wiki/raw/community/articles/game-mechanics/efficient-aggro-approaches.md`
+- `wiki/raw/community/articles/game-mechanics/boss-battle-design.md`
+- `wiki/raw/community/articles/game-mechanics/boss-battle-basic.md`
+- `wiki/raw/community/articles/game-mechanics/boss-attack-system.md`
+- `wiki/raw/community/articles/game-mechanics/behaviour-tree-lua.md`
+- `wiki/raw/community/articles/game-mechanics/simple-pathfinding-ai.md`
+- `wiki/raw/community/articles/game-mechanics/pathfinding-oop-module.md`
+- `wiki/raw/community/articles/game-mechanics/enemy-ai-system-simplepath.md`
+
+### Wiki Pages Created (4 complete)
+
+- `wiki/patterns/npc-ai-system.md` — FSM-based NPC brain with aggro, target selection, leash, deaggro
+- `wiki/patterns/pathfinding-system.md` — PathfindingService, agent params, waypoints, SimplePath library
+- `wiki/patterns/boss-patterns.md` — Phase-based boss: telegraph-windup-attack-recovery, enrage, adds, safe zones
+- `wiki/patterns/behavior-trees.md` — Selector/Sequence/Decorator for complex AI, Luau implementation, FSM comparison
+
+### External Sources Referenced
+
+- DevForum: How You Can Use AI Pathfinding (570721)
+- DevForum: PathfindingService 2.0 Tutorial (1857779)
+- DevForum: SimplePath Module (1196762)
+- DevForum: General Combat NPC Tutorial (1862031)
+- DevForum: Efficient Aggro Approaches (501394)
+- DevForum: Making Boss Battles Correctly (861910)
+- DevForum: Boss Battle Basic (1546546)
+- DevForum: Boss Attack System (1940539)
+- DevForum: Behaviour Trees In-Depth Tutorial (3326581)
+- DevForum: Behavior Trees for NPC (2806049)
+- DevForum: Enemy AI System (1839720)
+- DevForum: PathfindingService OOP (3671750)
+- GitHub: tanema/behaviourtree.lua
+- GitHub: seyaidev/behaviortree.rbxlua
+- SimplePath Docs: grayzcale.github.io/simplepath
+
+---
+
+## [2026-04-15] research | Game Mechanics — Achievements, Notifications, Placement, Farming
+
+Phase 4 research agent captured raw sources and created wiki pages for four game mechanics topics.
+
+### Raw Sources Captured (12 files in wiki/raw/community/articles/game-mechanics/)
+
+**Achievement System (4 files):**
+- `achievementservice-open-source.md` — AchievementService open-source module v1.03: Award API, retry logic, animations
+- `custom-badge-system-tutorial.md` — Custom badge system: disable default GUI, RemoteEvent bridge, MarketplaceService metadata
+- `badge-module-pattern.md` — Badge module with session caching: pcall-wrapped Fetch, dedup Award, Badges dictionary
+- `badgeservice-api-reference.md` — GameDev Academy complete guide: AwardBadge, UserHasBadgeAsync, five use case patterns
+
+**Notification System (2 files):**
+- `reactive-notification-system.md` — Fusion 0.3 reactive module: spring animations, progress bar, hover-pause, 6 position presets, signal returns
+- `notification-system-basic-tutorial.md` — Basic tutorial: ScreenGui setup, RemoteEvent listener, auto-dismiss, clone-based stacking
+
+**Building/Placement System (4 files):**
+- `3d-placement-system-tutorial.md` — 3D placement: keybinds, 0.5-unit grid snap, raycasting, model primary part requirement
+- `grid-placement-snapping.md` — Grid math: snap function, mouse hit offset, GetPartBoundsInBox collision, EgoMoose reference
+- `interior-building-system-guide.md` — Interior system: FLOOR/WALL/CEILING categories, raycast surface normals, server OnServerInvoke, CFrame serialization
+- `plot-based-placement-system.md` — Plot system: boundary detection, surface snapping, all-axis rotation, primary part hitbox
+
+**Farming System (2 files):**
+- `farming-system-islands-pattern.md` — Islands-style state machine: seed/water/harvest lifecycle, GrowthTimeLeft, drought timer, OOP recommendation
+- `plant-growth-system.md` — Growth function: repeat-until loop, tick()-based check, chunk system for server performance
+
+### Wiki Pages Created (4 pages, all status: complete)
+- `wiki/patterns/achievement-system.md` — BadgeService core (AwardBadge, UserHasBadgeAsync), custom progress tracking with DataStore, trigger patterns, retroactive awarding
+- `wiki/patterns/notification-system.md` — Queue-based manager: priority types, tween in/out, auto-dismiss, MAX_VISIBLE cap, mobile-safe positioning, clone-based stacking
+- `wiki/patterns/building-placement-system.md` — Grid snapping, ghost preview, Mouse raycast, rotation snapping, collision via GetPartBoundsInBox, plot boundary check, server validation, CFrame serialization
+- `wiki/patterns/farming-system.md` — Resource node config, hitPoints depletion, tool validation, respawn timers, crop growth state machine, chunk-based tick loop, AFK prevention
+
+### Sources Used
+- 8 DevForum threads/tutorials
+- 1 Official Roblox Creator Docs (BadgeService API)
+- 1 GameDev Academy tutorial
+- 1 Community module resource
+- ~18 WebFetch calls consumed
+
+### Index updated
+- Patterns section: 21 -> 25 pages (4 new complete)
+- Total pages: 144 -> 148
+- Status breakdown: complete 37, draft 93, stub 15
+
+### Cross-references established
+All 4 new pages cross-link to each other and to existing wiki pages (DataStoreService, inventory-pattern, daily-rewards, quest-system, lobby-system, responsive-design). Each page has 4+ related links.
+
+---
+
 ## [2026-04-15] research | Phase 3 — UI Frameworks, Physics Constraints, Camera Modes
 
 Phase 3 research agent captured raw sources and created wiki pages for three zero-coverage topic groups.
