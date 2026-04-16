@@ -4,7 +4,7 @@ type: monetization
 category: monetization
 subcategory: devproduct
 owner: monetization-lead
-status: draft
+status: complete
 created: 2026-04-16
 updated: 2026-04-16
 sources:

@@ -4,7 +4,7 @@ type: concept
 category: concepts
 subcategory: live-ops
 owner: live-ops-specialist
-status: draft
+status: complete
 created: 2026-04-16
 updated: 2026-04-16
 sources:

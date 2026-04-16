@@ -4,7 +4,7 @@ type: anti-pattern
 category: anti-patterns
 subcategory: error-handling
 owner: lead-programmer
-status: draft
+status: complete
 created: 2026-04-16
 updated: 2026-04-16
 severity: high

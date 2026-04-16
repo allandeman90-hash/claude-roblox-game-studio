@@ -4,7 +4,7 @@ type: pattern
 category: patterns
 subcategory: live-ops
 owner: live-ops-specialist
-status: draft
+status: complete
 created: 2026-04-16
 updated: 2026-04-16
 sources:

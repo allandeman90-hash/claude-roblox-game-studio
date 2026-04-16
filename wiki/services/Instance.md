@@ -4,7 +4,7 @@ type: service
 category: services
 subcategory: core
 owner: luau-systems-programmer
-status: draft
+status: complete
 created: 2026-04-16
 updated: 2026-04-16
 sources: [wiki/raw/roblox-creator-docs/services/Instance.md]

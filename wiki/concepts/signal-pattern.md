@@ -4,7 +4,7 @@ type: concept
 category: concepts
 subcategory: event-handling
 owner: luau-systems-programmer
-status: draft
+status: complete
 created: 2026-04-16
 updated: 2026-04-16
 sources:

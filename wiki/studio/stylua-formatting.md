@@ -4,7 +4,7 @@ type: studio
 category: studio
 subcategory: tooling
 owner: devops-engineer
-status: draft
+status: complete
 created: 2026-04-15
 updated: 2026-04-15
 sources:

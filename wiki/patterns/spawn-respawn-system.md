@@ -4,7 +4,7 @@ type: pattern
 category: patterns
 subcategory: gameplay-loop
 owner: game-designer
-status: draft
+status: complete
 created: 2026-04-16
 updated: 2026-04-16
 sources:

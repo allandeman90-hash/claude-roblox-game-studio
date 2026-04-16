@@ -4,7 +4,7 @@ type: anti-pattern
 category: anti-patterns
 subcategory: security
 owner: remotes-networking-specialist
-status: draft
+status: complete
 created: 2026-04-16
 updated: 2026-04-16
 severity: medium

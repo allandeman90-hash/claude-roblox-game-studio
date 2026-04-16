@@ -4,7 +4,7 @@ type: pattern
 category: patterns
 subcategory: testing
 owner: qa-tester
-status: draft
+status: complete
 created: 2026-04-15
 updated: 2026-04-15
 sources:

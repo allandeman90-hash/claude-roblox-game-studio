@@ -4,7 +4,7 @@ type: service
 category: services
 subcategory: rendering
 owner: luau-gameplay-programmer
-status: draft
+status: complete
 created: 2026-04-16
 updated: 2026-04-16
 sources: [wiki/raw/roblox-creator-docs/services/Camera.md]

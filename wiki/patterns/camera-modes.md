@@ -4,7 +4,7 @@ type: pattern
 category: patterns
 subcategory: camera
 owner: luau-gameplay-programmer
-status: draft
+status: complete
 created: 2026-04-15
 updated: 2026-04-15
 sources:

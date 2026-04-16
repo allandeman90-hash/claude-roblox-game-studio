@@ -4,7 +4,7 @@ type: service
 category: services
 subcategory: interaction
 owner: luau-gameplay-programmer
-status: draft
+status: complete
 created: 2026-04-16
 updated: 2026-04-16
 sources:
