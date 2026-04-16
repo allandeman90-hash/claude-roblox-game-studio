@@ -335,3 +335,59 @@ Fleshed out 6 stub studio pages to `status: draft` and created 3 new studio page
 - Studio section: 6 -> 9 pages, all at `draft` status
 - Total pages: 119 -> 122
 - Status breakdown: complete 33, draft 34, stub 53
+
+## [2026-04-16] ingest | Phase 1 community ingest — patterns and concepts from devforum/articles/live-ops
+
+Phase 1 ingest agent processed raw sources from `wiki/raw/community/devforum/` (42 files), `wiki/raw/community/articles/` (34 files), and `wiki/raw/community/monetization/live-ops/` (7 files) to upgrade 16 stub pages to draft status and create 1 new page.
+
+### Pattern pages upgraded (stub -> draft): 6
+- `wiki/patterns/daily-rewards.md` — escalating login streaks, claim logic, streak window, config-driven rewards
+- `wiki/patterns/code-redemption-system.md` — two-DataStore pattern, UpdateAsync atomicity, global cap, rate limiting
+- `wiki/patterns/quest-system.md` — objective tracking, QuestService with signals, client sync, daily/weekly variants
+- `wiki/patterns/inventory-pattern.md` — itemId-to-quantity dict, add/remove/transfer, slot limits, schema versioning
+- `wiki/patterns/trading-system.md` — offer-accept-confirm flow, atomic swap, anti-abuse gates, state machine
+- `wiki/patterns/leaderboard-pattern.md` — OrderedDataStore + MemoryStore hybrid, sharding, pagination
+
+### Concept pages upgraded (stub -> draft): 10
+- `wiki/concepts/signal-pattern.md` — GoodSignal vs FastSignal comparison, benchmarks, API, Trove integration
+- `wiki/concepts/service-pattern.md` — Knit/Flamework/custom registry, lifecycle phases, decision tree
+- `wiki/concepts/streaming-enabled.md` — properties, per-model modes, Persistent/Atomic, safe scripting patterns
+- `wiki/concepts/module-lazy-loading.md` — lazy require wrapper, init-phase resolution, signal decoupling
+- `wiki/concepts/feature-flags.md` — Roblox Configs + Experiments, HttpService+GitHub JSON DFFlag, MessagingService invalidation
+- `wiki/concepts/cross-server-events.md` — MessagingService pub/sub, MemoryStoreService patterns, sharding, matchmaking
+- `wiki/concepts/atomic-trading.md` — same-server frame-level atomicity, rollback, ProfileStore integration, cross-server avoidance
+- `wiki/concepts/code-redemption.md` — design decisions, two-DataStore dedup, rate limiting, code lifecycle
+- `wiki/concepts/ftue-design.md` — 5-minute rule, tutorial approaches, device-specific onboarding, funnel analytics, D1 targets
+- `wiki/concepts/core-loop.md` — four nested loop scales, monetization per scale, Roblox-specific considerations, diagnostics
+
+### New pages created: 1
+- `wiki/patterns/party-system.md` — cross-server player grouping with MemoryStore HashMap and MessagingService coordination
+
+### Key raw sources consumed
+- `wiki/raw/community/monetization/live-ops/promo-code-redemption.md`
+- `wiki/raw/community/monetization/live-ops/configs-and-experiments.md`
+- `wiki/raw/community/monetization/live-ops/feature-flag-pattern-github-json.md`
+- `wiki/raw/community/monetization/live-ops/messagingservice-in-game-patterns.md`
+- `wiki/raw/community/monetization/live-ops/memorystore-cross-server-patterns.md`
+- `wiki/raw/community/monetization/live-ops/memorystore-best-practices.md`
+- `wiki/raw/community/monetization/live-ops/liveops-essentials-cadence.md`
+- `wiki/raw/community/devforum/goodsignal-lua-signal-comparison.md`
+- `wiki/raw/community/devforum/fastsignal-consistent-signal-library.md`
+- `wiki/raw/community/devforum/service-registry-design-pattern.md`
+- `wiki/raw/community/devforum/knit-game-framework-template.md`
+- `wiki/raw/community/devforum/roblox-ts-flamework-introduction.md`
+- `wiki/raw/community/devforum/state-machines-in-depth-tutorial.md`
+- `wiki/raw/community/devforum/profileservice-datastore-module.md`
+- `wiki/raw/community/devforum/profilestore-datastore-module.md`
+- `wiki/raw/community/devforum/session-locking-explained-datastore.md`
+- `wiki/raw/community/articles/architecture/framework-comparison.md`
+- `wiki/raw/community/articles/datastore/memorystore-leaderboards.md`
+- `wiki/raw/community/articles/datastore/datastore-best-practices.md`
+- `wiki/raw/community/articles/library-readmes/goodsignal-readme.md`
+- `wiki/raw/community/performance/network/streaming-enabled-guide.md`
+
+### Index updated
+- Total pages: 143 -> 144
+- Status breakdown: complete 33, draft 93, stub 15
+- Concepts section: 10 stubs -> 10 drafts
+- Patterns section: 20 -> 21 pages; 6 stubs -> 6 drafts + 1 new draft

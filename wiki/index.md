@@ -8,7 +8,7 @@ page_count: 140
 # Wiki Index
 
 **Last updated:** 2026-04-16
-**Total pages:** 143
+**Total pages:** 144
 **Status:** complete: 33, draft: 93, stub: 15
 
 ---
@@ -57,16 +57,16 @@ page_count: 140
 - [[bind-to-close]] — Shutdown-time save handler. `datastore-architect` `complete`
 - [[rate-limiting]] — Cap per-player remote calls. `remotes-networking-specialist` `complete`
 - [[trove-maid-cleanup]] — Resource disposal pattern. `luau-systems-programmer` `complete`
-- [[signal-pattern]] — Custom event/signal libraries. `luau-systems-programmer` `stub`
-- [[service-pattern]] — Module lifecycle abstraction. `luau-systems-programmer` `stub`
-- [[streaming-enabled]] — Dynamic workspace streaming. `level-designer` `stub`
-- [[module-lazy-loading]] — Deferred module requires. `luau-systems-programmer` `stub`
-- [[feature-flags]] — Runtime-toggleable features. `live-ops-specialist` `stub`
-- [[cross-server-events]] — Coordinating state across servers. `live-ops-specialist` `stub`
-- [[atomic-trading]] — All-or-nothing item exchange. `economy-designer` `stub`
-- [[code-redemption]] — Server-validated promo codes. `live-ops-specialist` `stub`
-- [[ftue-design]] — First-time user experience. `game-designer` `stub`
-- [[core-loop]] — 30s/5min/session/meta loops. `game-designer` `stub`
+- [[signal-pattern]] — Custom event/signal libraries (GoodSignal, FastSignal). `luau-systems-programmer` `draft`
+- [[service-pattern]] — Module lifecycle abstraction (Knit, Flamework, custom). `luau-systems-programmer` `draft`
+- [[streaming-enabled]] — Dynamic workspace streaming. `level-designer` `draft`
+- [[module-lazy-loading]] — Deferred module requires. `luau-systems-programmer` `draft`
+- [[feature-flags]] — Runtime-toggleable features (Configs + GitHub JSON). `live-ops-specialist` `draft`
+- [[cross-server-events]] — Coordinating state across servers. `live-ops-specialist` `draft`
+- [[atomic-trading]] — All-or-nothing item exchange. `economy-designer` `draft`
+- [[code-redemption]] — Server-validated promo codes. `live-ops-specialist` `draft`
+- [[ftue-design]] — First-time user experience. `game-designer` `draft`
+- [[core-loop]] — 30s/5min/session/meta loops. `game-designer` `draft`
 
 ## Luau (14)
 
@@ -156,19 +156,20 @@ page_count: 140
 - [[stylua-formatting]] — Deterministic Luau code formatter. `devops-engineer` `draft`
 - [[github-actions-cicd]] — CI/CD pipeline with Rojo + Open Cloud. `devops-engineer` `draft`
 
-## Patterns (20)
+## Patterns (21)
 
 - [[ui-framework-comparison]] — Roact vs React-lua vs Fusion vs Native UI. `ui-programmer` `draft`
 - [[responsive-design]] — Mobile-first adaptive layouts, UDim2, accessibility. `ui-programmer` `draft`
 - [[accessibility-patterns]] — Reduced motion, transparency, color contrast, touch targets. `accessibility-specialist` `draft`
 - [[camera-modes]] — First-person, third-person, isometric, cutscene camera patterns. `luau-gameplay-programmer` `draft`
 - [[vehicle-physics]] — Constraint-based and raycast-based vehicle systems. `luau-gameplay-programmer` `draft`
-- [[daily-rewards]] — Escalating login streaks. `game-designer` `stub`
-- [[code-redemption-system]] — Promo code implementation. `live-ops-specialist` `stub`
-- [[quest-system]] — Server-authoritative quests. `game-designer` `stub`
-- [[inventory-pattern]] — itemId→quantity map. `luau-gameplay-programmer` `stub`
-- [[trading-system]] — Atomic player trades. `economy-designer` `stub`
-- [[leaderboard-pattern]] — OrderedDataStore + MemoryStore. `luau-gameplay-programmer` `stub`
+- [[daily-rewards]] — Escalating login streaks with streak tracking. `game-designer` `draft`
+- [[code-redemption-system]] — Two-DataStore promo code implementation. `live-ops-specialist` `draft`
+- [[quest-system]] — Server-authoritative quests with objective tracking. `game-designer` `draft`
+- [[inventory-pattern]] — itemId-to-quantity map with slot limits. `luau-gameplay-programmer` `draft`
+- [[trading-system]] — Atomic player-to-player trades. `economy-designer` `draft`
+- [[leaderboard-pattern]] — OrderedDataStore + MemoryStore hybrid. `luau-gameplay-programmer` `draft`
+- [[party-system]] — Cross-server player grouping with MemoryStore. `luau-gameplay-programmer` `draft`
 - [[round-system]] — Server-driven lobby/intermission/gameplay/endgame loop. `game-designer` `draft`
 - [[matchmaking-queue]] — Cross-server skill-based queue with MemoryStoreService. `game-designer` `draft`
 - [[spawn-respawn-system]] — Spawn points, respawn delay, safe zones, spectator mode. `game-designer` `draft`
