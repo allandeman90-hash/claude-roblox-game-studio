@@ -2,14 +2,14 @@
 title: Wiki Index
 type: wiki-index
 updated: 2026-04-16
-page_count: 128
+page_count: 140
 ---
 
 # Wiki Index
 
 **Last updated:** 2026-04-16
-**Total pages:** 125
-**Status:** complete: 33, draft: 43, stub: 47
+**Total pages:** 143
+**Status:** complete: 33, draft: 77, stub: 31
 
 ---
 
@@ -47,8 +47,9 @@ page_count: 128
 - [[ServerStorage]] — Server-only data/modules. `technical-director` `draft`
 - [[ReplicatedStorage]] — Shared client+server modules. `technical-director` `draft`
 
-## Concepts (17)
+## Concepts (18)
 
+- [[constraints-guide]] — Physics constraints: Weld, Motor6D, Hinge, Spring, Rope, vehicle patterns. `luau-gameplay-programmer` `draft`
 - [[server-authority]] — Never trust the client. `technical-director` `complete`
 - [[client-server-split]] — Three-zone architecture. `technical-director` `complete`
 - [[session-locking]] — Prevents item duplication. `datastore-architect` `complete`
@@ -84,23 +85,24 @@ page_count: 128
 - [[string-interpolation]] — Backtick interpolation syntax. `luau-systems-programmer` `stub`
 - [[module-scripts]] — ModuleScript, require, caching. `luau-systems-programmer` `stub`
 
-## Anti-Patterns (15)
+## Anti-Patterns (16)
 
 - [[deprecated-wait]] — Use task.wait. `lead-programmer` `complete`
-- [[deprecated-spawn]] — Use task.spawn. `lead-programmer` `stub`
-- [[deprecated-delay]] — Use task.delay. `lead-programmer` `stub`
+- [[deprecated-spawn]] — Use task.spawn. `lead-programmer` `draft`
+- [[deprecated-delay]] — Use task.delay. `lead-programmer` `draft`
 - [[client-trust]] — Never trust client values. `exploit-security-specialist` `complete`
 - [[unvalidated-remote-args]] — Validate every argument. `remotes-networking-specialist` `complete`
-- [[no-rate-limit]] — Missing rate limiter. `remotes-networking-specialist` `stub`
-- [[client-to-server-remote-function]] — Server hang risk. `remotes-networking-specialist` `stub`
-- [[instance-in-remote]] — Use string IDs. `remotes-networking-specialist` `stub`
-- [[no-session-lock]] — Duplication exploit. `datastore-architect` `stub`
-- [[no-pcall]] — Unhandled DataStore errors. `lead-programmer` `stub`
-- [[player-name-as-key]] — UserId only. `datastore-architect` `stub`
-- [[missing-schema-version]] — Unmigrateable data. `datastore-architect` `stub`
-- [[magic-numbers]] — Externalize to config. `lead-programmer` `stub`
-- [[print-in-production]] — Use logger. `lead-programmer` `stub`
-- [[string-concat-in-loop]] — Use table.concat. `performance-analyst` `stub`
+- [[no-rate-limit]] — Missing rate limiter. `remotes-networking-specialist` `draft`
+- [[client-to-server-remote-function]] — Server hang risk. `remotes-networking-specialist` `draft`
+- [[instance-in-remote]] — Use string IDs, not Instance refs. `remotes-networking-specialist` `draft`
+- [[no-session-lock]] — Cross-server duplication vector. `datastore-architect` `draft`
+- [[no-pcall]] — Unhandled DataStore/HTTP errors. `lead-programmer` `draft`
+- [[player-name-as-key]] — UserId only for DataStore keys. `datastore-architect` `draft`
+- [[missing-schema-version]] — Unmigrateable persistent data. `datastore-architect` `draft`
+- [[magic-numbers]] — Externalize to config modules. `lead-programmer` `draft`
+- [[print-in-production]] — Use structured logger. `lead-programmer` `draft`
+- [[string-concat-in-loop]] — Use table.concat for O(n). `performance-analyst` `draft`
+- [[direct-cross-system-coupling]] — Service boundary violations. `lead-programmer` `draft`
 
 ## Exploits (9)
 
@@ -152,14 +154,28 @@ page_count: 128
 - [[stylua-formatting]] — Deterministic Luau code formatter. `devops-engineer` `draft`
 - [[github-actions-cicd]] — CI/CD pipeline with Rojo + Open Cloud. `devops-engineer` `draft`
 
-## Patterns (6)
+## Patterns (20)
 
+- [[ui-framework-comparison]] — Roact vs React-lua vs Fusion vs Native UI. `ui-programmer` `draft`
+- [[responsive-design]] — Mobile-first adaptive layouts, UDim2, accessibility. `ui-programmer` `draft`
+- [[accessibility-patterns]] — Reduced motion, transparency, color contrast, touch targets. `accessibility-specialist` `draft`
+- [[camera-modes]] — First-person, third-person, isometric, cutscene camera patterns. `luau-gameplay-programmer` `draft`
+- [[vehicle-physics]] — Constraint-based and raycast-based vehicle systems. `luau-gameplay-programmer` `draft`
 - [[daily-rewards]] — Escalating login streaks. `game-designer` `stub`
 - [[code-redemption-system]] — Promo code implementation. `live-ops-specialist` `stub`
 - [[quest-system]] — Server-authoritative quests. `game-designer` `stub`
 - [[inventory-pattern]] — itemId→quantity map. `luau-gameplay-programmer` `stub`
 - [[trading-system]] — Atomic player trades. `economy-designer` `stub`
 - [[leaderboard-pattern]] — OrderedDataStore + MemoryStore. `luau-gameplay-programmer` `stub`
+- [[round-system]] — Server-driven lobby/intermission/gameplay/endgame loop. `game-designer` `draft`
+- [[matchmaking-queue]] — Cross-server skill-based queue with MemoryStoreService. `game-designer` `draft`
+- [[spawn-respawn-system]] — Spawn points, respawn delay, safe zones, spectator mode. `game-designer` `draft`
+- [[state-machine-pattern]] — FSM for enemy AI, character state, combat phases. `lead-programmer` `draft`
+- [[ecs-pattern]] — Entity Component System with Matter and Jecs. `lead-programmer` `draft`
+- [[lobby-system]] — Hub world, party formation, game selection, teleport. `game-designer` `draft`
+- [[testing-with-testez]] — BDD unit testing with TestEZ and Jest-Lua. `qa-tester` `draft`
+- [[mocking-strategies]] — Mocking DataStoreService, HttpService, RemoteEvents. `qa-tester` `draft`
+- [[integration-testing]] — Client-server integration and load testing. `qa-tester` `draft`
 
 ---
 

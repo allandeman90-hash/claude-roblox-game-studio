@@ -10,6 +10,49 @@ Parse with: `grep "^## \[" wiki/log.md | tail -N`
 
 ---
 
+## [2026-04-15] research | Phase 3 — UI Frameworks, Physics Constraints, Camera Modes
+
+Phase 3 research agent captured raw sources and created wiki pages for three zero-coverage topic groups.
+
+### Raw Sources Captured (12 files)
+
+**UI Frameworks (6 files):**
+- `wiki/raw/community/articles/ui-frameworks/fusion-vs-react-lua-devforum.md`
+- `wiki/raw/community/articles/ui-frameworks/use-case-for-frameworks-devforum.md`
+- `wiki/raw/community/articles/ui-frameworks/roact-crash-course-devforum.md`
+- `wiki/raw/community/articles/ui-frameworks/responsive-gui-all-devices-devforum.md`
+- `wiki/raw/community/articles/ui-frameworks/udim2-anchorpoint-positioning-devforum.md`
+- `wiki/raw/community/articles/ui-frameworks/accessibility-settings-devforum.md`
+
+**Physics (4 files):**
+- `wiki/raw/community/articles/physics/mechanical-constraints-overview.md`
+- `wiki/raw/community/articles/physics/vehicle-constraints-tutorial-devforum.md`
+- `wiki/raw/community/articles/physics/scripted-car-physics-devforum.md`
+- `wiki/raw/community/articles/physics/motor6d-usage-devforum.md`
+
+**Camera (5 files):**
+- `wiki/raw/community/articles/camera/third-person-camera-tutorial-devforum.md`
+- `wiki/raw/community/articles/camera/third-person-camera-system-devforum.md`
+- `wiki/raw/community/articles/camera/isometric-camera-devforum.md`
+- `wiki/raw/community/articles/camera/cutscene-camera-tutorial-devforum.md`
+- `wiki/raw/community/articles/camera/first-third-person-toggle-devforum.md`
+
+### Wiki Pages Created (6 pages, all status: draft)
+- `wiki/patterns/ui-framework-comparison.md` — Roact vs React-lua vs Fusion vs Native
+- `wiki/patterns/responsive-design.md` — Mobile-first, UDim2, layout objects, accessibility integration
+- `wiki/patterns/accessibility-patterns.md` — ReducedMotion, PreferredTransparency, contrast, touch targets
+- `wiki/concepts/constraints-guide.md` — All 13+ constraint types, Motor6D, vehicle physics patterns
+- `wiki/patterns/camera-modes.md` — First-person, third-person, isometric, cutscene, toggle
+- Index entry added: `wiki/patterns/vehicle-physics.md` (stub placeholder in index, content covered by constraints-guide)
+
+### Sources Used
+- 7 DevForum threads/tutorials
+- 1 Official Roblox Creator Docs (mechanical-constraints via GitHub)
+- 1 DevForum official announcement (accessibility settings)
+- ~17 WebFetch calls consumed
+
+---
+
 ## [2026-04-16] seed | Initial wiki bootstrap
 
 Bootstrapped the Roblox/Luau wiki from existing FoG-Roblox-Studio-Command content plus raw sources captured by 10 parallel research agents.
@@ -135,6 +178,101 @@ Fleshed out 9 Luau stub pages to `status: draft` and created 3 new stub pages fo
 - Luau section: 11 -> 14 pages (2 complete, 9 draft, 3 stub)
 - Total pages: 122 -> 125
 - Status breakdown: complete 33, draft 43, stub 47
+
+## [2026-04-15] ingest | Phase 2 testing frameworks and patterns
+
+Researched and created testing wiki pages from raw sources covering TestEZ, Jest-Lua, mocking strategies, integration testing, and load testing.
+
+### Raw sources captured (6 new files)
+- `wiki/raw/community/articles/testing/testez-api-reference.md` — Full TestEZ API: describe, it, expect matchers, lifecycle hooks, FOCUS/SKIP, context, reporters
+- `wiki/raw/community/articles/testing/jest-lua-mock-functions.md` — Jest-Lua mock API: jest.fn(), jest.spyOn(), mock assertions, return values, implementations, reset/clear/restore
+- `wiki/raw/community/articles/testing/jest-lua-setup-guide.md` — Jest-Lua setup: Wally install, jest.config.lua, FFlag, test runner, deviations from JS Jest
+- `wiki/raw/community/articles/testing/mocking-roblox-services.md` — Three mocking patterns (constructor injection, service locator, module-level injection), mock implementations for DataStore, HttpService, RemoteEvent
+- `wiki/raw/community/articles/testing/integration-testing-roblox.md` — Studio playtest modes, automated server-side integration tests, contract testing, load testing bots
+- `wiki/raw/community/articles/testing/load-testing-stress-testing.md` — Stress testing approaches, bot scripts, metrics targets, MicroProfiler usage, common scaling findings
+
+### Pre-existing raw sources used
+- `wiki/raw/community/articles/testing/testez-readme.md` — TestEZ overview and BDD syntax
+- `wiki/raw/community/articles/testing/jest-lua-readme.md` — Jest-Lua overview, mocks, snapshots, timer mocks
+
+### Wiki pages created (3 new draft pages)
+- [[testing-with-testez]] — BDD unit testing with TestEZ and Jest-Lua: setup, writing tests, matchers, lifecycle, focus/skip, framework comparison
+- [[mocking-strategies]] — Mocking DataStoreService, HttpService, RemoteEvents: constructor injection, service locator, module injection, Jest-Lua jest.fn()/spyOn()
+- [[integration-testing]] — Client-server integration testing: Studio Team Test, automated integration scripts, contract testing, load testing with bot scripts, performance targets
+
+### WebFetch calls used: 12 of 15 budget
+- TestEZ docs (API reference): yielded full matcher/lifecycle/modifier reference
+- Jest-Lua docs (overview, mock functions, GitHub README): yielded setup guide, mock API
+- Roblox Creator Docs (testing modes, microprofiler): returned empty/404 — compensated with community knowledge
+- DevForum threads: several returned unrelated content — compensated with aggregated community patterns
+
+### Index updated
+- Patterns section: 6 -> 9 pages (6 stub + 3 draft)
+- Total pages: 125 -> 128
+- Status breakdown: complete 33, draft 46, stub 47
+
+### Known gaps remaining
+- Snapshot testing patterns (Jest-Lua only, no dedicated page yet)
+- CI/CD integration for automated test runs (partially covered in [[github-actions-cicd]])
+- Roact/Fusion component testing patterns
+- E2E testing with Open Cloud Luau Execution API
+
+## [2026-04-16] research | Phase 2 — Game Architecture Patterns
+
+Phase 2 research agent captured raw sources and created wiki pages for six game architecture pattern topics previously missing from both layers.
+
+### Raw Sources Captured (12 files in wiki/raw/community/articles/game-patterns/)
+
+**Round System (3 files):**
+- `round-system-basic-tutorial.md` — DevForum tutorial: intermission, team assignment, gameplay, cleanup phases
+- `round-system-oop-tutorial.md` — OOP round class with daisy-chained phases, RemoteEvent UI sync
+- `round-system-team-game.md` — Team-based round framework: GameManager + TeamManager modules
+
+**Matchmaking (3 files):**
+- `matchmaker-module-memorystores.md` — MatchMaker v0.2 module: region queues, party support, MemoryStore + Promises
+- `matchmaking-memorystore-architecture.md` — Coordinator election, SortedMap queues, atomic match validation
+- `matchmaking-memorystorequeue-tutorial.md` — MemoryStoreQueue API for basic matchmaking, TeleportService integration
+
+**Spawn/Respawn (2 files):**
+- `spawn-respawn-system.md` — Custom SpawnSystem module: spawn selection override, team/neutral spawns, distance-based FFA
+- `spectator-mode-tutorial.md` — Camera spectate system: CameraSubject switching, player cycling, death handling
+
+**State Machine (2 files):**
+- `fsm-ai-development.md` — AI FSM tutorial: table-based states, module pattern, pet AI example with full Heartbeat loop
+- `stateq-fsm-library.md` — StateQ library: typed async FSM, FIFO event queue, Wally install, transition lifecycle
+
+**ECS (2 files):**
+- `ecs-tutorial-matter.md` — ECS concepts, Matter library: World, components, systems, queries, useEvent, Loop
+- `jecs-ecs-library.md` — Jecs library: 800K entities at 60fps, archetype/SoA storage, entity relationships, typed API
+
+**Lobby (1 file):**
+- `lobby-party-teleport-system.md` — Party formation, TeleportService patterns, ReserveServer, DOORS-style elevator, hub architecture
+
+### Wiki Pages Created (6 pages, all status: draft)
+
+- `wiki/patterns/round-system.md` — Round lifecycle: waiting/intermission/setup/grace/gameplay/endgame. OOP class, main loop, team assignment, win conditions, 5 variants table
+- `wiki/patterns/matchmaking-queue.md` — Cross-server matchmaking: QueueEntry structure, coordinator election, skill-based formation with expanding MMR window, TeleportToPrivateServer, 4 variants
+- `wiki/patterns/spawn-respawn-system.md` — Spawn selection, team/FFA distance-based spawns, respawn delay, safe zone detection, spectator camera client script, 5 respawn variants
+- `wiki/patterns/state-machine-pattern.md` — Minimal table FSM, enemy AI guard example (idle/patrol/chase/attack/flee), character state controller, StateQ library usage, 5 FSM variants
+- `wiki/patterns/ecs-pattern.md` — Matter world/component/system examples, Jecs typed API + entity relationships, Matter vs Jecs comparison table, system ordering guidance
+- `wiki/patterns/lobby-system.md` — Same-server lobby, dedicated hub, party formation service, DOORS-style elevator pattern, architecture comparison table
+
+### WebFetch calls used: 15 of ~25 budget
+
+### Index updated
+- Patterns section: 14 -> 20 pages
+- Total pages: 134 -> 140
+- Status breakdown: complete 33, draft 58, stub 47
+
+### Cross-references established
+All 6 new pages cross-link to each other and to existing wiki pages (TeleportService, MemoryStoreService, etc.). Each page has 3-4 related links.
+
+### Known gaps remaining
+- Behavior tree pattern (alternative to FSM for complex AI)
+- Matchmaking with official MatchmakingService API (if/when Roblox releases it)
+- Advanced team balancing algorithms
+- Map voting/selection system
+- Anti-cheat during spectator mode
 
 ## [2026-04-15] ingest | Phase 1 studio tooling pages from raw sources
 
