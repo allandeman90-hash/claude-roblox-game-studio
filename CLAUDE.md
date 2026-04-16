@@ -56,6 +56,20 @@ the wiki provides the descriptive backing.
 **Owner:** `wiki-curator` agent coordinates; domain specialists own their pages.
 **Raw sources:** `wiki/raw/` (immutable, captured from external sources).
 
+## Roblox Studio MCP (Live Testing)
+
+The official Roblox Studio MCP server is connected. Use `studio-mcp-operator`
+agent to execute Luau in Studio, capture screenshots, inspect instances, run
+play tests, read console output, and generate meshes/materials via AI.
+Skills: `/studio-test`, `/studio-inspect`, `/studio-screenshot`.
+
+## Blender MCP (3D Asset Creation)
+
+Blender MCP is connected for 3D asset generation. Use `blender-mcp-operator`
+agent to create models from text/image prompts (Hyper3D, Hunyuan3D), download
+from PolyHaven/Sketchfab, optimize for Roblox (10K tris, 1024 textures),
+and export FBX. Skills: `/generate-asset`, `/asset-from-image`.
+
 ## Collaboration Protocol
 
 **User-driven collaboration, not autonomous execution.**

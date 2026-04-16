@@ -27,3 +27,15 @@ production/session-state/*.json
 
 # Rojo
 /rojo.lock
+
+# Wally
+/Packages/
+/DevPackages/
+/wally.lock
+
+# Aftman
+/aftman.lock
+
+# Build artifacts
+/build.rbxl
+/build.rbxlx

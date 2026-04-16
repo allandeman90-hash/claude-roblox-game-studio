@@ -1,0 +1,12 @@
+[package]
+name = "fog-studios/fog-game"
+version = "0.1.0"
+registry = "https://github.com/UpliftGames/wally-index"
+realm = "shared"
+
+[server-dependencies]
+
+[dev-dependencies]
+TestEZ = "roblox/testez@0.4.1"
+
+[dependencies]
