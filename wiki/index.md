@@ -104,17 +104,19 @@ page_count: 140
 - [[string-concat-in-loop]] — Use table.concat for O(n). `performance-analyst` `draft`
 - [[direct-cross-system-coupling]] — Service boundary violations. `lead-programmer` `draft`
 
-## Exploits (9)
+## Exploits (11)
 
 - [[speed-hack]] — Move faster than allowed. `exploit-security-specialist` `complete`
 - [[item-duplication]] — Cross-server data race. `exploit-security-specialist` `complete`
-- [[teleport-hack]] — Arbitrary CFrame jumps. `exploit-security-specialist` `stub`
-- [[fly-hack]] — Remove gravity. `exploit-security-specialist` `stub`
-- [[noclip]] — Pass through walls. `exploit-security-specialist` `stub`
-- [[remote-spam]] — DoS via rate-unlimited remote. `exploit-security-specialist` `stub`
-- [[argument-spoofing]] — Invalid types through remote. `exploit-security-specialist` `stub`
-- [[transaction-replay]] — Replay DevProduct. `exploit-security-specialist` `stub`
-- [[session-hijack]] — Session lock bypass. `exploit-security-specialist` `stub`
+- [[teleport-hack]] — Arbitrary CFrame jumps. `exploit-security-specialist` `draft`
+- [[fly-hack]] — Remove gravity, sustained flight. `exploit-security-specialist` `draft`
+- [[noclip]] — Pass through walls and solid geometry. `exploit-security-specialist` `draft`
+- [[remote-spam]] — DoS via rate-unlimited remote fire. `exploit-security-specialist` `draft`
+- [[argument-spoofing]] — Invalid types, NaN, spoofed instances through remotes. `exploit-security-specialist` `draft`
+- [[transaction-replay]] — Replay DevProduct or trade for duplication. `exploit-security-specialist` `draft`
+- [[session-hijack]] — Session lock bypass via rapid server-hop. `exploit-security-specialist` `draft`
+- [[localscript-injection]] — Arbitrary Luau code injection into client. `exploit-security-specialist` `draft`
+- [[memory-editing]] — Direct process memory manipulation. `exploit-security-specialist` `draft`
 
 ## Performance (12)
 
