@@ -47,3 +47,9 @@ production/session-state/*.md
 # Reference material (not source)
 *.apk
 /Référence/
+
+# assetgen pipeline — caches and raw renders (final PNGs in assets/images/ ARE committed)
+tools/assetgen/.cache/
+tools/assetgen/out_raw/
+__pycache__/
+*.pyc

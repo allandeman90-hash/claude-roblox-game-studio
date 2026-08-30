@@ -1,0 +1,10 @@
+# assetgen pipeline
+requests>=2.31
+Pillow>=10.0
+PyYAML>=6.0
+websocket-client>=1.6
+
+# Optional — IA background removal fallback (bg: rembg in the manifest).
+# ~200 MB with onnxruntime. Uncomment if you want it.
+# rembg>=2.0
+# onnxruntime>=1.16

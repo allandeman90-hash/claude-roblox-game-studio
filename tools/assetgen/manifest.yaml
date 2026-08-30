@@ -1,0 +1,230 @@
+# =============================================================================
+# manifest.yaml — every asset the game needs, declaratively.
+#
+#   generate.py   reads `prompt` (+ category prompt_prefix + style suffix)
+#   postprocess.py reads `size` / `bg`
+#   upload.py     uses <category>/<id> as the AssetMap key  ->  AssetMap["<id>"]
+#
+# Per-item keys (all optional except id + prompt):
+#   id        unique slug — becomes the AssetMap key and the PNG filename
+#   prompt    subject description (English prompts render best)
+#   size      final px (32 or 64). Inherits category.defaults.size
+#   bg        "magenta" (default) | "rembg" | "keep"
+#   seed      override the computed seed for this one asset
+#
+# Category keys:
+#   prompt_prefix   prepended to every item prompt ({v} = per-voie token, unused by default)
+#   defaults        { size, bg } inherited by items
+# =============================================================================
+
+defaults:
+  size: 64
+  bg: rembg          # semantic cutout — handles interior light areas + cast shadows
+  isolate: true      # keep only the largest connected blob (kills floating islands)
+
+categories:
+
+  # ---------------------------------------------------------------- HERO
+  hero:
+    prompt_prefix: "one single game character, full body, standing still facing the viewer, ((arms folded across the chest)), calm neutral pose, "
+    defaults: { size: 64 }
+    items:
+      - { id: hero_warrior, prompt: "young knight in blue steel plate armor, brown hair, sword and round shield sheathed on the back" }
+      - { id: hero_mage,    prompt: "young mage in a deep purple hooded robe with gold trim, hood up, wooden staff sheathed on the back" }
+
+  # ---------------------------------------------------------------- PETS (12)
+  pets:
+    prompt_prefix: "small cute RPG companion creature sprite, side view, floating or trotting beside the hero, "
+    defaults: { size: 64 }
+    items:
+      - { id: pet_pingouin, prompt: "chubby penguin with a tiny scarf" }
+      - { id: pet_renard,   prompt: "orange fox with a bushy tail, alert" }
+      - { id: pet_faucon,   prompt: "brown falcon, wings half-spread, fierce eyes" }
+      - { id: pet_panthere, prompt: "sleek black panther cub, green eyes, crouched" }
+      - { id: pet_tortue,   prompt: "green turtle with a mossy rocky shell" }
+      - { id: pet_blaireau,  prompt: "grey badger, stocky, striped face, digging claws" }
+      - { id: pet_rhino,    prompt: "armored baby rhino, thick grey plates, single horn" }
+      - { id: pet_ours,     prompt: "brown bear cub, standing on hind legs" }
+      - { id: pet_luciole,  prompt: "giant glowing firefly, warm yellow abdomen light, translucent wings" }
+      - { id: pet_meduse,   prompt: "small translucent blue jellyfish, bioluminescent, drifting tendrils" }
+      - { id: pet_licorne,  prompt: "white unicorn foal, pastel rainbow mane, spiral horn, faint sparkle" }
+      - { id: pet_phenix,   prompt: "fiery phoenix chick, orange and gold flames for feathers, ember trail" }
+
+  # ---------------------------------------------------------------- ZONE 1 ENEMIES
+  enemies_zone1:
+    prompt_prefix: "RPG monster enemy sprite, side view facing left, aggressive pose, "
+    defaults: { size: 64 }
+    items:
+      - { id: enemy_slime,        prompt: "green translucent gelatinous slime blob, two dot eyes" }
+      - { id: enemy_gobelin,      prompt: "small hunched green goblin, ragged loincloth, rusty dagger, big ears" }
+      - { id: enemy_loup_sauvage, prompt: "grey wild wolf, snarling, hackles raised, yellow eyes" }
+      - { id: enemy_chauve_souris, prompt: "large black bat, leathery wings fully spread, fangs" }
+
+  # ---------------------------------------------------------------- INTERMEDIATE BOSSES (5, cycled)
+  bosses_intermediate:
+    prompt_prefix: "elite RPG mini-boss sprite, side view facing left, imposing, glowing accents, "
+    defaults: { size: 64 }
+    items:
+      - { id: boss_champion_zone,      prompt: "veteran armored champion, tower shield, plumed helm, war banner" }
+      - { id: boss_sentinelle_ancienne, prompt: "ancient stone sentinel construct, cracked runic armor, dim blue glow" }
+      - { id: boss_adepte_corrompu,    prompt: "corrupted robed cultist, purple void energy in both hands, floating" }
+      - { id: boss_brute_elite,        prompt: "hulking brute ogre, spiked iron gauntlets, scarred, roaring" }
+      - { id: boss_invocateur_errant,  prompt: "wandering summoner in tattered green robes, spectral wisps orbiting, staff" }
+
+  # ---------------------------------------------------------------- BIG BOSSES (12, GAME_SPEC 6.2)
+  bosses_big:
+    prompt_prefix: "epic RPG boss sprite, large, side view facing left, dramatic silhouette, elemental aura, "
+    defaults: { size: 64 }
+    items:
+      - { id: boss_roi_gobelin,      prompt: "fat goblin king, golden crown, jagged cleaver, tattered royal cape" }        # km 10
+      - { id: boss_golem_pierre,     prompt: "massive stone golem, moss-covered boulders, glowing cracks, heavy fists" }   # km 20
+      - { id: boss_sorciere_bois,    prompt: "forest witch, twisted branch staff, green hex glow, crow familiar, cloak of leaves" } # km 30
+      - { id: boss_colosse_cendres,  prompt: "ash colossus, cracked obsidian body oozing lava, ember storm" }              # km 40
+      - { id: boss_liche_glaciale,   prompt: "frost lich, skeletal, frozen crown, blue soul-fire, ice shards orbiting" }   # km 50
+      - { id: boss_tyran_abysses,    prompt: "abyssal tyrant, deep-sea armored beast, barnacle plates, trident, dark water" } # km 60
+      - { id: boss_archimage_dechu,  prompt: "fallen archmage, shattered halo, levitating spellbooks, violet arcane storm" } # km 70
+      - { id: boss_behemoth,         prompt: "colossal horned behemoth, thick hide, ground-cracking stomp, bone plating" }  # km 80
+      - { id: boss_spectre_hurlant,  prompt: "screaming wraith, tattered ghost shroud, hollow glowing maw, spectral chains" } # km 90
+      - { id: boss_dragon_fer,       prompt: "iron dragon, riveted metal scales, steam vents, molten breath" }             # km 100
+      - { id: boss_oeil_vide,        prompt: "floating void eye, ringed by smaller eyes, purple event-horizon aura, tendrils" } # km 110
+      - { id: boss_avatar_fin,       prompt: "avatar of the end, cloaked cosmic figure, star-filled void body, twin void blades" } # km 120
+
+  # ---------------------------------------------------------------- WEAPON ICONS
+  weapons:
+    prompt_prefix: "RPG weapon inventory icon, single item, 3/4 top-down, on transparent, no hand, "
+    defaults: { size: 64 }
+    items:
+      # shop / starter
+      - { id: weapon_epee_bronze,    prompt: "plain bronze short sword, leather-wrapped grip" }
+      - { id: weapon_epee_courte,    prompt: "iron short sword, slightly worn edge" }
+      - { id: weapon_baton_apprenti, prompt: "simple wooden apprentice staff, small quartz tip" }
+      - { id: weapon_baguette_simple, prompt: "short carved wand, faint blue glow at the tip" }
+      # boss weapons (1 per big boss, GAME_SPEC 7.2 — ~2.5x shop tier)
+      - { id: weapon_roi_gobelin,   prompt: "brutal notched goblin-king cleaver, gold-trimmed" }
+      - { id: weapon_golem_pierre,  prompt: "huge stone maul, glowing rune cracks" }
+      - { id: weapon_sorciere_bois, prompt: "gnarled branch staff, hovering green hex orb" }
+      - { id: weapon_colosse_cendres, prompt: "obsidian greatsword, lava seeping from the fuller" }
+      - { id: weapon_liche_glaciale, prompt: "frozen bone scepter, blue soul-flame crystal" }
+      - { id: weapon_tyran_abysses, prompt: "coral-encrusted war trident, dripping dark water" }
+      - { id: weapon_archimage_dechu, prompt: "floating shattered tome bound in violet chains" }
+      - { id: weapon_behemoth,      prompt: "massive bone club studded with horn spikes" }
+      - { id: weapon_spectre_hurlant, prompt: "ghostly curved dagger, trailing spectral mist" }
+      - { id: weapon_dragon_fer,    prompt: "riveted iron greatsword venting steam" }
+      - { id: weapon_oeil_vide,     prompt: "void-eye orb mounted on a black rod, purple aura" }
+      - { id: weapon_avatar_fin,    prompt: "twin starfield void blades crossed" }
+
+  # ---------------------------------------------------------------- ARMOUR ICONS
+  # 12 boss sets x 4 pieces (voie is a tint applied in-engine, one icon per piece).
+  # Starter "toile" set included. GAME_SPEC 5.1.
+  armor:
+    prompt_prefix: "RPG armor inventory icon, single equipment piece, 3/4 view, on transparent, "
+    defaults: { size: 64 }
+    items:
+      - { id: armor_toile_casque,     prompt: "simple cloth hood, beige linen" }
+      - { id: armor_toile_plastron,   prompt: "simple cloth tunic, beige linen, rope belt" }
+      - { id: armor_toile_jambieres,  prompt: "simple cloth trousers, beige linen" }
+      - { id: armor_toile_bottes,     prompt: "simple cloth wrapped shoes, beige linen" }
+
+      - { id: armor_roi_gobelin_casque,    prompt: "crude iron goblin-king helm, small gold crown weld" }
+      - { id: armor_roi_gobelin_plastron,  prompt: "patchwork iron breastplate, gold trim, fur collar" }
+      - { id: armor_roi_gobelin_jambieres, prompt: "riveted iron greaves, gold studs" }
+      - { id: armor_roi_gobelin_bottes,    prompt: "heavy iron sabatons, gold buckle" }
+
+      - { id: armor_golem_pierre_casque,    prompt: "carved stone helm, glowing rune seam" }
+      - { id: armor_golem_pierre_plastron,  prompt: "slab-stone chestplate, rune cracks" }
+      - { id: armor_golem_pierre_jambieres, prompt: "boulder-plated leg guards, moss" }
+      - { id: armor_golem_pierre_bottes,    prompt: "massive stone boots, rune glow" }
+
+      - { id: armor_sorciere_bois_casque,    prompt: "leaf-and-bark circlet, green hex glow" }
+      - { id: armor_sorciere_bois_plastron,  prompt: "woven vine robe chest, green glow" }
+      - { id: armor_sorciere_bois_jambieres, prompt: "bark-plated leggings, curling vines" }
+      - { id: armor_sorciere_bois_bottes,    prompt: "root-wrapped boots, green glow" }
+
+      - { id: armor_colosse_cendres_casque,    prompt: "obsidian helm, lava-lit visor slit" }
+      - { id: armor_colosse_cendres_plastron,  prompt: "cracked obsidian cuirass, lava veins" }
+      - { id: armor_colosse_cendres_jambieres, prompt: "obsidian greaves, ember glow" }
+      - { id: armor_colosse_cendres_bottes,    prompt: "heavy obsidian boots, molten cracks" }
+
+      - { id: armor_liche_glaciale_casque,    prompt: "frost-bone crown helm, blue soul-fire" }
+      - { id: armor_liche_glaciale_plastron,  prompt: "ribcage frost armor, blue glow" }
+      - { id: armor_liche_glaciale_jambieres, prompt: "ice-plated leg bones, frost mist" }
+      - { id: armor_liche_glaciale_bottes,    prompt: "frozen skeletal boots, blue glow" }
+
+      - { id: armor_tyran_abysses_casque,    prompt: "deep-sea helm, coral horns, barnacles" }
+      - { id: armor_tyran_abysses_plastron,  prompt: "shell-plated breastplate, dark water sheen" }
+      - { id: armor_tyran_abysses_jambieres, prompt: "coral-scale leg guards" }
+      - { id: armor_tyran_abysses_bottes,    prompt: "clawed abyssal boots, barnacles" }
+
+      - { id: armor_archimage_dechu_casque,    prompt: "broken halo circlet, violet arcane glow" }
+      - { id: armor_archimage_dechu_plastron,  prompt: "layered mage robe chest, floating rune shards" }
+      - { id: armor_archimage_dechu_jambieres, prompt: "runed robe skirt, violet glow" }
+      - { id: armor_archimage_dechu_bottes,    prompt: "levitating enchanted slippers, violet glow" }
+
+      - { id: armor_behemoth_casque,    prompt: "horned bone helm, thick hide lining" }
+      - { id: armor_behemoth_plastron,  prompt: "bone-plated hide cuirass, spiked shoulders" }
+      - { id: armor_behemoth_jambieres, prompt: "hide-and-bone leg armor" }
+      - { id: armor_behemoth_bottes,    prompt: "hoof-crushing bone boots" }
+
+      - { id: armor_spectre_hurlant_casque,    prompt: "hollow spectral hood, glowing eye slits" }
+      - { id: armor_spectre_hurlant_plastron,  prompt: "tattered ghost shroud chest, spectral chains" }
+      - { id: armor_spectre_hurlant_jambieres, prompt: "wispy phantom leg wraps, mist" }
+      - { id: armor_spectre_hurlant_bottes,    prompt: "faded ghost boots, trailing mist" }
+
+      - { id: armor_dragon_fer_casque,    prompt: "iron dragon-skull helm, steam vents" }
+      - { id: armor_dragon_fer_plastron,  prompt: "riveted iron-scale breastplate, glowing seams" }
+      - { id: armor_dragon_fer_jambieres, prompt: "iron-scale greaves, rivets" }
+      - { id: armor_dragon_fer_bottes,    prompt: "heavy riveted iron boots, steam" }
+
+      - { id: armor_oeil_vide_casque,    prompt: "small void-eye set in a black circlet, purple aura" }
+      - { id: armor_oeil_vide_plastron,  prompt: "black chestplate with a central staring eye, purple aura" }
+      - { id: armor_oeil_vide_jambieres, prompt: "void-black leg plates, faint eye motifs" }
+      - { id: armor_oeil_vide_bottes,    prompt: "void-black boots, purple event-horizon glow" }
+
+      - { id: armor_avatar_fin_casque,    prompt: "cosmic hood, starfield interior, faint constellations" }
+      - { id: armor_avatar_fin_plastron,  prompt: "cloak chest of contained night sky, drifting stars" }
+      - { id: armor_avatar_fin_jambieres, prompt: "star-void leg robes" }
+      - { id: armor_avatar_fin_bottes,    prompt: "boots of walking void, star trail" }
+
+  # ---------------------------------------------------------------- UI ICONS
+  ui:
+    prompt_prefix: "clean flat game UI icon, single symbol, bold outline, centered, on transparent, "
+    defaults: { size: 32 }
+    items:
+      - { id: icon_skull,   prompt: "white cartoon skull, death marker" }
+      - { id: icon_coin,    prompt: "gold coin with a star stamp" }
+      - { id: icon_xp,      prompt: "blue upward chevron star, experience" }
+      - { id: icon_pow,     prompt: "red crossed swords, physical power" }
+      - { id: icon_int,     prompt: "purple sparkling wand tip, magic power" }
+      - { id: icon_vit,     prompt: "green heart, vitality" }
+      - { id: icon_spd,     prompt: "yellow lightning bolt, speed" }
+      - { id: icon_luk,     prompt: "green four-leaf clover, luck" }
+      - { id: icon_def,     prompt: "grey kite shield, defense" }
+      - { id: icon_res,     prompt: "blue aura ring, magic resistance" }
+      - { id: icon_rebirth, prompt: "orange circular arrows loop with an upward spark, rebirth" }
+      - { id: pet_role_dps,  prompt: "small orange crossed-swords badge" }
+      - { id: pet_role_tank, prompt: "small blue shield badge" }
+      - { id: pet_role_heal, prompt: "small green plus-cross badge" }
+
+  # ---------------------------------------------------------------- SCENE PROPS
+  props:
+    prompt_prefix: "pixel art game prop sprite, side view, on transparent, "
+    defaults: { size: 64 }
+    items:
+      - { id: portal_blue, prompt: "glowing vertical arch portal, swirling blue energy, stone frame", size: 64 }
+      - { id: portal_red,  prompt: "glowing vertical arch portal, swirling red energy, stone frame", size: 64 }
+      - { id: campfire,    prompt: "small campfire, stacked logs, warm flame, ring of stones" }
+      - { id: shop_tent,   prompt: "merchant market stall, striped awning, wooden counter" }
+      - { id: boss_gate,   prompt: "ominous sealed stone boss gate, glowing sigil" }
+
+  # ---------------------------------------------------------------- ZONE DECOR LAYERS
+  # One tiling strip per parallax layer per zone. Wide aspect; bg kept opaque.
+  decor:
+    prompt_prefix: "seamless horizontally-tiling pixel art background strip, wide panorama, "
+    defaults: { size: 64, bg: keep, isolate: false }
+    items:
+      - { id: decor_zone1_sky,    prompt: "night sky over dawn plains, deep blue, faint stars, low horizon glow" }
+      - { id: decor_zone1_hills,  prompt: "rolling dark-green silhouette hills, midground" }
+      - { id: decor_zone1_ground, prompt: "grassy plain foreground with scattered pine trees and grey rocks" }
+      - { id: decor_zone2_sky,    prompt: "blood-red dusk sky, ash clouds, ember haze" }
+      - { id: decor_zone2_hills,  prompt: "jagged burnt-orange rocky ridges, midground" }
+      - { id: decor_zone2_ground, prompt: "cracked scorched earth foreground, dead trees, cinders" }

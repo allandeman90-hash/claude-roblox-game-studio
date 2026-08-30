@@ -1,0 +1,147 @@
+# =============================================================================
+# pixellab_plan.yaml — the 40 free PixelLab creations for Quete minute.
+#
+# Generator: PixelLab MCP  (server "pixellab", user scope, ✔ connected).
+# Tool per asset: create_image_pixflux  = 1 generation each  -> 40 total.
+# Do NOT use pro tools (create_image_pro / edit_image / inpaint_image =
+# 20-40 generations each — one call would blow the whole free budget).
+#
+# ART DIRECTION (locked 2026-08-30):
+#   - 3/4 view FACING THE VIEWER, not side profile (reads better small, no engine
+#     mirroring). Pass direction="south", NOT view="side".
+#   - Neutral standing idle pose only — the engine animates via bob + rotation +
+#     (later) a lunge tween. Never a mid-action pose.
+#   - Hero is STANDALONE: bare hands, no weapon, no shield in the sprite. Weapon
+#     skins are a separate category, shown only in the equipment UI for v1.
+#   - FUTURE: paper-doll layering — per-slot equip skins (tete/plastron/jambes/
+#     pied + arme) will overlay and modify the base hero. Keep bases clean and
+#     proportionally consistent between warrior and mage.
+#
+# WORKFLOW (pixellab MCP tools loaded):
+#   1. mcp__pixellab__get_balance          -> confirm free generations remaining
+#   2. for each asset below, in priority order:
+#        mcp__pixellab__create_image_pixflux(description = <shared_style> + prompt,
+#            width=<size>, height=<size>, no_background=true, direction="south",
+#            outline="single color black outline", shading="medium shading",
+#            detail="medium detail")
+#        -> returns a job id
+#   3. mcp__pixellab__get_image(job_id)     -> PNG url ; download to out_raw/pixellab/<id>.png
+#   4. (optional, 0.1 gen) mcp__pixellab__unzoom_image / correct_pixelart to tidy
+#   5. copy/scale into assets/images/<category>/<id>.png   (already true pixel art,
+#      so postprocess.py is only needed for final resize/quantize if sizes differ)
+#   6. upload.py  -> AssetMap.luau
+#
+# Track progress in the `done:` list at the bottom.
+# =============================================================================
+
+shared_style: >-
+  cohesive fantasy RPG game sprite, single centered subject, full body,
+  3/4 view facing the viewer, neutral standing idle pose,
+  vibrant limited palette, clean readable silhouette, no ground shadow
+
+defaults:
+  size: 64          # heroes / pets / monsters
+  boss_size: 96     # big bosses read larger in the scene
+
+# --------------------------------------------------------------- HEROES (2)
+heroes:
+  - { id: hero_warrior, prompt: "young knight, blue steel plate armor, brown hair, empty hands, no weapon, no shield, relaxed combat-ready stance" }
+  - { id: hero_mage,    prompt: "young mage, deep purple hooded robe with gold trim, hood up, empty hands, no staff, relaxed stance" }
+
+# --------------------------------------------------------------- PET FAIRIES (3)
+# Glowing orb / wisp companions. Role = colour.
+pets:
+  - { id: pet_tank, prompt: "glowing blue fairy wisp, round luminous crystal-blue core, soft protective sky-blue aura, tiny translucent wings, calm" }
+  - { id: pet_heal, prompt: "glowing green fairy wisp, round luminous emerald core, gentle green aura, drifting sparkles, tiny translucent wings, serene" }
+  - { id: pet_dps,  prompt: "glowing red fairy wisp, round luminous crimson core, fierce red-orange flare aura, sharp ember spikes, tiny translucent wings, aggressive" }
+
+# --------------------------------------------------------------- BIG BOSSES (12)
+# GAME_SPEC 6.2 — one per 10 km. size = boss_size.
+bosses:
+  - { id: boss_roi_gobelin,     prompt: "fat goblin king, golden crown, jagged cleaver, tattered royal cape" }
+  - { id: boss_golem_pierre,    prompt: "massive stone golem, moss-covered boulder body, glowing rune cracks, heavy fists" }
+  - { id: boss_sorciere_bois,   prompt: "forest witch, twisted branch staff, green hex glow, cloak of leaves, crow familiar" }
+  - { id: boss_colosse_cendres, prompt: "ash colossus, cracked obsidian body oozing lava, ember storm" }
+  - { id: boss_liche_glaciale,  prompt: "frost lich, skeletal, frozen crown, blue soul-fire, orbiting ice shards" }
+  - { id: boss_tyran_abysses,   prompt: "abyssal tyrant, deep-sea armored beast, barnacle plates, trident" }
+  - { id: boss_archimage_dechu, prompt: "fallen archmage, shattered halo, levitating spellbooks, violet arcane storm" }
+  - { id: boss_behemoth,        prompt: "colossal horned behemoth, thick hide, bone plating, ground-cracking stomp" }
+  - { id: boss_spectre_hurlant, prompt: "screaming wraith, tattered ghost shroud, hollow glowing maw, spectral chains" }
+  - { id: boss_dragon_fer,      prompt: "iron dragon, riveted metal scales, steam vents, molten breath" }
+  - { id: boss_oeil_vide,       prompt: "floating void eye, ring of smaller eyes, purple event-horizon aura, tendrils" }
+  - { id: boss_avatar_fin,      prompt: "avatar of the end, cloaked cosmic figure, star-filled void body, twin void blades" }
+
+# --------------------------------------------------------------- MONSTERS (23)
+# Maximum bestiary variety across the zone themes (plains, forest, ash, frost,
+# abyss, void). Beast / humanoid / undead / elemental / insect / plant / construct.
+monsters:
+  - { id: mob_slime_vert,       prompt: "green translucent gelatinous slime blob, two dot eyes" }
+  - { id: mob_gobelin,          prompt: "small hunched green goblin, ragged loincloth, rusty dagger, big ears" }
+  - { id: mob_loup,             prompt: "grey wild wolf, snarling, hackles raised, yellow eyes" }
+  - { id: mob_chauve_souris,    prompt: "large black bat, leathery wings fully spread, fangs" }
+  - { id: mob_rat_geant,        prompt: "mangy giant rat, matted brown fur, yellow buck teeth, long tail", defer: sdxl }   # budget: PixelLab full, do via ComfyUI fallback
+  - { id: mob_araignee,         prompt: "hairy black cave spider, eight legs, cluster of red eyes, dripping fangs" }
+  - { id: mob_sanglier,         prompt: "wild boar, curved tusks, coarse brown bristles, angry charge", defer: sdxl }   # budget: PixelLab full, do via ComfyUI fallback
+  - { id: mob_serpent,          prompt: "coiled green viper, flared hood, forked tongue, ready to strike" }
+  - { id: mob_squelette,        prompt: "walking skeleton warrior, chipped short sword, tattered shield, bony grin" }
+  - { id: mob_zombie,           prompt: "rotting green zombie, torn peasant clothes, arms outstretched, hanging jaw" }
+  - { id: mob_fantome,          prompt: "floating pale ghost, hollow black eyes, wispy trailing tail, mournful" }
+  - { id: mob_gobelin_archer,   prompt: "goblin archer, crude shortbow drawn, leather cap, quiver on back" }
+  - { id: mob_orc,              prompt: "hulking green orc brute, spiked wooden club, tusked underbite, fur pauldrons" }
+  - { id: mob_bandit,           prompt: "human bandit, dark hood and face mask, twin curved daggers, leather armor" }
+  - { id: mob_champignon,       prompt: "walking mushroom creature, spotted red cap, stubby legs, angry little face" }
+  - { id: mob_plante_carnivore, prompt: "carnivorous plant monster, snapping toothed flytrap head, thorny vines, potted root" }
+  - { id: mob_golem_boue,       prompt: "small mud golem, dripping brown sludge body, glowing yellow eyes" }
+  - { id: mob_elemental_feu,    prompt: "small fire elemental, swirling flame body, bright ember core, floating" }
+  - { id: mob_elemental_glace,  prompt: "small ice elemental, jagged pale-blue crystal body, frost mist, floating" }
+  - { id: mob_scarabee,         prompt: "giant armored beetle, iridescent green shell, single horn, sturdy legs" }
+  - { id: mob_harpie,           prompt: "winged harpy, feathered wings and talons, wild hair, mid-screech" }
+  - { id: mob_gargouille,       prompt: "grey stone gargoyle, folded bat wings, crouched on all fours, snarling" }
+  - { id: mob_wisp_ombre,       prompt: "floating shadow wisp, coiling dark smoke body, glowing purple eye slits" }
+
+# --------------------------------------------------------------- PROGRESS
+# Append asset ids here as each PNG lands in tools/assetgen/out_raw/pixellab/.
+done:
+  - hero_warrior
+  - hero_mage
+  - pet_tank
+  - pet_heal
+  - pet_dps
+  - boss_roi_gobelin
+  - boss_golem_pierre      # WEAK: reads as a green orc, not stone. regen candidate
+  - boss_sorciere_bois
+  - boss_colosse_cendres
+  - boss_liche_glaciale
+  - boss_tyran_abysses
+  - boss_archimage_dechu
+  - boss_behemoth
+  - boss_spectre_hurlant
+  - boss_dragon_fer
+  - boss_oeil_vide         # WEAK: reads as a hooded caster, not a floating eye. regen candidate
+  - boss_avatar_fin
+  # --- monsters (21/23 via PixelLab ; mob_rat_geant + mob_sanglier deferred to SDXL) ---
+  - mob_slime_vert
+  - mob_gobelin
+  - mob_loup
+  - mob_chauve_souris
+  - mob_araignee
+  - mob_serpent
+  - mob_squelette
+  - mob_zombie
+  - mob_fantome
+  - mob_gobelin_archer
+  - mob_orc
+  - mob_bandit
+  - mob_champignon
+  - mob_plante_carnivore
+  - mob_golem_boue
+  - mob_elemental_feu
+  - mob_elemental_glace
+  - mob_scarabee
+  - mob_harpie
+  - mob_gargouille
+  - mob_wisp_ombre
+
+# PixelLab free budget: 40/40 spent (35 charged + 5 in-flight at close).
+# All 38 raw PNGs in tools/assetgen/out_raw/pixellab/.
+# Deferred to ComfyUI/SDXL fallback: mob_rat_geant, mob_sanglier.
