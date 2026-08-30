@@ -39,3 +39,11 @@ production/session-state/*.json
 # Build artifacts
 /build.rbxl
 /build.rbxlx
+
+# Rojo-synced model files under src are kept
+!src/**/*.rbxmx
+production/session-state/*.md
+
+# Reference material (not source)
+*.apk
+/Référence/
