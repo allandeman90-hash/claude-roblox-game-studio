@@ -130,6 +130,7 @@ function EnemyService.rollBoss(km)
         name       = isBig
             and string.format(">> %s <<  (BIG BOSS %d)", theme.name, index)
             or  string.format("%s  (Boss %d)", theme.name, index),
+        id         = theme.id,   -- sprite slug (nil for intermediate bosses); client art only
         level      = zone * 10,
         maxHp      = clampStat(b.maxHp * hpM),
         atk        = clampStat(atkBase * atkM),
@@ -193,6 +194,7 @@ function EnemyService.rollEnemy(km)
         -- Undeveloped zone: raw scaled base, so combat never breaks.
         return {
             name  = ((cfg and cfg.name) or ("Zone " .. zone)) .. " - Inconnu",
+            id    = nil,   -- no sprite yet for undeveloped-zone mobs
             level = level,
             maxHp = b.maxHp,
             atk   = b.atk,
@@ -205,6 +207,7 @@ function EnemyService.rollEnemy(km)
     local def = roster[math.random(1, #roster)]
     return {
         name  = def.name,
+        id    = def.id,   -- sprite slug; client art only
         level = level,
         maxHp = scale(b.maxHp, def.hpMul, 1),
         atk   = scale(b.atk, def.atkMul, 1),

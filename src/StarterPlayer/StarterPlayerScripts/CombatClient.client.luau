@@ -12,6 +12,8 @@ local MarketplaceService = game:GetService("MarketplaceService")
 
 -- Zone system data (decor palette + enemy roster per zone).
 local ZoneConfig = require(ReplicatedStorage:WaitForChild("ZoneConfig"))
+-- Slug -> rbxassetid map for the generated pixel-art sprites (GENERATED file).
+local AssetMap = require(ReplicatedStorage:WaitForChild("AssetMap"))
 
 local player = Players.LocalPlayer
 
@@ -145,6 +147,76 @@ local function stepXtoScreen(frac)
     return WALK_LO + math.clamp(frac or 0, 0, 1) * (WALK_HI - WALK_LO)
 end
 
+--===== Combatant sprites (hero / enemy / pet) ==========================
+-- AssetMap holds "<slug>" and "<slug>_flip" (a horizontal mirror). Base art
+-- faces slightly left; the mirror faces right. A combatant always faces its
+-- opponent, so the pick follows sceneFacing:
+--   forward (hero on the LEFT)  -> hero faces right, enemy faces left
+--   back    (hero on the RIGHT) -> hero faces left,  enemy faces right
+local function spriteFor(slug, faceRight)
+    if not slug then return nil end
+    if faceRight then
+        return AssetMap[slug .. "_flip"] or AssetMap[slug]
+    end
+    return AssetMap[slug]
+end
+
+-- One reusable ImageLabel per slot Frame (created like the portals / nametags).
+local function ensureSprite(slot)
+    local img = slot:FindFirstChild("Sprite")
+    if not img then
+        img = Instance.new("ImageLabel")
+        img.Name = "Sprite"
+        img.BackgroundTransparency = 1
+        img.BorderSizePixel = 0
+        img.AnchorPoint = Vector2.new(0.5, 1)
+        img.Position = UDim2.new(0.5, 0, 1, 0)
+        img.Size = UDim2.new(1, 0, 1, 0)
+        img.ScaleType = Enum.ScaleType.Fit
+        img.ResampleMode = Enum.ResamplerMode.Pixelated
+        img.ZIndex = 4
+        img.Parent = slot
+    end
+    return img
+end
+
+-- Paint <slug> on a slot (mirrored per faceRight). No matching asset -> the
+-- sprite hides and the slot's text label + box stay (discreet fallback, no
+-- emoji, no coloured placeholder frame).
+local function paintCombatant(slot, slug, faceRight)
+    if not slot then return end
+    local img = ensureSprite(slot)
+    local asset = spriteFor(slug, faceRight)
+    local want = asset or ""
+    if img.Image ~= want then img.Image = want end   -- avoid redundant writes each update
+    img.Visible = asset ~= nil
+    slot.BackgroundTransparency = asset and 1 or 0
+    local lbl = slot:FindFirstChild("EnemyLabel") or slot:FindFirstChild("HeroLabel")
+    if lbl then lbl.Visible = asset == nil end
+end
+
+--===== Pet companion (real pixel-art sprite; follows the hero, lunges on hit) =====
+-- Was a coloured Frame + emoji tag; now an ImageLabel driven by AssetMap.
+local petSprite = combatZone:FindFirstChild("PetSprite")
+if petSprite and not petSprite:IsA("ImageLabel") then
+    petSprite:Destroy()   -- drop the old placeholder Frame if a prior build left one
+    petSprite = nil
+end
+if not petSprite then
+    petSprite = Instance.new("ImageLabel")
+    petSprite.Name = "PetSprite"
+    petSprite.AnchorPoint = Vector2.new(0.5, 0.5)
+    petSprite.Size = UDim2.new(0.10, 0, 0.30, 0)
+    petSprite.BackgroundTransparency = 1
+    petSprite.BorderSizePixel = 0
+    petSprite.ScaleType = Enum.ScaleType.Fit
+    petSprite.ResampleMode = Enum.ResamplerMode.Pixelated
+    petSprite.ZIndex = 4
+    petSprite.Visible = false
+    petSprite.Parent = combatZone
+end
+local petLungeUntil = 0
+
 --===== Step portals + crossing transition =====
 -- Every step shows TWO gates: BLUE at the left (walk into it = go back a step) and
 -- RED at the right (= go forward a step). The blue one is hidden in the very first
@@ -233,14 +305,16 @@ local function updateScene(data)
     local encs = data.encounters or {}
     local slots = { enemyStep1, enemyStep2 }
 
-    -- Facing is set ONLY when the hero crosses into a different 1 km step, by the
-    -- direction of that crossing. Reversing direction WITHIN a step keeps the same
-    -- layout - the enemies do NOT reshuffle.
+    -- Facing follows the last real travel direction (sticky): a reversal flips the
+    -- hero / enemy / pet sprites even though combat clears data.moveDir the instant
+    -- an encounter starts on a step edge. Enemy LAYOUT still only changes on a
+    -- crossing (enc positions come from enc.rel), so nothing reshuffles mid-step.
     local stepKey = math.floor(data.pos or 0)
     local crossed = (stepKey ~= sceneLastStepKey)
+    if data.moveDir == "left" or data.moveDir == "right" then
+        sceneFacing = data.moveDir
+    end
     if crossed then
-        if data.moveDir == "left" then sceneFacing = "left"
-        elseif data.moveDir == "right" then sceneFacing = "right" end
         if sceneLastStepKey ~= nil then playStepTransition(data.moveDir == "left") end   -- real crossing, not spawn
         sceneLastStepKey = stepKey
     end
@@ -270,6 +344,8 @@ local function updateScene(data)
             end
             local sk = slot:FindFirstChildWhichIsA("UIStroke")
             if sk then sk.Color = enc.active and Color3.fromRGB(255, 80, 80) or Color3.new(1, 1, 1) end
+            -- Enemy faces the hero: forward -> hero on its left -> enemy faces left.
+            paintCombatant(slot, enc.id, back)
             if tag then
                 tag.Visible = not enc.cleared
                 tag.Text = string.format("%s  \u{00B7}  Lv.%d", enc.name or "???", enc.level or 0)
@@ -405,6 +481,8 @@ local function updateUI(data)
         heroPet.Text = string.format("Pet: %s", data.equipPet or "—")
     end
 
+    -- Pet sprite is painted just below, beside the hero (needs the fresh facing).
+
     -- Stats display in HeroStatsBox
     if availablePointsLabel then
         local def, res = math.floor(data.playerDef or 0), math.floor(data.playerRes or 0)
@@ -538,6 +616,16 @@ local function updateUI(data)
     end
 
     updateScene(data)
+
+    -- Hero + pet sprites. sceneFacing is fresh (updateScene just set it).
+    local heroFaceRight = (sceneFacing ~= "left")
+    paintCombatant(heroSlot, data.gearIsMagic and "hero_mage" or "hero_warrior", heroFaceRight)
+    if petSprite then
+        local petAsset = data.petRole and spriteFor("pet_" .. data.petRole, heroFaceRight) or nil
+        if petSprite.Image ~= (petAsset or "") then petSprite.Image = petAsset or "" end
+        petSprite.Visible = petAsset ~= nil
+    end
+
     updateZoneTrack(data)
     updateTopHud(data)
 
@@ -595,10 +683,14 @@ local function createDamageNumber(target, amount, isCrit)
     local xPos
     if target == "enemy" then
         xPos = enemyHpTargetX
+    elseif target == "pet" then
+        xPos = (heroSlot and heroSlot.Position.X.Scale or WALK_LO) - 0.10
+        label.TextColor3 = Color3.fromRGB(120, 230, 255)
+        label.TextSize = 13
     else
-        xPos = heroSlot and heroSlot.Position.X.Scale or SCENE_LEFT
+        xPos = heroSlot and heroSlot.Position.X.Scale or WALK_LO
     end
-    xPos = xPos + math.random(-2, 2) / 100
+    xPos = xPos + math.random(-2, 2) / 1000
     local yPos = SCENE_Y - 0.20   -- just above the fighter's head
 
     label.Position = UDim2.new(xPos, 0, yPos, 0)
@@ -661,6 +753,9 @@ combatEvent.OnClientEvent:Connect(function(data)
         updateUI(data)
     elseif data.type == "damage" then
         createDamageNumber(data.target, data.amount, data.isCrit)
+        if data.target == "enemy" or data.target == "pet" then
+            petLungeUntil = tick() + 0.16
+        end
     elseif data.type == "loot" and data.item then
         showLootToast(data.item, data.fromBoss)
     elseif data.type == "rebirthDone" then
@@ -1112,4 +1207,14 @@ RunService.RenderStepped:Connect(function()
     local pulse = 0.10 + math.abs(math.sin(tick() * 3)) * 0.32
     if bluePortal then bluePortal.BackgroundTransparency = pulse end
     if redPortal then redPortal.BackgroundTransparency = pulse end
+
+    -- Pet trails just behind the hero and lunges toward the enemy on each hit.
+    if petSprite and petSprite.Visible and heroSlot then
+        local hx = heroSlot.Position.X.Scale
+        local lunge = (tick() < petLungeUntil) and 0.05 or 0
+        local bob = isMovingState and (math.sin(tick() * 13) * 0.010) or 0
+        local px = math.max(0.04, hx - 0.08) + lunge   -- trails the hero, never off the left edge
+        petSprite.Position = UDim2.new(px, 0, SCENE_Y + 0.07 + bob, 0)
+    end
 end)
+

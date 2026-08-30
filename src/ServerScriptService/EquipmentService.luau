@@ -445,6 +445,15 @@ function EquipmentService.getPetEffect(player)
     return eff
 end
 
+-- Pure read: the equipped pet's role ("dps" | "tank" | "heal") or nil when no
+-- pet is equipped. Used ONLY to pick the pet sprite client-side - enters no
+-- effect / stat / gameplay math (unlike getPetEffect, it ignores rarity.active).
+function EquipmentService.getPetSpriteRole(player: Player): string?
+    local t = track[player]
+    local inst = t and t.equipe and t.equipe.pet
+    return inst and inst.role or nil
+end
+
 --===== HUD description strings =====
 -- "<nom> · <rarete>" for arme, "<nom> · <role> · <rarete>" for pet, "-" empty.
 function EquipmentService.describeSlot(player, slot)

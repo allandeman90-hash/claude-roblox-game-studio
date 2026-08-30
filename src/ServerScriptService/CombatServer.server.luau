@@ -108,10 +108,10 @@ local function previewEncounter(s, enc)
     if not pv then
         if enc.kind == "boss" then
             local b = EnemyService.rollBoss(enc.pos)
-            pv = { name = b.name, level = b.level }
+            pv = { name = b.name, level = b.level, id = b.id }
         else
             local e = EnemyService.rollEnemy(enc.pos)
-            pv = { name = e.name, level = e.level }
+            pv = { name = e.name, level = e.level, id = e.id }
         end
         s.encPreview[enc.pos] = pv
     end
@@ -147,6 +147,7 @@ local function sendUpdate(player, s)
                 active  = (s.currentEncounterPos == enc.pos),
                 name    = pv.name,
                 level   = pv.level,
+                id      = pv.id,   -- sprite slug (nil -> client keeps the text label)
             }
         end
     end
@@ -167,6 +168,8 @@ local function sendUpdate(player, s)
         enemyMaxHp  = s.enemyMaxHp,
         enemyName   = s.enemyName,
         enemyLevel  = s.enemyLevel,
+        enemyId     = s.enemyId,                              -- active enemy sprite slug (client art only)
+        petRole     = EquipmentService.getPetSpriteRole(player),  -- "dps"|"tank"|"heal"|nil, pet sprite pick
         exp         = s.exp,
         gold        = s.gold,
         playerLevel     = s.playerLevel,
@@ -356,6 +359,7 @@ local function startEncounter(player, st, enc)
         st.isBoss = true
         st.milestone = "boss"
         st.enemyName = boss.name ; st.enemyLevel = boss.level ; st.enemyMaxHp = boss.maxHp
+        st.enemyId = boss.id
         st.enemyAtk = boss.atk ; st.enemyExp = boss.exp ; st.enemyGold = boss.gold
         st.enemyHp = boss.maxHp ; st.enemyDamageType = boss.damageType
         st.enemyAtkSplit = boss.atkSplit ; st.enemyIsBigBoss = boss.isBigBoss or false
@@ -370,6 +374,7 @@ local function startEncounter(player, st, enc)
         end
         st.isBoss = false ; st.milestone = nil
         st.enemyName = e.name ; st.enemyLevel = e.level ; st.enemyMaxHp = e.maxHp
+        st.enemyId = e.id
         st.enemyAtk = e.atk ; st.enemyExp = e.exp ; st.enemyGold = e.gold
         st.enemyHp = e.maxHp ; st.enemyDamageType = nil ; st.enemyAtkSplit = nil
         st.enemyIsBigBoss = nil
@@ -417,6 +422,7 @@ local function startCombat(player)
         selectedCheckpoint = 0,
         enemyName      = firstEnemy.name,
         enemyLevel     = firstEnemy.level,
+        enemyId        = firstEnemy.id,
         enemyHp        = firstEnemy.maxHp,
         enemyMaxHp     = firstEnemy.maxHp,
         enemyAtk       = firstEnemy.atk,
@@ -629,7 +635,7 @@ function restartRun(player, st, startKm)
     st.enemyIsBigBoss  = nil
     -- a placeholder enemy so the HUD has something until the first encounter
     local e = EnemyService.rollEnemy(startKm)
-    st.enemyName = e.name ; st.enemyLevel = e.level ; st.enemyMaxHp = e.maxHp
+    st.enemyName = e.name ; st.enemyLevel = e.level ; st.enemyMaxHp = e.maxHp ; st.enemyId = e.id
     st.enemyAtk = e.atk ; st.enemyExp = e.exp ; st.enemyGold = e.gold ; st.enemyHp = e.maxHp
 end
 

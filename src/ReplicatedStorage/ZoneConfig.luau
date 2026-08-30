@@ -45,11 +45,12 @@ ZoneConfig.Zones = {
 		-- Multipliers are applied on top of the game's existing
 		-- per-zone base stats (enemyStatsForZone in CombatServer),
 		-- so the combat / XP / gold systems stay untouched.
+		-- `id` = sprite slug in AssetMap (client-side art only; enters no combat math).
 		enemies = {
-			{ name = "Slime",         level = 1, hpMul = 1.0, atkMul = 1.0, expMul = 1.0, goldMul = 1.0 },
-			{ name = "Gobelin",       level = 1, hpMul = 1.2, atkMul = 1.1, expMul = 1.2, goldMul = 1.1 },
-			{ name = "Loup Sauvage",  level = 2, hpMul = 0.9, atkMul = 1.3, expMul = 1.1, goldMul = 1.0 },
-			{ name = "Chauve-souris", level = 1, hpMul = 0.7, atkMul = 0.9, expMul = 0.8, goldMul = 1.3 },
+			{ name = "Slime",         id = "mob_slime_vert",   level = 1, hpMul = 1.0, atkMul = 1.0, expMul = 1.0, goldMul = 1.0 },
+			{ name = "Gobelin",       id = "mob_gobelin",       level = 1, hpMul = 1.2, atkMul = 1.1, expMul = 1.2, goldMul = 1.1 },
+			{ name = "Loup Sauvage",  id = "mob_loup",          level = 2, hpMul = 0.9, atkMul = 1.3, expMul = 1.1, goldMul = 1.0 },
+			{ name = "Chauve-souris", id = "mob_chauve_souris", level = 1, hpMul = 0.7, atkMul = 0.9, expMul = 0.8, goldMul = 1.3 },
 		},
 
 		-- (Bosses are no longer per decor-zone. See ZoneConfig.BossThemes
@@ -105,19 +106,20 @@ end
 -- 12 BIG bosses at launch (GAME_SPEC.md 6.2), one every 100 km (10 zones).
 -- `magic = true` -> deals magic damage (player RES matters); `atkSplit` is the
 -- ATK/INT ratio shown in the info panel.
+-- `id` = sprite slug in AssetMap (client-side art only; enters no combat math).
 ZoneConfig.BossThemes = {
-	{ name = "Roi Gobelin",         magic = false, atkSplit = 0.75 },  -- km 10
-	{ name = "Golem de Pierre",     magic = false, atkSplit = 0.90 },  -- km 20
-	{ name = "Sorciere des Bois",   magic = true,  atkSplit = 0.35 },  -- km 30
-	{ name = "Colosse des Cendres", magic = false, atkSplit = 0.80 },  -- km 40
-	{ name = "Liche Glaciale",      magic = true,  atkSplit = 0.25 },  -- km 50
-	{ name = "Tyran des Abysses",   magic = false, atkSplit = 0.70 },  -- km 60
-	{ name = "Archimage Dechu",     magic = true,  atkSplit = 0.20 },  -- km 70
-	{ name = "Behemoth",            magic = false, atkSplit = 0.85 },  -- km 80
-	{ name = "Spectre Hurlant",     magic = true,  atkSplit = 0.40 },  -- km 90
-	{ name = "Dragon de Fer",       magic = false, atkSplit = 0.80 },  -- km 100
-	{ name = "Oeil du Vide",        magic = true,  atkSplit = 0.15 },  -- km 110
-	{ name = "Avatar de la Fin",    magic = false, atkSplit = 0.60 },  -- km 120
+	{ name = "Roi Gobelin",         id = "boss_roi_gobelin",     magic = false, atkSplit = 0.75 },  -- km 10
+	{ name = "Golem de Pierre",     id = "boss_golem_pierre",    magic = false, atkSplit = 0.90 },  -- km 20
+	{ name = "Sorciere des Bois",   id = "boss_sorciere_bois",   magic = true,  atkSplit = 0.35 },  -- km 30
+	{ name = "Colosse des Cendres", id = "boss_colosse_cendres", magic = false, atkSplit = 0.80 },  -- km 40
+	{ name = "Liche Glaciale",      id = "boss_liche_glaciale",  magic = true,  atkSplit = 0.25 },  -- km 50
+	{ name = "Tyran des Abysses",   id = "boss_tyran_abysses",   magic = false, atkSplit = 0.70 },  -- km 60
+	{ name = "Archimage Dechu",     id = "boss_archimage_dechu", magic = true,  atkSplit = 0.20 },  -- km 70
+	{ name = "Behemoth",            id = "boss_behemoth",        magic = false, atkSplit = 0.85 },  -- km 80
+	{ name = "Spectre Hurlant",     id = "boss_spectre_hurlant", magic = true,  atkSplit = 0.40 },  -- km 90
+	{ name = "Dragon de Fer",       id = "boss_dragon_fer",      magic = false, atkSplit = 0.80 },  -- km 100
+	{ name = "Oeil du Vide",        id = "boss_oeil_vide",       magic = true,  atkSplit = 0.15 },  -- km 110
+	{ name = "Avatar de la Fin",    id = "boss_avatar_fin",      magic = false, atkSplit = 0.60 },  -- km 120
 }
 
 -- Cycles the theme list past boss 12 (deeper zones reuse identities, stats keep scaling).
