@@ -55,6 +55,57 @@ end
 local ENEMY_INTERVAL = GameConfig.Combat.enemyAttackInterval       -- 2
 local AUTOSAVE_INTERVAL = 120                                     -- seconds between profile autosaves
 
+--===== Remote rate limiting (rules/remotes.md #3, monetization.md §2 protection #2) =====
+-- Per-player sliding-window enforcement on CombatEvent. A client message that
+-- exceeds the global cap OR its per-type cap within the window is dropped
+-- silently. Sustained abuse logs a single throttled warn.
+local SEC = GameConfig.Security
+
+type RemoteRecord = { global: { number }, byType: { [string]: { number } } }
+local remoteCalls: { [Player]: RemoteRecord } = {}
+local remoteRejects: { [Player]: { count: number, lastWarn: number } } = {}
+
+local function pruneWindow(times: { number }, now: number)
+    while #times > 0 and times[1] <= now - SEC.remoteWindowSec do
+        table.remove(times, 1)
+    end
+end
+
+local function isRateLimited(player: Player, msgType: string): boolean
+    local now = os.clock()
+    local rec = remoteCalls[player]
+    if not rec then
+        rec = { global = {}, byType = {} }
+        remoteCalls[player] = rec
+    end
+    pruneWindow(rec.global, now)
+    local typeTimes = rec.byType[msgType]
+    if not typeTimes then
+        typeTimes = {}
+        rec.byType[msgType] = typeTimes
+    end
+    pruneWindow(typeTimes, now)
+
+    local cap = SEC.remotePerType[msgType] or SEC.remoteDefaultPerWindow
+    if #rec.global >= SEC.remoteGlobalPerWindow or #typeTimes >= cap then
+        local rej = remoteRejects[player] or { count = 0, lastWarn = 0 }
+        remoteRejects[player] = rej
+        rej.count += 1
+        if rej.count >= SEC.remoteAbuseRejectThreshold
+            and now - rej.lastWarn >= SEC.remoteAbuseWarnCooldownSec then
+            warn(("[CombatServer] sustained rate-limit: %s (%d), %d rejects, last type=%s")
+                :format(player.Name, player.UserId, rej.count, msgType))
+            rej.lastWarn = now
+            rej.count = 0
+        end
+        return true
+    end
+
+    table.insert(rec.global, now)
+    table.insert(typeTimes, now)
+    return false
+end
+
 --===== Progression constants =====
 -- Legacy linear XP rate. This is NOT the player's XP curve (see xpNeeded /
 -- GameConfig.Level.xpForNextLevel). It only feeds ZoneService's boss-level
@@ -635,7 +686,10 @@ end
 
 --===== Client request handler (stat allocation, restart, rebirth) =====
 combatEvent.OnServerEvent:Connect(function(player, data)
-    if not data or not data.type then return end
+    if type(data) ~= "table" then return end
+    local msgType = data.type
+    if type(msgType) ~= "string" then return end
+    if isRateLimited(player, msgType) then return end
     local st = states[player]
     if not st then return end
 
@@ -699,7 +753,10 @@ combatEvent.OnServerEvent:Connect(function(player, data)
     elseif data.type == "restart" then
         if not st.gameOver then return end
         -- KEEP everything; RESET distance to the chosen checkpoint (default 0).
+        -- Clamp to an unlocked 10 km checkpoint so a crafted `checkpointKm`
+        -- cannot skip the run forward.
         local cp = tonumber(data.checkpointKm) or st.selectedCheckpoint or 0
+        cp = math.clamp(math.floor(cp / 10) * 10, 0, st.checkpointMaxKm or 0)
         restartRun(player, st, cp)
         sendUpdate(player, st)
 
@@ -822,6 +879,8 @@ Players.PlayerRemoving:Connect(function(player)
         PlayerDataService.release(player, captureProfile(player, st))
     end
     states[player] = nil  -- loops detect nil and exit cleanly
+    remoteCalls[player] = nil
+    remoteRejects[player] = nil
     ZoneService.release(player)
     EquipmentService.release(player)
     ShopService.release(player)

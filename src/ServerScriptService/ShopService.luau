@@ -162,11 +162,9 @@ function ShopService.handlePurchase(player, st, data)
 	return true, nil, receipt
 end
 
--- Legacy channel: the client UI (later lot) may also send here. Route "buy"
--- to the same path if a state provider is registered; otherwise ignore.
-shopEvent.OnServerEvent:Connect(function(player, data)
-	if type(data) ~= "table" then return end
-	-- Purchases are handled via CombatServer -> ShopService.handlePurchase.
-end)
+-- ShopEvent is a server -> client notification channel only (shop open, purchase
+-- confirmed). Purchases come in through CombatEvent { type = "buyEquipment" } ->
+-- ShopService.handlePurchase, which is rate-limited and validated there. No
+-- client -> server listener on ShopEvent by design.
 
 return ShopService

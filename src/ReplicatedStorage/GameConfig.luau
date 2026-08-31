@@ -313,6 +313,38 @@ function GameConfig.Enemy.levelFromKm(km)
 end
 
 --========================================================
+-- SECURITY  (remote rate limiting)
+--========================================================
+-- Per-player sliding-window caps on CombatEvent. The server rejects (silently)
+-- any client message that exceeds either the global cap or its per-type cap
+-- within `remoteWindowSec`. No sensitive data here: the client may read these
+-- numbers, it just cannot bypass the server-side enforcement.
+GameConfig.Security = {
+    remoteWindowSec        = 1,     -- sliding window width (seconds)
+    remoteGlobalPerWindow  = 20,    -- all types combined / player / window
+    remoteDefaultPerWindow = 4,     -- cap for any type not listed below
+    remotePerType = {
+        move             = 10,   -- held-input, sent on direction change
+        allocateStat     = 8,    -- fast clicks to spend earned points (each costs a point)
+        requestInventory = 2,    -- UI open / refresh
+        buyEquipment     = 4,
+        equipItem        = 4,
+        unequipItem      = 4,
+        fuseItem         = 4,
+        setFilters       = 4,
+        toggleLock       = 4,
+        setCheckpoint    = 4,
+        restart          = 2,
+        setFastMode      = 2,
+        campfireContinue = 2,    -- no-op legacy, bounded anyway
+        rebirth          = 1,
+    },
+    -- Anti-abuse log: one warn when a player racks up sustained rejects.
+    remoteAbuseRejectThreshold = 40,   -- cumulative rejects before a warn
+    remoteAbuseWarnCooldownSec = 30,   -- at most one warn / this many seconds / player
+}
+
+--========================================================
 -- PROGRESSION / MOVEMENT  (world-traversal model)
 --========================================================
 -- The player has a POSITION in km and walks left / right (held input). Each zone
