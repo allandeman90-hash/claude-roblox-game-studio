@@ -2,33 +2,40 @@
 -- PlayerDataService  (ModuleScript - ServerScriptService)
 --
 -- Durable per-player save (GAME_SPEC.md 11). DataStore-backed with a
--- lightweight session lock, retry + backoff, and GRACEFUL DEGRADATION:
--- if DataStore is unavailable (Studio API access off, outage), the game
--- still runs - the player just plays an unsaved session and a warning is
--- logged. The moment API access is enabled, saves start working with no
+-- session lock (heartbeat-refreshed), retry + backoff, and GRACEFUL
+-- DEGRADATION: if DataStore is unavailable (Studio API access off, outage),
+-- the game still runs - the player plays an unsaved session and a warning
+-- is logged. The moment API access is enabled, saves start working with no
 -- code change.
 --
 -- Not ProfileStore (can't vendor it here). The lock is a stored
--- { owner, ts } stamp: a load refuses a lock younger than LOCK_STALE_S
--- held by another JobId, otherwise it takes over.
+-- { owner, ts } stamp: a load refuses a lock younger than lockStaleSec held
+-- by another JobId, otherwise it takes over.
+--
+-- SAVE MODEL (B3): handlers never write. They call markDirty(); one throttled
+-- writer per server persists dirty sessions at most once every
+-- saveMinIntervalSec. Guaranteed writes: PlayerRemoving / BindToClose (release)
+-- and the rebirth milestone (flush force). The same loop heartbeats the lock.
 --==============================================================
 
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local GameConfig = require(ReplicatedStorage:WaitForChild("GameConfig"))
 
 local PlayerDataService = {}
 
 PlayerDataService.PROFILE_VERSION = 1
 
-local STORE_NAME      = "FoG_PlayerData_v1"
-local MAX_RETRIES     = 5
-local LOCK_STALE_S    = 90        -- a lock older than this is assumed abandoned
-local JOB_ID          = game.JobId ~= "" and game.JobId or ("studio_" .. tostring(os.time()))
+local STORE_NAME = "FoG_PlayerData_v1"
+local JOB_ID = game.JobId ~= "" and game.JobId or ("studio_" .. tostring(os.time()))
+local PERSIST = GameConfig.Persistence
 
 local store = DataStoreService:GetDataStore(STORE_NAME)
 
--- [player] = { profile = <table>, dirty = bool, dsAvailable = bool }
+-- [player] = { profile, dirty, dsAvailable, lastWrite, lastLockBeat }
+--   lastWrite / lastLockBeat are os.clock() timestamps.
 local sessions = {}
 
 -- Global DataStore availability, probed once. nil = unknown, true/false after probe.
@@ -107,7 +114,7 @@ end
 
 local function retry(fn)
     local ok, res
-    for attempt = 1, MAX_RETRIES do
+    for attempt = 1, PERSIST.maxRetries do
         ok, res = pcall(fn)
         if ok then return true, res end
         if isPermanentError(res) then
@@ -123,58 +130,104 @@ local function keyFor(player)
     return "u_" .. tostring(player.UserId)
 end
 
+-- True when `lock` is a live lock owned by a DIFFERENT server.
+local function isForeignLiveLock(lock)
+    return lock ~= nil
+        and lock.owner ~= JOB_ID
+        and (os.time() - (lock.ts or 0)) < PERSIST.lockStaleSec
+end
+
 --===== Load =====
--- Returns (profile, dsAvailable). Always returns a usable profile.
+-- Returns (profile, status) where status is:
+--   "ok"       - profile loaded, session persisting
+--   "degraded" - DataStore unavailable, unsaved session on a default profile
+--   "locked"   - a live session on another server holds the lock; caller kicks
 function PlayerDataService.load(player)
     if not probeDataStore() then
         local prof = PlayerDataService.defaultProfile()
         sessions[player] = { profile = prof, dirty = false, dsAvailable = false }
-        return prof, false
+        return prof, "degraded"
     end
+
     local key = keyFor(player)
-    local ok, stored = retry(function()
-        return store:UpdateAsync(key, function(old)
-            old = migrate(old or PlayerDataService.defaultProfile())
-            local lock = old._lock
-            if lock and lock.owner ~= JOB_ID and (os.time() - (lock.ts or 0)) < LOCK_STALE_S then
-                -- Another live session holds the lock: don't steal it.
-                return nil
-            end
-            old._lock = { owner = JOB_ID, ts = os.time() }
-            return old
-        end)
-    end)
+    local contended = false
 
-    if ok and type(stored) == "table" then
-        sessions[player] = { profile = stored, dirty = false, dsAvailable = true }
-        return stored, true
+    for attempt = 1, PERSIST.loadLockRetries + 1 do
+        local ok, stored = retry(function()
+            return store:UpdateAsync(key, function(old)
+                old = migrate(old or PlayerDataService.defaultProfile())
+                if isForeignLiveLock(old._lock) then
+                    return nil  -- another live session holds the lock: don't steal it
+                end
+                old._lock = { owner = JOB_ID, ts = os.time() }
+                return old
+            end)
+        end)
+
+        if ok and type(stored) == "table" then
+            local now = os.clock()
+            sessions[player] = {
+                profile = stored, dirty = false, dsAvailable = true,
+                lastWrite = now, lastLockBeat = now,
+            }
+            return stored, "ok"
+        elseif ok then
+            -- UpdateAsync transform returned nil -> contended lock.
+            contended = true
+            if attempt <= PERSIST.loadLockRetries then
+                task.wait(PERSIST.loadLockRetryWaitSec)
+            end
+        else
+            -- hard DataStore failure - stop retrying the lock
+            break
+        end
     end
 
-    -- DataStore unavailable OR lock contested -> unsaved session on a default profile.
-    warn(("[PlayerDataService] load failed for %s (%s) - UNSAVED session"):format(
-        player.Name, tostring(stored)))
+    if contended then
+        warn(("[PlayerDataService] %s (%d): profile still locked by a live session - kicking")
+            :format(player.Name, player.UserId))
+        return nil, "locked"
+    end
+
+    warn(("[PlayerDataService] load failed for %s (%d) - UNSAVED session")
+        :format(player.Name, player.UserId))
     local prof = PlayerDataService.defaultProfile()
     sessions[player] = { profile = prof, dirty = false, dsAvailable = false }
-    return prof, false
+    return prof, "degraded"
 end
 
---===== Save =====
-function PlayerDataService.save(player, profile)
+--===== Dirty flag (handlers call this; they never write) =====
+function PlayerDataService.markDirty(player, profile)
+    local sess = sessions[player]
+    if not sess then return end
+    if profile then sess.profile = profile end
+    sess.dirty = true
+end
+
+--===== Flush (throttled writer; `force` bypasses the interval + dirty gate) =====
+function PlayerDataService.flush(player, profile, force)
     local sess = sessions[player]
     if not sess then return false end
-    profile = profile or sess.profile
-    sess.profile = profile
+    if profile then sess.profile = profile end
+    profile = sess.profile
+
     if not sess.dsAvailable or dsUsable == false then
-        return false  -- degraded mode: nothing to persist to
+        sess.dirty = false
+        return false
     end
+    if not force then
+        if not sess.dirty then return false end
+        if os.clock() - (sess.lastWrite or 0) < PERSIST.saveMinIntervalSec then
+            return false  -- throttled: stays dirty, picked up next tick
+        end
+    end
+
     local key = keyFor(player)
     local ok, err = retry(function()
         return store:UpdateAsync(key, function(old)
             old = old or {}
-            -- Only write if we still own the lock (or it's stale / ours).
-            local lock = old._lock
-            if lock and lock.owner ~= JOB_ID and (os.time() - (lock.ts or 0)) < LOCK_STALE_S then
-                return nil
+            if isForeignLiveLock(old._lock) then
+                return nil  -- we lost the lock; abort the write
             end
             profile.version = PlayerDataService.PROFILE_VERSION
             profile._savedAt = os.time()
@@ -182,13 +235,44 @@ function PlayerDataService.save(player, profile)
             return profile
         end)
     end)
-    if not ok then
+
+    if ok then
+        local now = os.clock()
+        sess.dirty = false
+        sess.lastWrite = now
+        sess.lastLockBeat = now
+    else
         warn(("[PlayerDataService] save failed for %s: %s"):format(player.Name, tostring(err)))
     end
     return ok
 end
 
---===== Release (clears the lock) =====
+-- Back-compat alias: an immediate, guaranteed write.
+function PlayerDataService.save(player, profile)
+    return PlayerDataService.flush(player, profile, true)
+end
+
+--===== Lock heartbeat (light write: only bumps _lock.ts) =====
+local function heartbeatLock(player)
+    local sess = sessions[player]
+    if not sess or not sess.dsAvailable or dsUsable == false then return end
+    local key = keyFor(player)
+    local ok = retry(function()
+        return store:UpdateAsync(key, function(old)
+            if type(old) ~= "table" or type(old._lock) ~= "table" then return nil end
+            if old._lock.owner ~= JOB_ID then return nil end
+            old._lock.ts = os.time()
+            return old
+        end)
+    end)
+    if ok then
+        sess.lastLockBeat = os.clock()
+    else
+        warn(("[PlayerDataService] lock heartbeat failed for %s"):format(player.Name))
+    end
+end
+
+--===== Release (guaranteed write, clears the lock) =====
 function PlayerDataService.release(player, profile)
     local sess = sessions[player]
     if not sess then return end
@@ -219,5 +303,23 @@ function PlayerDataService.isPersisting(player)
     local sess = sessions[player]
     return sess ~= nil and sess.dsAvailable == true
 end
+
+--===== Single throttled writer + lock heartbeat, for the life of the server =====
+task.spawn(function()
+    while true do
+        task.wait(PERSIST.saveTickSec)
+        for _, player in Players:GetPlayers() do
+            local sess = sessions[player]
+            if sess and sess.dsAvailable and dsUsable ~= false then
+                local now = os.clock()
+                if sess.dirty and now - (sess.lastWrite or 0) >= PERSIST.saveMinIntervalSec then
+                    PlayerDataService.flush(player)
+                elseif now - (sess.lastLockBeat or 0) >= PERSIST.lockHeartbeatSec then
+                    heartbeatLock(player)
+                end
+            end
+        end
+    end
+end)
 
 return PlayerDataService

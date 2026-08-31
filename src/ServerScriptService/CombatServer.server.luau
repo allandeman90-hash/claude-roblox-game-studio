@@ -53,7 +53,6 @@ end
 -- Player attack interval is per-player (SPD -> cadence, st.attackInterval set by
 -- StatsService, etape 3.7). Enemy interval is a flat constant.
 local ENEMY_INTERVAL = GameConfig.Combat.enemyAttackInterval       -- 2
-local AUTOSAVE_INTERVAL = 120                                     -- seconds between profile autosaves
 
 --===== Remote rate limiting (rules/remotes.md #3, monetization.md §2 protection #2) =====
 -- Per-player sliding-window enforcement on CombatEvent. A client message that
@@ -328,6 +327,19 @@ local function captureProfile(player, s)
     return profile
 end
 
+-- Flag the session dirty with the current state. PlayerDataService's throttled
+-- writer persists it within saveMinIntervalSec. Use for every non-milestone
+-- change (kills, equip, fuse, filters, fast-mode, death, campfire).
+local function markProfileDirty(player, s)
+    PlayerDataService.markDirty(player, captureProfile(player, s))
+end
+
+-- Guaranteed immediate write. Use only for true milestones (rebirth; later,
+-- purchases). PlayerRemoving / BindToClose already flush via release().
+local function flushProfileNow(player, s)
+    PlayerDataService.flush(player, captureProfile(player, s), true)
+end
+
 -- One player hit on the current enemy + full on-kill handling (loot, XP, level,
 -- boss clear, campfire, resume). Caller guarantees combat is active and both are
 -- alive. Shared by the attack loop and the tap-attack handler.
@@ -395,6 +407,9 @@ function resolvePlayerHit(player, st)
     st.combatActive = false
     st.isBoss = false
     st.milestone = nil
+    -- A kill changed xp / gold / (maybe) level / loot / boss counters. Flag the
+    -- session; the throttled writer persists it within saveMinIntervalSec.
+    markProfileDirty(player, st)
     sendUpdate(player, st)
 end
 
@@ -472,9 +487,15 @@ local function startCombat(player)
     }
     states[player] = s
 
-    -- Durable profile (GAME_SPEC.md 11). PlayerDataService.load always returns a
-    -- usable profile (a fresh default if DataStore is off / this is a new player).
-    local profile = PlayerDataService.load(player)
+    -- Durable profile (GAME_SPEC.md 11). Returns (profile, status). "locked" means
+    -- a live session on another server still holds this player's data - kick rather
+    -- than run a phantom, unsaved session.
+    local profile, status = PlayerDataService.load(player)
+    if status == "locked" then
+        states[player] = nil
+        player:Kick("Ta partie est encore active sur un autre serveur. Réessaie dans une minute.")
+        return
+    end
     applyProfileToState(profile, s)
     EquipmentService.restore(player, {
         equipe = profile.equipe,
@@ -489,15 +510,8 @@ local function startCombat(player)
     -- zone reset, StatsService.recalc, first-enemy roll and spawns at full HP.
     restartRun(player, s, s.selectedCheckpoint or 0)
 
-    -- Periodic autosave for the life of this session.
-    task.spawn(function()
-        while states[player] == s do
-            task.wait(AUTOSAVE_INTERVAL)
-            if states[player] == s then
-                PlayerDataService.save(player, captureProfile(player, s))
-            end
-        end
-    end)
+    -- Persistence is handled by PlayerDataService's single throttled writer:
+    -- handlers only flag the session dirty (see captureAndMark below).
 
     -- Initial sync
     sendUpdate(player, s)
@@ -547,7 +561,7 @@ local function startCombat(player)
                         st.gameOver = true
                         st.moveDir = nil
                         st.deaths = (st.deaths or 0) + 1
-                        PlayerDataService.save(player, captureProfile(player, st))
+                        markProfileDirty(player, st)
                         combatEvent:FireClient(player, {
                             type       = "gameOver",
                             distance   = st.pos or 0,
@@ -610,7 +624,7 @@ local function startCombat(player)
                     if not atCf and st.milestone == "campfire" then st.milestone = nil end
                     if atCf then
                         ShopService.openShop(player, { km = atCf })
-                        PlayerDataService.save(player, captureProfile(player, st))
+                        markProfileDirty(player, st)
                     else
                         ShopService.closeShop(player)
                     end
@@ -741,7 +755,7 @@ combatEvent.OnServerEvent:Connect(function(player, data)
         -- 2x world speed, unlocked after N big bosses (GAME_SPEC design directive).
         if (st.bigBossesBeaten or 0) >= GameConfig.World.fastModeUnlockBigBosses then
             st.fastMode = data.on == true
-            PlayerDataService.save(player, captureProfile(player, st))
+            markProfileDirty(player, st)
             sendUpdate(player, st)
         end
 
@@ -785,7 +799,7 @@ combatEvent.OnServerEvent:Connect(function(player, data)
         local ok, err, newRarete = EquipmentService.fuse(player, data.id, data.rarete, data.zone)
         if ok then
             StatsService.recalc(player, st)
-            PlayerDataService.save(player, captureProfile(player, st))
+            markProfileDirty(player, st)
             combatEvent:FireClient(player, { type = "fuseResult", ok = true, newRarete = newRarete })
         else
             combatEvent:FireClient(player, { type = "fuseResult", ok = false, reason = err })
@@ -799,7 +813,7 @@ combatEvent.OnServerEvent:Connect(function(player, data)
         EquipmentService.setFilters(player, {
             rareteMin = data.rareteMin, guerrier = data.guerrier, mage = data.mage,
         })
-        PlayerDataService.save(player, captureProfile(player, st))
+        markProfileDirty(player, st)
         combatEvent:FireClient(player, { type = "inventory", filters = EquipmentService.getFilters(player), slots = {} })
 
     elseif data.type == "toggleLock" then
@@ -813,7 +827,7 @@ combatEvent.OnServerEvent:Connect(function(player, data)
         local ok, err = EquipmentService.equip(player, slot, data.id, data.rarete, data.zone)
         if ok then
             StatsService.recalc(player, st)
-            PlayerDataService.save(player, captureProfile(player, st))
+            markProfileDirty(player, st)
         else
             combatEvent:FireClient(player, { type = "equipError", reason = err })
         end
@@ -826,7 +840,7 @@ combatEvent.OnServerEvent:Connect(function(player, data)
         local ok = EquipmentService.unequip(player, data.slot)
         if ok then
             StatsService.recalc(player, st)
-            PlayerDataService.save(player, captureProfile(player, st))
+            markProfileDirty(player, st)
         end
         combatEvent:FireClient(player, { type = "inventory",
             slots = { [data.slot] = EquipmentService.listInventoryForSlot(player, data.slot) },
@@ -854,7 +868,7 @@ combatEvent.OnServerEvent:Connect(function(player, data)
         st.statSpd = GameConfig.Player.startingStats.spd
         st.statLuk = GameConfig.Player.startingStats.luk
         restartRun(player, st, st.selectedCheckpoint or 0)
-        PlayerDataService.save(player, captureProfile(player, st))
+        flushProfileNow(player, st)
         combatEvent:FireClient(player, { type = "rebirthDone", rebirths = st.rebirths })
         sendUpdate(player, st)
     end
@@ -888,12 +902,25 @@ Players.PlayerRemoving:Connect(function(player)
 end)
 
 game:BindToClose(function()
+    local deadline = os.clock() + GameConfig.Persistence.bindToCloseDeadlineSec
+    local threads = {}
     for player, st in pairs(states) do
-        task.spawn(function()
+        threads[#threads + 1] = task.spawn(function()
             PlayerDataService.release(player, captureProfile(player, st))
         end)
     end
-    task.wait(3)
+    -- Wait for every release (retry + backoff inside) to finish, or the deadline.
+    while os.clock() < deadline do
+        local anyAlive = false
+        for _, co in threads do
+            if coroutine.status(co) ~= "dead" then
+                anyAlive = true
+                break
+            end
+        end
+        if not anyAlive then break end
+        task.wait(0.2)
+    end
 end)
 
 -- Handle players already in game
