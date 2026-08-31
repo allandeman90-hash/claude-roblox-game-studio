@@ -65,6 +65,7 @@ local KM_PER_STEP          = GameConfig.Progression.kmPerStep            -- 0.1 
 local STEPS_PER_ZONE       = GameConfig.Progression.stepsPerZone        -- 100 (client scroll unit)
 local MOVE_SPEED           = GameConfig.World.moveSpeedKmPerSec         -- km / s
 local ENCOUNTER_RANGE      = GameConfig.World.encounterRangeKm
+local RESPAWN_DIST         = 0.9    -- walk this far from a kill for it to respawn (farming)
 local CAMPFIRE_EVERY       = GameConfig.World.campfireEveryKm
 local CAMPFIRE_RANGE       = GameConfig.World.campfireRangeKm
 local MOB_TICK             = 0.1
@@ -106,13 +107,10 @@ local function previewEncounter(s, enc)
     s.encPreview = s.encPreview or {}
     local pv = s.encPreview[enc.pos]
     if not pv then
-        if enc.kind == "boss" then
-            local b = EnemyService.rollBoss(enc.pos)
-            pv = { name = b.name, level = b.level, id = b.id }
-        else
-            local e = EnemyService.rollEnemy(enc.pos)
-            pv = { name = e.name, level = e.level, id = e.id }
-        end
+        -- Cache the WHOLE rolled descriptor so the preview, the difficulty tint
+        -- and the actual fight all use identical stats.
+        pv = (enc.kind == "boss") and EnemyService.rollBoss(enc.pos)
+            or EnemyService.rollEnemy(enc.pos)
         s.encPreview[enc.pos] = pv
     end
     return pv
@@ -148,6 +146,9 @@ local function sendUpdate(player, s)
                 name    = pv.name,
                 level   = pv.level,
                 id      = pv.id,   -- sprite slug (nil -> client keeps the text label)
+                hp      = pv.maxHp,   -- for the client-side difficulty tint
+                atk     = pv.atk,
+                magic   = pv.damageType == "magic",
             }
         end
     end
@@ -214,6 +215,7 @@ local function sendUpdate(player, s)
         rebirthCost     = GameConfig.Rebirth.cost((s.rebirths or 0) + 1),
         canRebirth      = (s.gold or 0) >= GameConfig.Rebirth.cost((s.rebirths or 0) + 1),
         checkpointMaxKm = s.checkpointMaxKm or 0,
+        bestKm          = s.bestKm or 0,
         selectedCheckpoint = s.selectedCheckpoint or 0,
         rebirthSkillPct = math.floor(GameConfig.Rebirth.skillEffectPerRebirth * (s.rebirths or 0) * 100),
         rebirthXpBonus  = math.floor(GameConfig.Rebirth.xpBonusPerRebirth * (s.rebirths or 0) * 100),
@@ -243,6 +245,7 @@ local function applyProfileToState(profile, s)
     s.gold               = math.max(0, math.floor(profile.or_ or 0))
     s.rebirths           = math.max(0, math.floor(profile.rebirths or 0))
     s.checkpointMaxKm    = math.max(0, math.floor((profile.checkpointMax or 0) / 10) * 10)
+    s.bestKm             = math.max(0, tonumber(profile.bestKm) or 0)
     s.selectedCheckpoint = math.clamp(math.floor((profile.selectedCheckpoint or 0) / 10) * 10, 0, s.checkpointMaxKm)
     s.statPoints         = math.max(0, math.floor(profile.pointsNonAlloues or 0))
     s.bigBossesBeaten    = math.max(0, math.floor(profile.bigBossesBeaten or 0))
@@ -262,6 +265,7 @@ local function captureProfile(player, s)
     profile.xp                 = s.playerExp
     profile.or_                = s.gold
     profile.distance           = s.pos or 0
+    profile.bestKm             = math.max(s.bestKm or 0, tonumber(profile.bestKm) or 0)
     profile.checkpointMax      = s.checkpointMaxKm or 0
     profile.selectedCheckpoint = s.selectedCheckpoint or 0
     profile.rebirths           = s.rebirths or 0
@@ -354,31 +358,21 @@ local function startEncounter(player, st, enc)
     st.combatActive = true
     st.currentEncounterPos = enc.pos
     st.isMoving = false
+    -- Use the cached preview roll so the fight matches what the player saw.
+    local e = previewEncounter(st, enc)
     if enc.kind == "boss" then
-        local boss = EnemyService.rollBoss(enc.pos)
         st.isBoss = true
         st.milestone = "boss"
-        st.enemyName = boss.name ; st.enemyLevel = boss.level ; st.enemyMaxHp = boss.maxHp
-        st.enemyId = boss.id
-        st.enemyAtk = boss.atk ; st.enemyExp = boss.exp ; st.enemyGold = boss.gold
-        st.enemyHp = boss.maxHp ; st.enemyDamageType = boss.damageType
-        st.enemyAtkSplit = boss.atkSplit ; st.enemyIsBigBoss = boss.isBigBoss or false
+        st.enemyDamageType = e.damageType
+        st.enemyAtkSplit = e.atkSplit
+        st.enemyIsBigBoss = e.isBigBoss or false
     else
-        local e = EnemyService.rollEnemy(enc.pos)
-        st.encPreview = st.encPreview or {}
-        local pv = st.encPreview[enc.pos]
-        if pv then
-            e.name, e.level = pv.name, pv.level
-        else
-            st.encPreview[enc.pos] = { name = e.name, level = e.level }
-        end
         st.isBoss = false ; st.milestone = nil
-        st.enemyName = e.name ; st.enemyLevel = e.level ; st.enemyMaxHp = e.maxHp
-        st.enemyId = e.id
-        st.enemyAtk = e.atk ; st.enemyExp = e.exp ; st.enemyGold = e.gold
-        st.enemyHp = e.maxHp ; st.enemyDamageType = nil ; st.enemyAtkSplit = nil
-        st.enemyIsBigBoss = nil
+        st.enemyDamageType = nil ; st.enemyAtkSplit = nil ; st.enemyIsBigBoss = nil
     end
+    st.enemyName = e.name ; st.enemyLevel = e.level ; st.enemyId = e.id
+    st.enemyMaxHp = e.maxHp ; st.enemyHp = e.maxHp
+    st.enemyAtk = e.atk ; st.enemyExp = e.exp ; st.enemyGold = e.gold
 
     -- The HERO always strikes first; both attack timers start counting AFTER it.
     st.atkCharge = 0
@@ -419,6 +413,7 @@ local function startCombat(player)
         gold           = 0,
         rebirths       = 0,
         checkpointMaxKm = 0,
+        bestKm         = 0,
         selectedCheckpoint = 0,
         enemyName      = firstEnemy.name,
         enemyLevel     = firstEnemy.level,
@@ -544,18 +539,20 @@ local function startCombat(player)
             end
             st.isMoving = walking and not st.atCampfire
 
-            -- Decor zone + checkpoint high-water mark.
+            -- Decor zone + checkpoint high-water mark + all-time best distance.
             st.zone = ZoneService.updateDistance(player, st.pos)
             LootService.noteZoneReached(player, st.zone)
             local cpKm = math.floor(st.pos / 10) * 10
             if cpKm > (st.checkpointMaxKm or 0) then st.checkpointMaxKm = cpKm end
+            if (st.pos or 0) > (st.bestKm or 0) then st.bestKm = st.pos end
 
-            -- Respawn: a killed encounter comes back only once the player has LEFT
-            -- its 1 km step (walked forward to the next step, or back past the
-            -- boundary). No more ping-ponging 20 cm to re-farm the same 2 mobs.
-            local curStepFloor = math.floor(st.pos)
+            -- Respawn: a killed encounter comes back only once the player has walked
+            -- clear of it (~a full step away). Distance-based, not floor-based, so a
+            -- boss sitting exactly on a zone boundary (km = Z*10) isn't un-cleared
+            -- the instant the hero engages it from just inside the previous step
+            -- (which would trap him fighting an endlessly respawning boss).
             for p in pairs(st.cleared) do
-                if math.floor(p) ~= curStepFloor then
+                if math.abs((st.pos or 0) - p) > RESPAWN_DIST then
                     st.cleared[p] = nil
                 end
             end
@@ -587,14 +584,19 @@ local function startCombat(player)
                     end
                 end
 
-                -- Encounter: nearest uncleared slot in this zone (or the boss of
-                -- the previous zone, which sits on the shared boundary).
+                -- Encounter: an uncleared mob of the CURRENT step, or a boss on the
+                -- shared boundary. Restricting regular mobs to the current step stops
+                -- the hero engaging the previous step's mob the instant he crosses
+                -- (its slot sits near the boundary).
                 if not st.atCampfire then
+                    local curStep = EnemyService.stepForKm(st.pos)
                     local zones = { st.zone }
                     if st.zone > 1 then zones[2] = st.zone - 1 end
                     for _, z in ipairs(zones) do
                         for _, enc in ipairs(EnemyService.encountersForZone(z)) do
-                            if not st.cleared[enc.pos] and math.abs(st.pos - enc.pos) <= ENCOUNTER_RANGE then
+                            local inScope = enc.kind == "boss" or (z == st.zone and enc.step == curStep)
+                            if inScope and not st.cleared[enc.pos]
+                                and math.abs(st.pos - enc.pos) <= ENCOUNTER_RANGE then
                                 startEncounter(player, st, enc)
                                 break
                             end
