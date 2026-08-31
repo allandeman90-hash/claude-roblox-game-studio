@@ -1,1104 +1,908 @@
-# Quête Minute — Le Plan Complet
+# Quête Minute — Le Plan Complet (v2)
 
-> Document de travail unique. Vision + cadre + catalogue des skills + ~50 prompts avec skills.
-> Artifact : `claude.ai/code/artifact/4d515533-06b5-44dc-8816-2a57fefade53`
+**Refonte : 2026-08-31**, après la phase de conception (119 décisions, GDD maître écrit,
+110 assets générés, compte Roblox débanni).
 
-Tout en un : ce qu'on construit et pourquoi (Director's Cut), sur quel socle (100 % GUI,
-paysage verrouillé, coin Roblox réservé), et l'ordre exact. Chaque tâche indique **quelles
-skills du repo lancer**, porte son **intention de design**, le **prompt à coller** et le
-critère de validation. Références visuelles : `02-maquettes.md`, `03-sur-tous-les-ecrans.md`.
+Ce document remplace la v1. Il est organisé en **tracks parallèles** : plusieurs peuvent
+avancer en même temps, chacun confié à un agent ou une équipe d'agents. Le graphe de
+dépendances (§C) dit ce qui peut démarrer maintenant et ce qui attend.
 
----
-
-## A — La vision
-
-Garder la seule bonne partie de l'ancien GAME_SPEC — l'équipement — et transformer le reste :
-d'un clone solo de 2014 en un jeu qu'on joue avec ses amis, où l'on revient chaque jour, et
-dans lequel on dépense sans se sentir bloqué.
-
-### Ce qu'on garde de GAME_SPEC — l'équipement, inchangé
-
-- 6 slots · 5 raretés = pur multiplicateur · **niveaux d'objet indicatifs qui ne bloquent
-  jamais** (parfait pour le rebirth : niveau 1 en stuff Lv.400).
-- Sets Guerrier / Mage symétriques, bonus par paliers 2 / 3 / 4, même voie uniquement. DEF et
-  RES viennent seulement du stuff.
-- Fusion stricte du même objet exact — un filet, pas un raccourci (1 Mythique = 360 Communs).
-- On l'étend seulement : l'échange et le transmog sont déjà supportés par la structure.
-
-### Le pari
-
-Garder l'identité **100 % GUI, instant, faible-input, paysage verrouillé** — quasi tous les
-jeux Roblox sont des mondes 3D lourds, donc un bon jeu GUI est un différenciateur. Puis rendre
-la GUI *profonde et sociale* au lieu de *minimale et solo*. Trois problèmes corrigés :
-(1) solo → pas de boucle virale ; (2) combat 100 % passif → aucune décision ; (3) 12 zones
-numérotées → rien de mémorable.
-
-### Pourquoi ils restent
-
-- Un run finit sur un **objectif suivant**, jamais un arrêt sec.
-- **La mort est une progression** — l'XP est gardée. Le rendre lisible.
-- **Le drop est la dopamine** — rareté annoncée fort au kill.
-- Une raison d'ouvrir demain : récompense quotidienne + 3 missions.
-- Le rebirth reste intéressant jusqu'à R20 via un déblocage tous les 5.
-
-### Pourquoi ils paient
-
-- Tout achat = **gain de temps, confort ou cosmétique**. Un joueur gratuit finit tout.
-- Vendre dans la **friction ressentie** : revive à la mort, +50 slots inventaire plein,
-  ×2 or au farm lent.
-- **Pack de départ** unique, évident pour un nouveau joueur accroché.
-- Passes permanents qui **récompensent les fidèles**.
-- Probas affichées sur tout ce qui est aléatoire.
-
-### Périmètre
-
-**Sous-ensemble de LANCEMENT :** compétences actives · mécaniques de boss · équipe de 3 pets ·
-« La Descente » + boss récurrents · codex · arbre de talents · bonus de collection · donjon du
-jour · pass de saison · boutique cosmétique · passes de confort · passe de game-feel · classements.
-
-**Différé v1.1–v1.2 :** feux de camp partagés · échange · Ascension · défis · raids co-op · crews.
+**Sources de vérité :** `design/gdd/master-gdd.md` · `design/reponses-consolidees.md` ·
+`design/economy/monetization.md` · `GAME_SPEC.md` (équipement only) · `docs/plan/02-maquettes.md`
++ `03-sur-tous-les-ecrans.md` (références visuelles).
 
 ---
 
-## B — Le cadre technique
+## A — État des lieux (2026-08-31)
 
-### Préambule — à coller au début de chaque session Claude Code
+### Fait
+- **Combat** : largement codé (17 modules `src/`). Rebalance ennemis niveau-based, teinte de
+  difficulté 6 paliers, flash rouge < 20 % PV, sprites héros/ennemi/pet câblés (anciens).
+- **Conception** : GDD maître v1.0 + `systems-index.md` + monétisation + 119 décisions.
+- **Assets** : 2 héros · 72 monstres · 24 boss/big boss · 12 fonds — découpés, nommés,
+  dans `assets/images/*/final/`. Pas encore uploadés ni câblés.
+
+### À faire (résumé)
+- **Assets → jeu** : atlas, upload, `AssetMap.luau`, câblage, familiers, fonds de couche.
+- **Stabiliser le code** : retirer `DEV_MODE`, rate-limit remotes, `ProcessReceipt` idempotent,
+  session lock, découpler les saves, resolver de multiplicateurs, 4 bugs connus.
+- **23 GDD par système** (`design/gdd/systems-index.md`).
+- **Modèle chiffré** : table de croissance des stats, tous les gros multiplicateurs, rosters
+  c2-c12, 50 armes, 96 armures + 12 sets, playthrough de balance.
+- **Narratif** : bible de La Descente, dialogues des 12 boss ×2 rencontres, cartes de couche,
+  entrées de codex.
+- **Socle UI paysage + HUD réservé**, puis les ~10 écrans.
+- **Systèmes** : compétences, talents, sous-classes, 3-pet party, mécaniques de boss, Cauchemar.
+- **Rétention** : récompense quotidienne, missions, Donjon du Jour, codex, pass de saison,
+  classements, analytics.
+- **Monétisation** : game passes, dev products, boutique cosmétique, prompts contextuels.
+- **Polish & QA**, **Durcissement**, **Publication**.
+
+---
+
+## B — Le préambule (à coller au début de chaque session Claude Code)
 
 ```
-Projet : Quête Minute (RPG auto-battler 2D Roblox, repo local). On suit "Le Plan
-Complet" — vision Director's Cut, cadre ci-dessous.
+Projet : Quête Minute (RPG auto-battler 2D Roblox). Source de vérité : design/gdd/master-gdd.md
++ design/reponses-consolidees.md + design/economy/monetization.md. Je te donne un prompt
+d'une TRACK du plan (docs/plan/00-plan-complet.md).
 
 RÈGLES NON NÉGOCIABLES :
-1. 100% GUI. Aucun monde 3D, aucun Humanoid, aucune caméra, aucun personnage.
-2. Orientation VERROUILLÉE paysage. Le coin haut-gauche est réservé au HUD Roblox
-   (bouton ☰ menu + chat) : jamais de bouton, texte lisible ou barre importante là.
-   Lis GuiService.TopbarInset + GetGuiInset(). Désactive PlayerList et Backpack via
-   StarterGui:SetCoreGuiEnabled. Infos de jeu centrées ou à droite, barre de PV
-   joueur après le retrait.
-3. Un seul ScreenGui : UDim2 Scale + UIAspectRatioConstraint + TextScaled +
-   UITextSizeConstraint. La grille 3 colonnes s'étire de ~19,5:9 (téléphone) à 16:9
-   (PC). Safe area iOS gérée. Entrées : tactile (tap tuiles) / clavier Q W E + A/D /
-   manette — mêmes actions.
-4. Serveur autoritaire pour TOUT état (or, xp, loot, stats, talents, achats,
-   progression). Valide type + plage + cohérence de chaque argument de RemoteEvent.
-   Rate-limit chaque action client. Aucun RemoteFunction client→serveur.
-   ProcessReceipt idempotent.
-5. Garde le système d'ÉQUIPEMENT de GAME_SPEC.md tel quel. Tout le reste suit le
-   Director's Cut / ce plan.
-6. N'uploade AUCUN asset (compte modéré). Fallback texte / Frames procéduraux.
-7. Protocole : montre-moi un plan puis des extraits, demande avant Write/Edit,
-   aucun commit sans mon accord explicite.
-8. Style Luau : .claude/docs/luau-style-guide.md. task.wait/spawn/defer jamais
-   wait/spawn/delay. pcall autour de tout appel de service externe. Services cachés
-   en haut de module. Magic numbers dans GameConfig.
-9. SKILLS DU REPO : utilise-les. Standard — /studio-test après chaque changement de
-   code, /doctor après un changement structurel. Les /team-* orchestrent les bons
-   agents pour une feature. Les audits (/exploit-check, /economy-audit,
-   /datastore-review, /balance-check, /perf-profile, /remotes-audit) sont des
-   portes de validation. Je précise lesquelles dans chaque prompt ; propose-en
-   d'autres si pertinent. Ne servent PAS ici : /generate-asset, /asset-from-image
-   (Blender/3D), /start, /onboard, /reverse-document.
-10. Après chaque changement : pousse vers Roblox Studio via le MCP, /studio-test,
-    lis la console, rapporte-moi toute erreur Lua.
+1. 100 % GUI. Aucun monde 3D, aucun Humanoid, aucune caméra, aucun personnage.
+2. Orientation VERROUILLÉE paysage. Coin haut-gauche réservé au HUD Roblox (☰ + chat) :
+   rien d'important là. Lis GuiService.TopbarInset + GetGuiInset(). PlayerList + Backpack
+   désactivés. Infos de jeu centrées ou à droite.
+3. Un seul ScreenGui : UDim2 Scale + UIAspectRatioConstraint + TextScaled + UITextSizeConstraint.
+   Safe area iOS (ScreenInsets = CoreUISafeInsets). Entrées tactile / clavier QWE+AD / manette.
+4. Serveur autoritaire pour TOUT état. Valide type + plage + cohérence de chaque argument de
+   RemoteEvent, rate-limite chaque action client. Aucun RemoteFunction client→serveur.
+   ProcessReceipt idempotent + registre PurchaseId.
+5. Équipement de GAME_SPEC.md gardé tel quel. Tout le reste suit le GDD maître.
+6. Compte Roblox DÉBANNI — uploads possibles. Cosmétiques = Frames/dégradés procéduraux.
+7. Protocole : montre un plan puis des extraits, demande avant Write/Edit, aucun commit sans
+   mon accord.
+8. Style Luau : .claude/docs/luau-style-guide.md. task.wait/spawn/defer. pcall autour de tout
+   appel de service. Services cachés en haut de module. Magic numbers dans GameConfig.
+9. Skills : /studio-test après chaque changement de code, /doctor après un changement
+   structurel. Les /team-* orchestrent une feature. Les audits (/exploit-check, /economy-audit,
+   /datastore-review, /balance-check, /perf-profile, /remotes-audit) sont des portes.
+10. Après chaque changement : pousse vers Studio (MCP), /studio-test, lis la console, rapporte.
 
-Réponds "compris" et attends mon premier prompt.
+Réponds "compris" et attends mon prompt.
 ```
 
-### Rappels
+Le catalogue complet des 51 skills (quand lancer quoi) : voir la fin de ce fichier, §F.
 
-| | |
+---
+
+## C — Les tracks & le graphe de dépendances
+
+| Track | Titre | Agent / équipe | Démarre |
+|---|---|---|---|
+| **A** | Assets → jeu | devops-engineer + technical-artist + roblox-studio-specialist | **maintenant** |
+| **B** | Stabilisation & sécurité du code | lead-programmer + exploit-security-specialist + datastore-architect + remotes-networking-specialist | **maintenant** |
+| **C** | GDD par système | game-designer (coord.) + systems-designer + spécialistes | **maintenant** |
+| **D** | Modèle chiffré & contenu du monde | systems-designer + economy-designer + game-designer | **maintenant** |
+| **E** | Narratif — La Descente | narrative-director + writer + world-builder | **maintenant** |
+| **F** | Socle UI + les écrans | ui-programmer + ux-designer + accessibility-specialist | après A + C8 |
+| **G** | Systèmes de combat & progression | luau-gameplay-programmer + luau-systems-programmer + remotes-networking-specialist | après C1-C3 + D1-D2 |
+| **H** | Systèmes de rétention | live-ops-specialist + game-designer + economy-designer | après C6-C7 + F4 |
+| **I** | Monétisation | monetization-lead + devops-engineer + economy-designer | après B4 + H6 |
+| **J** | Polish & QA | qa-lead + performance-analyst + sound-designer + `/team-polish` | après F + G |
+| **K** | Durcissement | exploit-security-specialist + datastore-architect + technical-director | après tout |
+| **L** | Publication | release-manager + devops-engineer + producer | après K vert |
+
+```
+MAINTENANT (parallèle) :  A ─┐   B ─┐   C ─┬─────┐   D ─┐   E
+                              │       │      │     │      │
+        ┌─────────────────────┴───────┴──────┘     │      │
+        │ (sprites)          (code stable)   (GDDs)│(chiffres)(dialogues)
+        ▼                                          ▼      ▼      ▼
+  ══ GATE PHASE 1 : A+B+C+D+E verts ══════════════════════════════
+        │
+        ├─► F (écrans)  ◄── A, C8
+        ├─► G (systèmes) ◄── C1-C3, D1-D2
+        │
+  ══ GATE PHASE 2 : première session jouable de bout en bout ══
+        │
+        ├─► H (rétention) ◄── C6-C7, F4
+        ├─► I (monétisation) ◄── B4, H6
+        │
+  ══ GATE PHASE 4 : /economy-audit + /exploit-check payant verts ══
+        │
+        ├─► J (polish & QA) ◄── F, G
+        ├─► K (durcissement) ◄── tout
+        │
+  ══ GATE : K vert ══
+        │
+        └─► L (publication)
+```
+
+Entre chaque gate : `/gate-check` (go/no-go) + `/retrospective` + `/sprint-plan` + `/estimate`
+pour la phase suivante. Si en retard : `/scope-check`.
+
+---
+
+## D — Les prompts, track par track
+
+Format : **[Agent / équipe] · Skills · Dépend de** — puis le prompt — puis `✓ Fini quand`.
+Les prompts marqués **⟳ délégable** peuvent tourner en subagent de fond pendant qu'une autre
+track avance.
+
+### TRACK A — Assets → jeu
+
+**A1 — Repack en atlas** · [devops-engineer] · `/studio-test` · dépend de rien · ⟳ délégable
+```
+Écris tools/assetgen/pack_atlas.py : lit assets/images/{hero,monsters,bosses,backgrounds}/final/,
+repack en 3-4 atlas PNG 1024×1024 (héros+monstres ensemble, boss, big boss ; les 12 fonds
+restent individuels), écrit tools/assetgen/atlas-manifest.json (slug → {atlas, x, y, w, h}).
+Bin-packing simple (rangées). Marge 2 px entre sprites. Génère aussi une planche de contrôle.
+```
+`✓ Fini quand :` 3-4 atlas + le manifest existent, planche de contrôle relue, aucun sprite coupé.
+
+**A2 — Upload Open Cloud + AssetMap** · [devops-engineer] · dépend de A1
+```
+Adapte tools/assetgen/upload.py pour uploader les atlas + les 12 fonds via l'API Open Cloud
+Assets (clé Creator dans une var d'env, jamais dans un fichier). Attends la modération de
+chaque asset. Génère src/ReplicatedStorage/AssetMap.luau : slug → { id = "rbxassetid://…",
+rect = Vector2 offset, size = Vector2 } pour les atlas, slug → id simple pour les fonds.
+Garde un fallback texte pour tout slug sans id.
+```
+`✓ Fini quand :` tous les assets approuvés par la modération, AssetMap.luau généré, aucune
+référence orpheline.
+
+**A3 — Câbler les sprites dans le jeu** · [technical-artist + ui-programmer] · `/studio-test` · dépend de A2
+```
+Dans CombatClient + RpgGui : remplace les placeholders par de vrais ImageLabel qui lisent
+AssetMap (Image = atlas id, ImageRectOffset/ImageRectSize depuis le rect). Héros selon la voie,
+ennemi selon enemyId, boss selon bossId. Génère les familiers : réduction (~40 %) des sprites
+monstres → assets/images/pets/, upload, ajoute à AssetMap. /studio-test : les bons sprites
+s'affichent, feet-on-ground, pas de carré manquant.
+```
+`✓ Fini quand :` /studio-test — héros, monstres des 12 couches, boss, big boss et familiers
+s'affichent correctement.
+
+**A4 — Fonds de couche + carte de transition** · [technical-artist + ui-programmer] · `/studio-screenshot` · dépend de A2
+```
+applyZoneDecor : charge bg_zone1..12 selon la couche courante (fond fixe, la scène est la
+colonne centrale). Ajoute la carte de transition entre deux couches (Q100) : plein écran, nom
+de la couche + 1 phrase d'ambiance (de design/narrative/), 5 s max, passe automatiquement.
+/studio-screenshot sur 3 couches.
+```
+`✓ Fini quand :` /studio-screenshot — chaque couche a son décor, la carte s'affiche 5 s et se
+ferme seule.
+
+---
+
+### TRACK B — Stabilisation & sécurité du code
+
+**B1 — Retirer le mode dev** · [lead-programmer] · `/studio-test` · dépend de rien
+```
+Supprime définitivement DEV_MODE, le handler "devReset", PlayerDataService.wipe, le bouton
+DevReset client + son wiring. Grep "dev"/"DEV"/"wipe"/"REVIVE_PRODUCT_ID". /studio-test.
+```
+`✓ Fini quand :` plus aucune référence, aucun reset joueur possible, /studio-test OK.
+*(Réf. mémoire projet "dev-reset — remove before release".)*
+
+**B2 — Rate-limit tous les remotes** · [remotes-networking-specialist + lead-programmer] · `/remotes-audit` `/studio-test` · dépend de rien · ⟳ délégable
+```
+Lance /remotes-audit sur CombatEvent + ShopEvent. Puis : guard `if type(data) ~= "table" then
+return end` en tête du handler. Table lastCalls[player] (fenêtre glissante 1 s) : plafond
+global ~20/s + par type (move 10/s, requestInventory 2/s, equip/fuse/buy 4/s, rebirth 1/s).
+Rejet silencieux au-delà, log si dépassement soutenu. Supprime le handler ShopEvent mort.
+Crée design/remotes-manifest.md.
+```
+`✓ Fini quand :` /remotes-audit propre, un test de spam ne dégrade pas le Heartbeat.
+
+**B3 — Découpler les sauvegardes + session lock** · [datastore-architect] · `/datastore-review` · dépend de rien · ⟳ délégable
+```
+Lance /datastore-review sur l'existant. Puis : les handlers marquent sess.dirty = true et ne
+sauvegardent jamais eux-mêmes. Un seul task de save throttlé (≤ 1 écriture / 30-60 s / joueur,
+si dirty). Saves garanties : PlayerRemoving, BindToClose, jalons (rebirth, achat). BindToClose
+attend jusqu'à os.clock()+25. Heartbeat du lock toutes ~30 s (< LOCK_STALE_S). wipe/RemoveAsync
+respecte le lock. Prise de lock contestée = retry puis kick (pas de session fantôme).
+```
+`✓ Fini quand :` /datastore-review propre, save/reload + verrou de session testés, tempête
+BindToClose (8 joueurs kick simultané) OK.
+
+**B4 — ProcessReceipt idempotent** · [datastore-architect + monetization-lead] · `/datastore-review` · dépend de rien
+```
+Réécris ProcessReceipt : clé "receipt_"..PurchaseId dans un DataStore dédié. Si déjà présente →
+PurchaseGranted (idempotent). Si joueur absent → NotProcessedYet. Applique l'effet (crédité
+dans le profil pour les consommables), écris la clé (pcall + retry) APRÈS le grant, ne rends
+PurchaseGranted que si l'écriture réussit. Aucun return inconditionnel. pcall partout.
+```
+`✓ Fini quand :` /datastore-review propre, un achat rejoué ne crédite pas deux fois (test).
+
+**B5 — Resolver de multiplicateurs + session shop** · [technical-director + lead-programmer] · `/studio-test` · dépend de rien
+```
+Crée RewardService.multiplier(player, category) où category ∈ {xp, gold, loot, petLoot} :
+max(pass_permanent, pass_premium_actif), plafond ×3 par catégorie ; puis × cauchemar_mult ×
+rebirth_bonus (catégories gagnées qui se multiplient volontairement — formule dans
+monetization.md §2). Boosts temporaires = { expiresAt } serveur, ignorés si expirés. Ownership
+gamepass via UserOwnsGamePassAsync en pcall, cache serveur, invalidé sur
+PromptGamePassPurchaseFinished. Appliqué en UN seul point (resolvePlayerHit + futurs points de
+récompense). ShopService.closeShop(player) dans restartRun, le handler rebirth, et gameOver.
+```
+`✓ Fini quand :` /studio-test — pas d'empilement ×6, gear sur-tier impossible après restart.
+
+**B6 — Les 4 bugs connus** · [luau-gameplay-programmer] · `/studio-screenshot` `/studio-test` `/balance-check` · dépend de rien · ⟳ délégable
+```
+(a) Dégâts sur le mauvais ennemi : dans startEncounter (CombatServer), appelle
+    sendUpdate(player, st) AVANT resolvePlayerHit(player, st).
+(b) Ligne xp/min & or/min illisible : HeroTimeBox empile 4 lignes dans une place pour 2 —
+    agrandis-la OU passe à 3 lignes. La logique de calcul est correcte.
+(c) Séparateur étape 9-10 : dans updateZoneTrack, positionne les 10 ticks par code —
+    Tick[i].Position = UDim2.new((i-1)/10, 0, 0.5, 0), garde Y/hauteur.
+(d) Loot des boss de couche : LootService.rollDrop reçoit l'index de boss (= couche, 1..12
+    cyclique) pour TOUT boss nommé, pas seulement les big boss. /balance-check sur les taux
+    de set, test : tuer le boss couche 1 ~15×.
+```
+`✓ Fini quand :` /studio-screenshot + /studio-test confirment les 4 ; /balance-check les taux
+de set.
+
+---
+
+### TRACK C — GDD par système
+
+Chaque GDD via `/gdd <système>`. Modèle : `.claude/docs/templates/gdd-system.md` (9 sections,
+formules explicites, ≥ 5 edge cases). Gate global : `/design-review` sur chaque GDD.
+Toutes les tâches C sont **⟳ délégables** (subagent game-designer / systems-designer).
+
+**C1** · [systems-designer + lead-programmer]
+```
+/gdd core-gameplay puis /gdd combat. Marche (tenir gauche/droite, moveSpeed, respawn), combat
+auto (héros frappe 1er, cadence, DEF/RES, mitigation), fuite (mobs oui / boss non), teinte de
+danger 6 paliers. Reprends le code combat existant comme base, documente l'écart avec le GDD
+maître.
+```
+`✓ Fini quand :` les 2 GDD relus (/design-review), formules alignées avec l'Annexe A du GDD maître.
+
+**C2** · [systems-designer]
+```
+/gdd progression, /gdd talents, /gdd subclass, /gdd rebirth. Stats auto (classe × sous-classe,
+1 pt libre / 5), points de compétence gagnés (permanents, sources + allocation), 3 branches de
+talents × 10+, sous-classes (R5, Berserker/Gardien/Destructeur/Sage), mur de niveau 100+20/reb,
+jalons /5, checkpoints auto, mort = re-marche.
+```
+`✓ Fini quand :` 4 GDD relus, la table de croissance renvoie à D1.
+
+**C3** · [systems-designer + luau-gameplay-programmer]
+```
+/gdd abilities, /gdd boss-mechanics. 3 slots, auto par défaut + reprise en main, cooldowns,
+débloqués par talents ; 2-4 phases par boss, grosse attaque à interrompre (tuile de pouvoir
+recontextualisée — pas le bon pouvoir = pas d'interruption), adds, enrage en Cauchemar. Les
+12 signatures de boss (une par personnage).
+```
+`✓ Fini quand :` 2 GDD relus, les 12 signatures listées.
+
+**C4** · [economy-designer + systems-designer]
+```
+/gdd nightmare, /gdd economy. Ladder Cauchemar par couche (déblocage par kills, multiplicateurs
+→ D2, enrage, avance auto), l'or (faucet, sink = rebirth avec la courbe Q64, gemmes premium,
+puits Q61), les boutiques (5 objets, restock, marchand ambulant avant km 50).
+```
+`✓ Fini quand :` 2 GDD relus.
+
+**C5** · [systems-designer]
+```
+/gdd pets, /gdd codex, /gdd inventory. Familiers = mini-monstres (drop 0,5 %/0,1 %, rôle
+Heal/DPS/Tank au drop, famille = meilleur rôle, effet permanent, soigneur en combat, équipe
+de 3→4) ; codex (10 kills/carte, familles, bonus quand une famille est complète, onglet objets
+silhouette) ; inventaire (100 slots, filtres sur la page, tri par emplacement, comparaison,
+fusion, vente rapide, panneau de set).
+```
+`✓ Fini quand :` 3 GDD relus, l'inventaire vérifié vs GAME_SPEC §1.2.
+
+**C6** · [game-designer + live-ops-specialist]
+```
+/gdd campfire, /gdd daily-reward, /gdd missions, /gdd daily-dungeon, /gdd raid. Feu de camp =
+hub complet (le km 0 = le château), coffre horaire ; récompense 7 jours (cycle Q77, 48 h de
+grâce) ; 10 missions/jour (7/2/1, pool ~50, reroll, bonus de complétion en points permanents,
+perdues à 24 h) ; Donjon du Jour par étages (1 clé/jour, mort = clé perdue, 7 thèmes fixes,
+salles à défi + coffres, classement par étage, reprise à l'étage max hebdo) ; donjon-raid solo.
+```
+`✓ Fini quand :` 5 GDD relus.
+
+**C7** · [live-ops-specialist + monetization-lead]
+```
+/gdd season-pass, /gdd leaderboards. Pass S1 (8 semaines, ~50 paliers, gratuit + premium, XP
+de pass Q85) ; classements all-time (distance, rebirths, palier Cauchemar) + podium serveur +
+paliers de Soutien non chiffrés + anti-triche serveur.
+```
+`✓ Fini quand :` 2 GDD relus, cohérents avec monetization.md.
+
+**C8** · [ux-designer + narrative-director + ui-programmer]
+```
+/gdd onboarding, /gdd ui-ux, /gdd narrative. FTUE 5 coach-marks + cadeau (1er familier) ;
+socle UI (un ScreenGui paysage, zone HUD réservée, safe area, entrées, accessibilité Q104/Q105,
+les ~10 écrans avec leur arbre d'instances) ; La Descente (structure narrative, où placent les
+dialogues, les cartes de couche).
+```
+`✓ Fini quand :` 3 GDD relus, l'ui-ux-gdd renvoie aux maquettes.
+
+---
+
+### TRACK D — Modèle chiffré & contenu du monde
+
+Toutes **⟳ délégables** (economy-designer / systems-designer). Tableur d'abord, `/balance-check`.
+
+**D1 — Table de croissance des stats** · [systems-designer] · `/balance-check`
+```
+Propose la table "5 points/niveau répartis en %" par classe ET par sous-classe (Q117), avec
+justif. Guerrier/Mage de base + Berserker/Gardien + Destructeur/Sage. Calibre pour que le
+1er mur de niveau (100 + 20×reb) tombe vers km 25-35 / jour 2-3 (Q26). Sur tableur : puissance
+du joueur à chaque niveau vs stats ennemi (mob niveau ≈ km×10). Montre-moi le tableau, je valide.
+```
+`✓ Fini quand :` table validée, écrite dans progression-gdd + GameConfig.
+
+**D2 — Les gros multiplicateurs** · [economy-designer] · `/balance-check` `/economy-audit`
+```
+Propose une valeur pour chacun (Q118), je valide en bloc : Cauchemar par palier (ennemis /
+récompenses), XP de pass par source, bonus rebirth croissant (+10/+12/+14…), courbe XP ×1,35
+recalibrée, courbe d'or vs coût rebirth (Q64 : le rebirth garde toujours l'avance). Sur tableur.
+```
+`✓ Fini quand :` valeurs validées, dans GameConfig, /economy-audit sur les ratios.
+
+**D3 — Rosters des couches 2-12** · [systems-designer] · `/balance-check` · dépend de D1
+```
+Les 72 sprites existent (assets/images/monsters/final/). Pour chacun : HP/ATK/EXP/gold (via
+combatBaseForLevel + un mult de roster), famille de codex (Bête/Mort-vivant/Élémentaire/
+Humanoïde/Construct), rôle de familier le plus fort. → ZoneConfig (rosters c2..c12, aujourd'hui
+vides). Respecte "un mob niveau L ≈ un joueur de même niveau".
+```
+`✓ Fini quand :` ZoneConfig a les 12 rosters, /balance-check confirme la courbe.
+
+**D4 — 50 armes** · [economy-designer] · `/economy-audit` · dépend de D2
+```
+50 armes : nom, voie, courbe de puissance par zone (×1,30), arme de boss = ×2,5 arme de
+boutique de la même zone. 5 raretés = purs multiplicateurs (×1 / ×1,5 / ×2,2 / ×3,5 / ×6).
+Lv. indicatif non-bloquant. → un module de config. /economy-audit.
+```
+`✓ Fini quand :` 50 armes en config, /economy-audit — un Mythique reste supérieur ~6 zones.
+
+**D5 — 96 armures + 12 sets** · [economy-designer] · `/economy-audit` · dépend de D2
+```
+96 armures (12 boss × 4 pièces × 2 voies). 12 sets, bonus paliers 2/3/4, versions Guerrier/Mage
+symétriques, même voie uniquement. DEF majoritaire côté Guerrier, RES côté Mage. Chaque set une
+identité (dégâts / survie / vitesse). → EquipmentConfig. Table de butin boss : 1 tirage/kill,
+% constants (GAME_SPEC §6.3). /economy-audit.
+```
+`✓ Fini quand :` 96 armures + 12 sets en config, table de butin câblée (voir B6d), /economy-audit.
+
+**D6 — Playthrough de balance** · [game-designer + economy-designer] · `/balance-check` · dépend de D1-D5 — **GATE**
+```
+Playthrough complet sur tableur : "un f2p bat le boss C3 + fait 1 rebirth en ≤ X h", "le
+1er mur tombe km 25-35", "arme J7 ≤ 60 % d'une arme de boss de même zone", "après un rebirth,
+retraversée en ~20 % du temps". Le jeu doit être DUR — pas impossible, pas facile (Q119).
+Logue les paramètres dans decision-log.md.
+```
+`✓ Fini quand :` /balance-check vert sur les 4 cibles, decision-log à jour.
+
+---
+
+### TRACK E — Narratif — La Descente
+
+Toutes **⟳ délégables** (narrative-director / writer). Écrit dans `design/narrative/`.
+
+**E1 — Bible de La Descente** · [narrative-director + world-builder]
+```
+Écris design/narrative/la-descente.md : la Faille (qu'est-ce, pourquoi on descend), les 12
+couches (nom, identité, ce qu'on y trouve, palette), les 12 boss comme PERSONNAGES (nom,
+rancune, ce qu'ils gardent, leur arc quand ils reviennent ~6 couches plus bas). Ton : grim
+dark-fantasy, mélancolique, pas gore. Public 10-16 ans, chat-filter-safe.
+```
+`✓ Fini quand :` bible relue, cohérente avec les sprites de boss existants.
+
+**E2 — Dialogues des 12 boss** · [writer] · dépend de E1
+```
+Pour chaque boss : 1ère rencontre (2-3 lignes en arrivant + 1 ligne à la mort du boss) +
+2ème rencontre (2-3 lignes qui rappellent la 1ère). 12 × ~6 lignes. Chat-filter-safe, court,
+percutant. → design/narrative/boss-dialogues.md (format exploitable par le code).
+```
+`✓ Fini quand :` les 24 blocs de dialogue écrits et relus.
+
+**E3 — Cartes de transition de couche** · [writer] · dépend de E1
+```
+12 cartes : "Couche N — <Nom>" + 1 phrase d'ambiance (< 90 caractères). Affichée 5 s entre
+deux couches. → design/narrative/layer-cards.md.
+```
+`✓ Fini quand :` 12 cartes écrites.
+
+**E4 — Entrées de codex** · [writer + world-builder] · dépend de E1, D3
+```
+Pour ~72 monstres + 12 boss : 1 ligne de lore chacun + la famille + le bonus de famille (une
+phrase minuscule, +X % contre cette famille). → design/narrative/codex-entries.md.
+```
+`✓ Fini quand :` toutes les entrées écrites, familles alignées avec D3.
+
+---
+
+## ══ GATE PHASE 1 ══ — A + B + C + D + E verts
+`/gate-check` · `/doctor` · `/retrospective` · puis `/sprint-plan` + `/estimate` pour la Phase 2.
+
+---
+
+### TRACK F — Socle UI + les écrans
+
+Dépend de A (sprites) + C8 (ui-ux-gdd). Chaque écran via `/team-ui` (inclut
+accessibility-specialist). Gate : `/design-review` vs maquette.
+
+**F1 — Socle paysage + HUD réservé** · [ui-programmer] · `/wiki-query` `/studio-screenshot` `/studio-test`
+```
+/wiki-query "GuiService TopbarInset safe area iOS ScreenInsets". Puis : verrou paysage ;
+SetCoreGuiEnabled(PlayerList/Backpack, false) ; un module client qui lit TopbarInset +
+GetGuiInset() et expose un "safe rect" auquel RpgGui se cale ; déplace au centre les infos HUD
+du coin haut-gauche. /studio-screenshot sur un petit écran émulé.
+```
+`✓ Fini quand :` /studio-screenshot — le coin ☰ est dégagé sur téléphone émulé, /studio-test OK.
+
+**F2 — Chargement + menu titre** · `/team-ui` · dépend de F1
+```
+ReplicatedFirst : écran de chargement (logo + héros animé + barre). Menu titre : logo à gauche,
+JOUER (reprend au dernier feu de camp) + bandeau récompense du jour + barre de pass + 6 accès
+(Talents, Sac, Boutique, Codex, Rang, ⚙). Maquette 01.
+```
+`✓ Fini quand :` /design-review vs maquette 01, JOUER lance une partie.
+
+**F3 — Création de héros** · `/team-ui` · dépend de F1
+```
+Barre CRÉE TON HÉROS. 3 colonnes : carte GUERRIER (sélectionnée) | aperçu héros teinté | carte
+MAGE. Bas : swatches de teinte (4 gratuites) + champ nom (filtré) + COMMENCER. COMMENCER
+accorde l'arme de tier 1 et lance les 5 coach-marks. Maquette 02.
+```
+`✓ Fini quand :` /design-review vs maquette 02.
+
+**F4 — Le château / feu de camp** · `/team-ui` · dépend de F1, C6
+```
+Zone derrière l'étape 1 de la zone 1 : un château en pixel 2D où le héros entre (N3). À
+l'intérieur, un menu : Rebirth · changer de classe/sous-classe · donjons & raids · boutique du
+jeu · boutique Robux · tableau des missions · gérer familiers & cosmétiques · récupérer les
+récompenses · coffre gratuit toutes les heures. Les autres feux de camp (tous les 50 km) ont
+le même menu. Soin lent + petit bonus pour les prochains km. Maquettes 07 + 12.
+```
+`✓ Fini quand :` /design-review, on entre, le menu marche, rebirth impossible en combat (N6).
+
+**F5 — HUD compétences + 3 pets** · `/team-ui` · dépend de F1, A3
+```
+Barre de 3 compétences centrée en bas (prête = bordure jaune + ▶, recharge = compte à rebours).
+Les 3 pets dans la scène (Tank devant, DPS/Heal derrière). Teinte de danger 6 paliers sur le
+nom de l'ennemi. Piste de couche pleine largeur en bas + ligne "→ prochain objectif". Maquette 03.
+```
+`✓ Fini quand :` /design-review vs maquette 03.
+
+**F6 — Inventaire complet** · `/team-ui` · dépend de F1, C5, D5
+```
+Plein écran. Gauche : 6 slots équipés (bordure = rareté). Centre : grille 100, bordure de
+rareté, tri par emplacement, filtres de ramassage auto SUR LA PAGE (rareté min + cases
+Guerrier/Mage). Droite : comparaison (deltas vert/rouge). Bas : panneau de set + totaux
+ATK/DEF/RES/PV. Fusion accessible ici. Vente rapide "< rareté". Maquette 06 + GAME_SPEC §1.2.
+```
+`✓ Fini quand :` /design-review vs maquette 06 + GAME_SPEC §1.2.
+
+**F7 — Réglages + accessibilité** · `/team-ui` + [accessibility-specialist]
+```
+Volume, animations réduites, taille de texte (plusieurs crans), mode une main, moins de
+clignotements (épilepsie), mot + symbole en plus de la couleur pour la rareté et le danger
+(Q104/Q105).
+```
+`✓ Fini quand :` /design-review, chaque option a un effet visible.
+
+**F8 — FTUE** · `/team-ui` · dépend de F2-F5
+```
+5 coach-marks : tenir à droite / le combat est auto / regarder les dégâts / ouvrir le sac et
+équiper / mettre un point. À la fin : cadeau = 1er familier (Q5). Bouton "passer" → on perd le
+cadeau (Q8). /studio-test un parcours complet.
+```
+`✓ Fini quand :` /studio-test — un nouveau joueur finit les 5 étapes et reçoit son familier.
+
+---
+
+### TRACK G — Systèmes de combat & progression
+
+Dépend de C1-C3 + D1-D2. Features via `/team-combat`. `/studio-test` + `/exploit-check` +
+`/remotes-audit` sur chaque nouveau système.
+
+**G1 — Stats auto + points gagnés** · [luau-systems-programmer] · `/studio-test` `/balance-check` · dépend de D1
+```
+Refonte StatsService : stats dérivées de niveau × table (D1), plus le pool de points de
+compétence GAGNÉS (permanents, alloués à la main, 1:1). Retire l'allocation manuelle au niveau
++ le coût SPD. Schéma save : stats{} devient dérivé (non stocké), nouveau earnedPoints{pool,
+allocation}, subclass. Migration (bump de version, se règle avec B3).
+```
+`✓ Fini quand :` /studio-test — les stats montent seules, un point gagné s'alloue, /balance-check.
+
+**G2 — Sources de points gagnés** · [luau-gameplay-programmer] · `/studio-test` · dépend de G1
+```
+Câble les sources (Q29) : +1 mission, +2 Donjon du Jour, +1 nouveau monstre (codex), +3 1er
+kill d'un boss de couche, +2 nouvelle couche, bonus de complétion des 10 missions. TOUJOURS
+via un événement serveur vérifié (jamais un "j'ai fini X" du client).
+```
+`✓ Fini quand :` /studio-test — chaque source crédite le bon nombre, /exploit-check.
+
+**G3 — Moteur de compétences** · `/team-combat` · `/prototype` `/exploit-check` `/remotes-audit` · dépend de C3
+```
+/prototype d'abord la cadence. Puis : 3 slots, auto par défaut (se lancent dès prêts) + reprise
+en main (Q17), cooldowns, pas de jauge de ressource (Q19), ciblage. Débloqués par des nœuds de
+talents (G4). Réglage options auto/manuel (Q16).
+```
+`✓ Fini quand :` /team-combat livre, /exploit-check + /remotes-audit propres.
+
+**G4 — Arbre de talents** · `/team-combat` · `/exploit-check` · dépend de C2
+```
+3 branches (Fureur/Gardien/Tactique) × ~10+ nœuds, 1 pt / 5 niveaux, respec gratuit au feu de
+camp. Certains nœuds débloquent les compétences (G3). Au rebirth : le joueur choisit garder OU
+échanger contre un bonus (Q32).
+```
+`✓ Fini quand :` /team-combat livre, respec testé, /exploit-check.
+
+**G5 — Sous-classes** · `/team-combat` · dépend de C2, G1
+```
+Choix au R5 (Berserker/Gardien, Destructeur/Sage) : nouvelle table de stats (D1) + un pouvoir
++ un look de héros différent. Re-choix aux jalons /5. Avant R5 : table "de base".
+```
+`✓ Fini quand :` /studio-test — au R5 on choisit, la table change, le look change.
+
+**G6 — Équipe de 3 pets** · `/team-combat` · dépend de C5
+```
+Équiper jusqu'à 3 (4 au R10). Rôle Heal/DPS/Tank déterminé au drop, la famille du monstre dit
+quel rôle est le plus fort. Effet permanent (pas de pouvoir déclenché, Q56). Le soigneur soigne
+EN combat (Q54). 0 pet = combat marche sans les bonus (Q111).
+```
+`✓ Fini quand :` /studio-test — 3 pets suivent le héros, chaque rôle a son effet.
+
+**G7 — Moteur de mécaniques de boss** · `/team-combat` · `/prototype` `/exploit-check` · dépend de C3, A3
+```
+/prototype le timing d'interruption (~1,5 s). Puis : 2-4 phases (pastilles sur la barre de
+vie), grosse attaque télégraphée à interrompre via une tuile de pouvoir recontextualisée (pas
+le bon pouvoir = pas d'interruption, Q20), adds (tués un par un, Q23), enrage EN Cauchemar
+seulement (Q22). Les 12 signatures (E1/C3). Dialogues (E2) à l'entrée / à la mort.
+```
+`✓ Fini quand :` /team-combat livre les 12 boss jouables, /exploit-check timing.
+
+**G8 — Rebirth complet** · [luau-gameplay-programmer] · `/studio-test` `/datastore-review` · dépend de C2, D2
+```
+Mur de niveau 100 + 20×rebirths. Garde gear/familiers/points de départ/points gagnés/codex/
+sous-classe ; perd niveau/stats/or/distance. Point de départ post-rebirth ≤ moitié du record
+(Q36). Jalons R5/R10/R15/R20/R25/R30 (Q37). Bonus croissant (D2). Checkpoint auto à chaque feu
+de camp (N1) ; mort = re-marche depuis le dernier feu de camp, monstres réapparus (N2).
+```
+`✓ Fini quand :` /studio-test un cycle complet, /datastore-review la migration.
+
+**G9 — Mode Cauchemar** · `/team-combat` · `/balance-check` `/exploit-check` · dépend de D2, G7
+```
+Ladder par couche, infini. Déblocage : ~100 kills du boss d'une couche → Cauchemar I, ~25 de
+plus par palier. Porte globale : boss Couche 6. Multiplicateurs (D2 : ennemis ×N, récompenses
+×M). Enrage actif. En Cauchemar le héros avance tout seul (Q43). Cotes de rareté inchangées.
+```
+`✓ Fini quand :` /team-combat livre, /balance-check les multiplicateurs, /exploit-check
+(farm-key, empilement).
+
+---
+
+## ══ GATE PHASE 2 ══ — première session jouable de bout en bout
+Un nouveau joueur : chargement → menu → création → FTUE → combat → boss → feu de camp →
+rebirth. `/gate-check` · `/tech-debt` · `/retrospective`.
+
+---
+
+### TRACK H — Systèmes de rétention
+
+Dépend de C6-C7 + F4. Via `/team-economy` (inclut la revue exploit). `/datastore-review` sur
+les nouveaux stores.
+
+**H1 — Récompense quotidienne 7 jours** · `/team-economy` · `/datastore-review` · dépend de C6
+```
+Cycle Q77 (J1 boost → … → J6 set Épique non fusionnable de la zone sous le record → J7 arme
++30 % sur le gear de BOUTIQUE de la meilleure zone, non fusionnable). 48 h de grâce puis retour
+J1. Badge qui pulse tant que non réclamé. UI : silhouette noire du J6 avant déblocage.
+```
+`✓ Fini quand :` /team-economy livre, /datastore-review le store de streak.
+
+**H2 — Missions** · `/team-economy` · `/exploit-check` · dépend de C6
+```
+Chaîne de 10 missions/jour (7 faciles, 2 dures, 1 très dure), pool ~50. 1 reroll gratuit/jour.
+Bonus de complétion des 10 = quelques points de compétence permanents. Non finies en 24 h =
+récompenses + bonus perdus. Validation serveur de chaque objectif (jamais un "fini" du client).
+Farm idle assumé (Q70).
+```
+`✓ Fini quand :` /team-economy livre, /exploit-check (auto-validation).
+
+**H3 — Donjon du Jour** · `/team-combat` + `/team-economy` · `/exploit-check` `/datastore-review` · dépend de C6, G7
+```
+Par étages à difficulté croissante. 1 clé/jour (décrément atomique), mort = clé perdue (clés
+sup via missions/raids/boss de donjon). 7 thèmes fixes de la semaine (lundi = A…). 5 salles +
+boss, salles à défi (pas de soin, dégâts ×2), coffres optionnels risqués. Classement par étage
+(OrderedDataStore), score = temps par étage, validation "temps impossible" serveur (Q84).
+Reprise à l'étage max hebdo (stocké serveur). Forcé en vitesse ×1 (Q46). Top 100 = XP+or+1 pt
+permanent ; top 10 = titre.
+```
+`✓ Fini quand :` /team-combat + /team-economy livrent, /exploit-check (bot, clés),
+/datastore-review le classement.
+
+**H4 — Donjon-raid solo** · `/team-combat` · dépend de H3
+```
+Version "raid" du lancement (N4) : un donjon spécial SOLO plus dur, boss de raid dédiés,
+mécaniques renforcées. Source de clés de donjon + XP de pass. Le donjon dimensionnel R20 (Q37)
+est ce mode.
+```
+`✓ Fini quand :` /studio-test — le raid solo est jouable et distinct du Donjon du Jour.
+
+**H5 — Codex** · `/team-ui` + [game-designer] · dépend de C5, D3, E4
+```
+Cartes (découverte = art + nom, non découvert = silhouette). 10 kills → carte complète (Q58).
+Bonus quand TOUTE une famille est complète (Q57), sans limite (Q59). Onglet Objets : tous les
+objets du jeu en silhouette (Q60). Compteur de complétion global. Maquette 11.
+```
+`✓ Fini quand :` /design-review vs maquette 11, un kill met à jour la carte.
+
+**H6 — Pass de saison S1** · `/team-economy` · `/monetization-model` `/datastore-review` · dépend de C7
+```
+8 semaines, ~50 paliers, piste gratuite (or, gemmes) + premium (rétroactif, 499 R$, confort +
+cosmétiques — voir monetization.md §3.2). XP de pass (Q85 : ~rien sur mob faible, un peu boss
+de zone, plus boss de donjon/raid, ÉNORME à chaque fin de 100 km une fois par saison ; le plus
+rapide = les 10 quêtes du jour). Rien après le dernier palier (Q88).
+```
+`✓ Fini quand :` /team-economy livre, /monetization-model + /datastore-review.
+
+**H7 — Classements + podium** · `/team-economy` · `/exploit-check` · dépend de C7
+```
+Classements all-time : meilleure distance, nombre de rebirths, palier de Cauchemar
+(OrderedDataStore, serveur valide, ignore l'impossible). Podium à 3 statues au feu de camp =
+top 3 distance DU SERVEUR courant (pas global), mis à jour auto. Paliers de Soutien
+(Bronze/Argent/Or) non chiffrés, non classés, à partir des achats vérifiés (ProcessReceipt).
+```
+`✓ Fini quand :` /team-economy livre, /exploit-check (falsification de score).
+
+**H8 — Ligne d'objectif + analytics** · [analytics-retention-specialist] · `/retention-analysis` · dépend de rien
+```
+Ligne "→ prochain objectif" dans le HUD (boss / feu de camp / nouvelle couche). AnalyticsService :
+le schéma d'events (Q106 : arrivée, FTUE, 1er boss, 1er rebirth, 1er achat, lieux de mort,
+usage pouvoirs/familiers/objets, durée de session, jour de churn) + funnel d'achat + wall_hit
+(bloqué > N min sur le même km). Voir monetization.md §12.
+```
+`✓ Fini quand :` /retention-analysis valide le schéma, les events partent (test console).
+
+---
+
+### TRACK I — Monétisation
+
+Dépend de B4 (ProcessReceipt) + H6 (pass). Via `/team-economy`. `/economy-audit` +
+`/exploit-check` sur chaque produit.
+
+**I1 — Game Pass (les 8)** · `/team-economy` · `/exploit-check` · dépend de B5
+```
+Pack de Départ 99 · ×2 XP 249 · ×2 Or 349 · Grand Sac 149 · Pass Vitesse 499 · VIP 699 ·
+Collectionneur 999 · Bundle Ultimate 1799. Ownership serveur en cache (B5). Plafonds durs (×3,
+sac 200, vitesse donjon ×1). Pass Vitesse = sélecteur ×1/×2/×3 côté client, serveur plafonne.
+Prix scriptés via GetProductInfo. Voir monetization.md §3.1.
+```
+`✓ Fini quand :` /team-economy livre, /exploit-check (usurpation de pass, contournement de cap).
+
+**I2 — Developer Products** · `/team-economy` · `/datastore-review` `/exploit-check` · dépend de B4
+```
+Sacs de gemmes 80/400/800/1700 · Coffre Cosmétique 99 / 449 · Boost WE ×2 48 h 79 · Jetons de
+Fusion ×5 49 · Renommage 99 · Palier de Pass 39/149 · Supporter Pack 400. Tous via
+ProcessReceipt idempotent (B4). Consommables crédités dans le profil. Voir monetization.md §3.3.
+```
+`✓ Fini quand :` /team-economy livre, un achat rejoué ne double pas, /datastore-review.
+
+**I3 — Boutique cosmétique + coffre** · `/team-ui` + `/team-economy` · `/economy-audit` · dépend de I2
+```
+~30-40 cosmétiques au lancement (skins, auras de pet, styles de dégâts, mobilier de camp,
+plaques) — Frames/dégradés/halos procéduraux (pas d'upload par item). Coffre : poids serveur
+affichés, pitié ~20/~80, achat direct de chaque item en gemmes, PolicyService vérifié. Set
+"Prestige" évolutif du Collectionneur (look indexé sur rebirths + palier Cauchemar). Maquette 10.
+```
+`✓ Fini quand :` /design-review vs maquette 10, /economy-audit (aucune stat), PolicyService OK.
+
+**I4 — Prompts contextuels** · `/team-ui` · dépend de I1
+```
+Bannières calmes, sans minuteur : Grand Sac à 100/100 · ×2 Or après farm prolongé en zone
+basse · Pass Vitesse pendant une longue auto-marche. Max 1/type/session, cooldown dur, JAMAIS
+pendant un combat, JAMAIS en 1ère session (FTUE), jamais plein écran non-skippable.
+```
+`✓ Fini quand :` /design-review, un test montre le cooldown et l'absence de prompt en FTUE.
+
+**I5 — Roblox Premium** · [monetization-lead] · dépend de rien
+```
+Détection MembershipType : +10 % or (fondu dans le cap ×3, ne le dépasse jamais) + coffre
+quotidien de feu de camp d'un cran supérieur + cadre "Premium".
+```
+`✓ Fini quand :` /studio-test — un compte Premium reçoit les 3 avantages.
+
+---
+
+## ══ GATE PHASE 4 ══ — monétisation en place et éthique
+`/economy-audit` complet · `/exploit-check` complet sur les systèmes payants ·
+`/monetization-model` audit · `/gate-check`.
+
+---
+
+### TRACK J — Polish & QA
+
+Dépend de F + G. Le gros passe par `/team-polish`.
+
+**J1 — Passe de polish** · `/team-polish`
+```
+La passe complète : animations UI (tweens d'ouverture, transitions), game-feel (screen shake
+léger au crit, punch sur le kill, feedback tactile), micro-interactions. Rien qui crée des
+instances par frame.
+```
+`✓ Fini quand :` /team-polish livre, /perf-profile OK.
+
+**J2 — Son** · [audio-director + sound-designer]
+```
+Bibliothèque Roblox uniquement (Q103). SoundService + SoundGroups + sliders (dans F7). SFX :
+coup, crit, kill, drop (par rareté), level-up, boss (télégraphe, interruption, phase, enrage),
+UI. Musique par biome (12 pistes de la bibliothèque, une par couche).
+```
+`✓ Fini quand :` chaque événement a son son, les groupes/sliders marchent.
+
+**J3 — VFX** · [technical-artist]
+```
+Pool de dégâts flottants (jaune / rouge crit — aucune instance créée par frame). Annonce de
+rareté au drop (texte flottant coloré + son). Télégraphe de boss (jauge rouge + bordure de
+scène + flash de bord). Carte de transition de couche. Low-HP vignette (déjà là) + effet de
+Rebirth.
+```
+`✓ Fini quand :` /perf-profile — 60 fps mobile avec les VFX, pool jamais dépassé.
+
+**J4 — Perf** · [performance-analyst] · `/perf-profile`
+```
+/perf-profile : Heartbeat serveur < 33 ms, client > 30 fps mobile (60 cible), mémoire < 800 Mo
+mobile, aucune instance GUI créée par frame, réseau < 50 KB/s/joueur. Optimise les points chauds.
+```
+`✓ Fini quand :` /perf-profile vert sur les 5 cibles.
+
+**J5 — Tests TestEZ** · [qa-tester] · `/test-plan`
+```
+Tests unitaires sur la logique métier : StatsService (croissance, points gagnés),
+LootService (tables, taux), EquipmentService (fusion, sets), RewardService.multiplier
+(max() pas produit, plafonds), ProcessReceipt (idempotence). Mock DataStore/HttpService.
+Edge cases (Annexe B du GDD maître).
+```
+`✓ Fini quand :` la suite passe en CI, couverture des 12 edge cases.
+
+**J6 — QA multi-appareil** · [qa-lead + qa-tester] · `/qa-pass`
+```
+Parcours complet sur Android / iPhone / iPad / PC émulés : lisibilité, coin ☰ dégagé, safe
+area, cibles ≥ 44 px, clavier QWE+AD sur PC, aucun texte tronqué. Rapporte les bugs dans
+production/bugs/.
+```
+`✓ Fini quand :` /qa-pass — aucun bug bloquant sur les 4 familles d'appareils.
+
+---
+
+### TRACK K — Durcissement
+
+Dépend de tout. Les audits complets, post-implémentation.
+
+**K1** · [exploit-security-specialist] · `/exploit-check`
+```
+/exploit-check complet : tous les remotes, duplication (objets/familiers/clés/gemmes/points),
+abus de multiplicateurs, bots (Donjon par étages, missions), contournement de game pass,
+falsification de classement, ProcessReceipt. Les 5 protections non-négociables de l'audit de
+monétisation confirmées.
+```
+`✓ Fini quand :` /exploit-check — 0 critique, 0 élevé non traité.
+
+**K2** · [datastore-architect] · `/datastore-review`
+```
+/datastore-review complet : session locking, tempête BindToClose (8 joueurs), migration de
+schéma (version + switch), chemin "DataStore indispo" jouable avec bandeau (Q109), retry
+backoff, budgets. ProfileStore adopté OU custom durci — trancher, loguer.
+```
+`✓ Fini quand :` /datastore-review propre, tempête testée, migration testée.
+
+**K3** · [game-designer + economy-designer] · `/balance-check`
+```
+/balance-check playthrough final complet, en jeu cette fois (pas que tableur) : le jeu est-il
+DUR mais pas impossible ? un f2p finit-il tout ? les murs tombent-ils au bon moment ? Ajuste,
+logue.
+```
+`✓ Fini quand :` /balance-check vert, feeling validé par le proprio en Play test.
+
+**K4** · [qa-lead] · dépend de J5
+```
+Les 12 edge cases de l'Annexe B du GDD maître, testés un par un en Studio (déco en plein boss,
+DataStore down, rebirth en combat refusé, 0 pet, sac plein au drop de boss, checkpoint > moitié
+record, quitter à PV bas, crit > 100 %, grands nombres, swap d'arme mid-run, receipt rejoué,
+farm AFK plafonné).
+```
+`✓ Fini quand :` les 12 se comportent comme documenté.
+
+---
+
+## ══ GATE ══ — K vert
+`/gate-check` · `/milestone-review` · `/doctor`.
+
+---
+
+### TRACK L — Publication (compte débanni)
+
+**L1 — Place & universe** · [release-manager]
+```
+Configure l'expérience Roblox : nom, description, icône (générée), 3 thumbnails (rendus
+composites), liens sociaux, structure d'univers. Paramètre de maturité adapté (10-16 ans,
+combat léger non gore, achats). Clé Open Cloud pour la publication.
+```
+`✓ Fini quand :` la place existe, configurée, non listée.
+
+**L2 — CI/CD** · [devops-engineer]
+```
+GitHub Actions : build Rojo, lint selene + stylua, tests TestEZ. Sur push d'un tag `v*` :
+publish sur la place via Open Cloud. `.github/workflows/` + `aftman.toml` à jour.
+```
+`✓ Fini quand :` un push de tag publie une build vérifiée.
+
+**L3 — Checklist de publication** · `/team-release`
+```
+/team-release : la checklist complète (place config, IDs de produits, badges, RemoteEvents
+validés, ProcessReceipt, session lock, BindToClose, pas de secret client, purchase via
+ProcessReceipt, mouvement validé serveur — cf. GAME_SPEC §9 + master-gdd §10).
+```
+`✓ Fini quand :` /team-release — la checklist est 100 % verte.
+
+**L4 — Soft launch** · [producer + analytics-retention-specialist]
+```
+Ouverture non listée / amis pendant quelques jours. Surveille : D1, funnel FTUE, lieux de
+mort (wall_hit), plantages Lua, session length du segment "Pass Vitesse ×3 + auto" vs f2p.
+Corrige les S0/S1.
+```
+`✓ Fini quand :` 3-5 jours de données propres, aucun S0/S1 ouvert.
+
+**L5 — Public** · `/team-release` · dépend de L4
+```
+Passage public : badges d'accomplissement (1er boss, 1er rebirth, La Descente finie, Cauchemar
+V), monitoring en place, plan de contenu post-lancement armé (couches 13-15 dans le mois, ~1
+couche + 1 set de raid / 2 semaines, nouvelle saison / 8 semaines).
+```
+`✓ Fini quand :` le jeu est public, le monitoring tourne, le calendrier de contenu est écrit.
+
+---
+
+## E — Ordre de travail recommandé (parallélisation concrète)
+
+**Vague 1 (maintenant, tout en parallèle) :**
+- Moi (fil principal) : **A1 → A2 → A3 → A4** (assets dans le jeu — la valeur la plus visible).
+- Subagent `lead-programmer` : **B1, B6** (dev mode + les 4 bugs — indépendants).
+- Subagent `datastore-architect` : **B3, B4** (saves + ProcessReceipt).
+- Subagent `remotes-networking-specialist` : **B2** (rate-limit).
+- Subagent `technical-director` : **B5** (resolver).
+- Subagent `game-designer` : **C1 → C8** (les 23 GDD, en série interne).
+- Subagent `economy-designer` : **D1 → D6** (le modèle chiffré).
+- Subagent `narrative-director` : **E1 → E4** (le narratif).
+
+**Vague 2 (après le GATE PHASE 1) :**
+- `ui-programmer` team : **F1 → F8**.
+- `luau-gameplay-programmer` team : **G1 → G9**.
+
+**Vague 3 (après le GATE PHASE 2) :**
+- `live-ops-specialist` team : **H1 → H8**.
+- `monetization-lead` team : **I1 → I5**.
+
+**Vague 4 :** **J**, puis **K**, puis **L**.
+
+Chaque subagent rapporte un plan + des extraits, le proprio valide, l'agent construit, `/studio-test`,
+commit après OK. Aucun commit sans accord explicite.
+
+---
+
+## F — Catalogue des skills (rappel)
+
+51 skills dans `.claude/skills/`. Les **`/team-*`** construisent une feature de bout en bout ;
+les autres sont des portes de validation.
+
+| Catégorie | Skills |
 |---|---|
-| **Un ScreenGui** | Aucune version « mobile » séparée. |
-| **Coin haut-gauche** | Réservé Roblox (☰ + chat). `GuiService.TopbarInset` = le rect exact. |
-| **Coin haut-droit** | Libre : `PlayerList` + `Backpack` désactivés. |
-| **iOS** | Île sur le bord court, barre d'accueil en bas. |
-| **Serveur** | Heartbeat < 33 ms · client > 30 fps mobile · aucune instance GUI par frame. |
-| **Pas d'upload** | Compte Roblox modéré. Texte / procédural jusqu'au déblocage. |
-
----
-
-## C — Les skills du repo & quand les lancer
-
-51 skills dans `.claude/skills/`, auto-chargées. Les 5 **`/team-*`** construisent une feature
-de bout en bout (design → archi → implémentation → QA) ; les autres sont surtout des portes de
-validation.
-
-### Construire une feature — orchestration multi-agents
-
-| Skill | Quand |
-|---|---|
-| `/team-combat` | toute feature qui touche le combat : mécaniques de boss (P1.6), équipe de 3 pets (P2.4), moteur de compétences (P2.5), donjon du jour (P3.6). |
-| `/team-ui` | tout nouvel écran : menu (P2.2), création (P2.3), talents (P2.7), HUD compétences+pets (P2.8), FTUE (P2.9), réglages (P2.10), inventaire (P2.11), château (P2.12), UI donjon (P3.7), UI pass (P3.9), boutique (P4.5). Inclut l'accessibility-specialist → contraste, taille de texte, cibles ≥ 44 px. |
-| `/team-economy` | tout ce qui touche l'or / les Robux : récompense quotidienne (P3.1), pass de saison (P3.8), game passes (P4.2), dev products (P4.3), cosmétiques (P4.4). Inclut la revue exploit (duplication, replay, valeur négative). |
-| `/team-polish` | la passe de polish complète P5 (VFX, son, animations UI, QA feel). |
-| `/team-release` | le lancement public P7.6. |
-
-### Portes de validation — code & sécurité
-
-| Skill | Quand |
-|---|---|
-| `/code-review` | après chaque module non trivial (P1.4, P1.7, P1.9, P2.6, P3.2, P3.5, P3.10, P3.11, P4.4, P4.7). |
-| `/luau-lint` | P1.9, P6.4, périodiquement. |
-| `/exploit-check` | P1.6, P2.5, P3.1, P3.3, P3.6, P4.2, P4.3, P4.6 — et l'audit complet en P6.1. |
-| `/remotes-audit` | chaque nouveau RemoteEvent : P2.5, P3.3, P4.3 — et complet en P6.1. |
-| `/datastore-review` | P0.8, P1.7, P3.1, P3.4, P3.6, P3.8, P4.3 — et complet en P6.2. |
-| `/perf-profile` | P1.8, P5.5, P5.7, P5.8 — et complet en P6.3. |
-
-### Portes de validation — design & économie
-
-| Skill | Quand |
-|---|---|
-| `/design-review` | chaque écran vs sa maquette / la spec : P1.3, P2.11 (vs GAME_SPEC 1.2), P2.12. |
-| `/design-system` | écrire le GDD d'un système avant de le coder : « La Descente » (P1.5), talents (P2.6), missions (P3.2). |
-| `/balance-check` | P0.7, P1.1, P1.2, P1.4, P3.5 — et le playthrough complet P6.5. |
-| `/economy-audit` | P1.2, P4.1, P4.2, P4.5, P4.6, P4.7 — et complet après P4. |
-| `/monetization-model` | P4.1 (le workflow), P3.8 (structurer le pass), audit après P4. |
-| `/retention-analysis` | P3.11 (schéma d'events + funnel), puis à chaque relevé post-lancement. |
-
-### Planification & santé du repo
-
-| Skill | Quand |
-|---|---|
-| `/gdd` | P0.10 — le GDD maître. |
-| `/map-systems` | P0.10 — l'index des systèmes. |
-| `/project-stage-detect` | P0.10, début de chaque phase. |
-| `/doctor` | après tout changement structurel (P0.10, fin de P1, P7.4). |
-| `/sprint-plan` · `/estimate` | début de chaque phase. |
-| `/scope-check` | si on prend du retard. |
-| `/gate-check` · `/milestone-review` | fin de chaque phase — go/no-go. |
-| `/retrospective` | après chaque phase. |
-| `/tech-debt` | après P2 et après P6. |
-| `/prototype` | avant de coder un feeling incertain : timing d'interruption (P1.6), cadence des compétences (P2.5). |
-| `/brainstorm` | optionnel — personnalités des 12 boss (P1.5). |
-
-### Studio (MCP) — vérification en jeu
-
-| Skill | Quand |
-|---|---|
-| `/studio-test` | après CHAQUE changement de code. |
-| `/studio-inspect` | quand une structure d'instance semble cassée. |
-| `/studio-screenshot` | vérif visuelle : P0.9, P1.8 (par couche), P2.2, P2.11, P5.7, P5.8 (par appareil). |
-
-### Wiki Roblox/Luau
-
-| Skill | Quand |
-|---|---|
-| `/wiki-query` | connaissance profonde : safe area iOS & TopbarInset (P0.9), OrderedDataStore budgets (P3.4), ProcessReceipt patterns (P4.3), MessagingService (social v1.1). |
-| `/wiki-lint` | périodiquement. |
-| `/wiki-ingest` · `/wiki-update` | quand une source est ajoutée dans `wiki/raw/`, ou pour corriger une page. |
-
-### Release & live-ops
-
-| Skill | Quand |
-|---|---|
-| `/publish-review` | P7.1, P7.2 — checklist pré-publication. |
-| `/launch-checklist` | P7.5 — plan de soft launch + go/no-go. |
-| `/release-checklist` | P7.6 — checklist complète. |
-| `/changelog` · `/patch-notes` | P7.6 et à chaque mise à jour. |
-| `/hotfix` | post-lancement — problème live urgent. |
-| `/bug-report` | chaque bug trouvé en QA (P6.6) ou soft launch (P7.5). |
-
-### Assets
-
-| Skill | Quand |
-|---|---|
-| `/asset-audit` | P0.2, avant P7. |
-| ~~`/generate-asset` · `/asset-from-image`~~ | NON — Blender / 3D. Le jeu est 100 % GUI. |
-| ~~`/start` · `/onboard` · `/reverse-document`~~ | NON — projet déjà onboardé. |
-
----
-
-## P0 — Débloquer & stabiliser (Jour 1)
-
-Le build tourne propre, sauvegarde sûr, sans backdoor dev ni bug connu, et adopte le socle
-paysage + zone réservée Roblox.
-
-### P0.1 — Commiter le travail de combat en attente
-**Skills :** `/studio-test`
-**Pourquoi :** partir d'une base propre et poussée avant d'empiler.
-
-```
-P0.1 — 5 fichiers modifiés non commités (rebalance ennemis niveau-based, teinte de
-difficulté 6 paliers, flash rouge <20% PV, retrait des portails, corrections HUD).
-Relis git diff, propose ~3 commits (type(scope): description), montre-moi les
-messages. Lance /studio-test pour confirmer que rien n'est cassé. Après mon OK :
-commit + push sur master.
-```
-**✓ Fini quand :** git status propre, master poussé, /studio-test vert.
-
-### P0.2 — Retirer les IDs d'assets modérés
-**Skills :** `/asset-audit` `/studio-test`
-**Pourquoi :** compte sanctionné ; aucune référence à un asset modéré/supprimé.
-
-```
-P0.2 — Dans AssetMap.luau, retire (ou fallback texte) : mob_harpie(_flip),
-boss_golem_pierre(_flip), boss_behemoth(_flip), boss_colosse_cendres(_flip),
-mob_zombie(_flip). Lance /asset-audit pour confirmer qu'aucune référence orpheline
-ne subsiste dans src/. Vérifie que paintCombatant gère un id absent → étiquette
-texte. /studio-test.
-```
-**✓ Fini quand :** /asset-audit propre, aucun carré noir au /studio-test, ces mobs/bosses en texte.
-
-### P0.3 — Supprimer le mode dev
-**Skills :** `/studio-test`
-**Pourquoi :** le remote `devReset` laisse n'importe qui effacer sa progression — bloquant pour le ship.
-
-```
-P0.3 — Supprime définitivement DEV_MODE et "devReset" : CombatServer,
-PlayerDataService, CombatClient (bouton DevReset + wiring). Grep "dev"/"DEV"/
-"devReset". /studio-test pour confirmer.
-```
-**✓ Fini quand :** plus aucune référence, /studio-test OK, aucun reset joueur possible.
-
-### P0.4 — Bug : dégâts sur le mauvais ennemi
-**Skills :** `/studio-test`
-**Pourquoi :** le 1er event "damage" arrive avant le 1er "update" → ancrage périmé.
-
-```
-P0.4 — Quand je frappe l'ennemi du milieu, le nombre de dégâts apparaît au-dessus
-de l'ennemi 2. Corrige côté serveur : dans startEncounter (CombatServer), appelle
-sendUpdate(player, st) AVANT resolvePlayerHit(player, st). Ne touche à rien
-d'autre. /studio-test : le 1er coup sur le mob du milieu s'affiche bien au-dessus
-de lui.
-```
-**✓ Fini quand :** /studio-test confirme le bon ancrage.
-
-### P0.5 — Bug : ligne xp/min & or/min illisible
-**Skills :** `/studio-screenshot`
-**Pourquoi :** 4 lignes empilées dans une boîte prévue pour 2 → chevauchement.
-
-```
-P0.5 — HeroTimeBox empile 4 lignes dans une place pour 2. Agrandis-la (réduis un
-peu HeroStatsBox) OU passe à 3 lignes : ZONE / "DIST %s (rec %s)" / "%s xp · %s or
-/min". La logique de calcul du taux est correcte, ne la change pas. /studio-screenshot
-pour vérifier la lisibilité.
-```
-**✓ Fini quand :** les 3 valeurs sont lisibles et se mettent à jour.
-
-### P0.6 — Bug : séparateur étape 9–10
-**Skills :** `/studio-screenshot`
-**Pourquoi :** Tick10 mal placé par le template → étapes 9 et 10 collées.
-
-```
-P0.6 — Dans CombatClient, updateZoneTrack : positionne les 10 ticks par code —
-Tick[i].Position = UDim2.new((i-1)/10, 0, 0.5, 0), garde leur Y/hauteur.
-/studio-screenshot.
-```
-**✓ Fini quand :** 10 étapes régulièrement espacées, séparateur visible entre 9 et 10.
-
-### P0.7 — Bug : le loot des boss de couche ne tombe pas
-**Skills :** `/balance-check` `/studio-test`
-**Pourquoi :** `bossIndex` n'est passé qu'aux BIG boss → les boss de couche ne lâchent jamais leur set.
-
-```
-P0.7 — Dans LootService.rollDrop, fais que CombatServer passe l'index de boss
-(= couche, 1..12 cyclique) pour tout boss nommé, et que la table de set
-correspondante soit tirée. GAME_SPEC 6.3 : UN seul tirage par kill. Lance
-/balance-check sur les taux de drop de set. Test : tuer le boss couche 1 ~15×.
-```
-**✓ Fini quand :** /balance-check confirme les taux ; un set piece tombe sous ~15 kills couche 1 et 2.
-
-### P0.8 — Couche de sauvegarde
-**Skills :** `/datastore-review`
-**Pourquoi :** le wrapper DataStore custom est plus risqué que ProfileStore à l'échelle ; la perte de données tue un jeu.
-
-```
-P0.8 — Lance d'abord /datastore-review sur l'existant. Puis : Option A adopter
-ProfileStore (Wally, GAME_SPEC 11) ; Option B garder le custom + champ "version" +
-switch de migration + test de tempête BindToClose (8 joueurs, kick simultané).
-Montre-moi les 2 avec le coût, je tranche. Logue dans decision-log.md. Re-lance
-/datastore-review après implémentation.
-```
-**✓ Fini quand :** /datastore-review propre, sauvegarde/rechargement + verrou de session testés, chemin "DataStore indispo" jouable.
-
-### P0.9 — Socle UI : verrou paysage + zone réservée Roblox
-**Skills :** `/wiki-query` `/studio-screenshot` `/studio-test`
-**Pourquoi :** le HUD Roblox couvre le coin haut-gauche sur tous les appareils.
-
-```
-P0.9 — Lance /wiki-query "GuiService TopbarInset safe area iOS ScreenInsets" pour
-la doc exacte. Puis mets en place le socle du préambule règle 2 : verrou paysage ;
-SetCoreGuiEnabled(PlayerList/Backpack, false) ; un module client qui lit
-TopbarInset + GetGuiInset() et expose un "safe rect" auquel RpgGui se cale ;
-déplace au centre les infos du HUD actuellement en haut à gauche. /studio-screenshot
-sur un petit écran émulé + /studio-test.
-```
-**✓ Fini quand :** /studio-screenshot montre le ☰ Roblox ne couvrant aucun élément important.
-
-### P0.10 — GDD maître + registres + base
-**Skills :** `/gdd` `/map-systems` `/project-stage-detect` `/doctor`
-**Pourquoi :** une source de vérité unique, sinon on re-dérive les décisions à chaque session.
-
-```
-P0.10 — Lance /gdd (GDD maître : équipement de GAME_SPEC gardé tel quel + Director's
-Cut + décisions de balance récentes + paysage-only + zone HUD Roblox). Puis
-/map-systems pour design/gdd/systems-index.md. Remplis decision-log.md et
-risk-register.md. Lance /project-stage-detect pour une base, et /doctor pour
-vérifier que les compteurs README correspondent.
-```
-**✓ Fini quand :** le GDD couvre la V1, /doctor propre, je l'ai relu.
-
-> **Fin de P0 :** `/gate-check` puis `/retrospective`. Avant P1 : `/sprint-plan` + `/estimate`.
-
----
-
-## P1 — Remplir le monde (Jours 2–6)
-
-12 couches réelles, une économie d'objets complète, des boss qui ont chacun une mécanique et une identité.
-
-### P1.1 — Rosters d'ennemis, couches 2–12
-**Skills :** `/balance-check` `/studio-test`
-**Pourquoi :** seule la couche 1 a un roster aujourd'hui.
-
-```
-P1.1 — Dans ZoneConfig.luau, remplis Zones[2..12] : 3–4 ennemis chacun
-{ name, id (slug texte ok), hpMul, atkMul, expMul, goldMul } calés pour un mélange
-qui se sent (tank / canon de verre / rapide). Garde combatBaseForLevel intact.
-Lance /balance-check sur le scaling résultant. /studio-test : run km 0→120.
-```
-**✓ Fini quand :** /balance-check OK, plus aucun "Zone N - Inconnu".
-
-### P1.2 — 50 armes
-**Skills :** `/balance-check` `/economy-audit`
-**Pourquoi :** GAME_SPEC 4.4 demande 50 armes ; il y en a ~4.
-
-```
-P1.2 — EquipmentConfig.Weapons : 50 armes (25 Guerrier / 25 Mage), 2 tiers de
-boutique par zone + armes de boss à ×2.5 de la puissance boutique de la même zone
-(GAME_SPEC 7.2). Génère depuis une formule. Lance /balance-check (courbe de
-puissance) et /economy-audit (cohérence des prix boutique).
-```
-**✓ Fini quand :** les deux audits passent ; boutique et drops cohérents zones 1–12.
-
-### P1.3 — 96 pièces d'armure + 12 sets
-**Skills :** `/design-review` `/balance-check`
-**Pourquoi :** les sets sont le cœur de la profondeur (GAME_SPEC 5.1) ; il y en a 1.
-
-```
-P1.3 — EquipmentConfig.Armor + Sets : 12 sets × 4 slots × 2 voies = 96 pièces,
-bonus Guerrier/Mage SYMÉTRIQUES, chaque set taggé une identité (offensif/defensif/
-rapide/equilibre). Vérifie bossSetItems(index) et getStatBonuses (paliers 2/3/4,
-même voie). Lance /design-review sur la symétrie + les identités, /balance-check
-sur les valeurs.
-```
-**✓ Fini quand :** /design-review confirme la symétrie ; 2/3/4 pièces déclenchent les bons bonus, un mix 2G+2M rien.
-
-### P1.4 — 40 pets + rôles
-**Skills :** `/balance-check` `/code-review`
-**Pourquoi :** avec l'équipe de 3 pets (P2.4), les pets deviennent la 2ᵉ moitié du build.
-
-```
-P1.4 — 40 pets, rôle FIXE par pet (DPS/Tank/Heal), répartis sur les raretés.
-Effets Tank/Heal en POURCENTAGE. Vérifie rollPetDrop (~1.5% kill / 40% boss) et la
-fusion. Prépare le champ pour l'équipe de 3 (P2.4). /balance-check (les %),
-/code-review sur les nouveaux modules.
-```
-**✓ Fini quand :** des pets de chaque rôle droppent et fusionnent ; audits OK.
-
-### P1.5 — « La Descente » : identité & boss récurrents
-**Skills :** `/design-system` `/brainstorm`
-**Pourquoi :** Director's Cut #10 — la ligne devient une descente dans la Faille, les boss deviennent mémorables.
-
-```
-P1.5 — Lance /design-system pour écrire design/gdd/descente-gdd.md : les 12 couches
-(noms + lignes d'ambiance de la maquette #14), chaque boss = un personnage (name,
-2–3 répliques de taunt, une rancune), la logique de boss récurrent (apparaît
-affaibli → revient ~6 couches plus bas avec stats + mécanique complètes, répliques
-en callback). Optionnel : /brainstorm pour les personnalités des 12 boss.
-Data-driven dans ZoneConfig ; le combat lit juste name/dialogue/mechanic.
-```
-**✓ Fini quand :** le Roi Gobelin taunte couche 1 ; recroisé couche 7 plus fort, réplique qui rappelle la couche 1.
-
-### P1.6 — Moteur de mécaniques de boss
-**Skills :** `/prototype` `/team-combat` `/exploit-check` `/studio-test`
-**Pourquoi :** Director's Cut #2 — une mécanique par boss transforme « regarder les chiffres » en « jouer le combat ».
-
-```
-P1.6 — 1) Lance /prototype pour tester le feeling de l'interruption (fenêtre
-~1.5 s) dans prototypes/, sans standards de prod. 2) Une fois le timing bon, lance
-/team-combat pour le moteur propre dans src/ : 4 primitives (frappe télégraphée /
-bouclier à jauge / adds nettoyés par AoE / DoT nettoyé par pet Heal), data-driven
-dans ZoneConfig, état de mécanique dans le payload, affichage client (maquette #04).
-3) /exploit-check sur l'input d'interruption (rate-limit). 4) /studio-test.
-```
-**✓ Fini quand :** le Roi Gobelin télégraphe une frappe, l'interrompre l'annule, la rater fait très mal ; /exploit-check propre.
-
-### P1.7 — Codex / bestiaire (backend)
-**Skills :** `/code-review` `/datastore-review`
-**Pourquoi :** Director's Cut #11 — transforme les kills en collection, donne un foyer au lore.
-
-```
-P1.7 — CodexService serveur : premier kill / première vue → entrée persistée. Chaque
-famille (Bête/Mort-vivant/Élémentaire/Humanoïde/Construct) → +0.5% dégâts vs cette
-famille, appliqué dans StatsService. Expose getCodex(player). /code-review sur le
-service, /datastore-review sur la persistance.
-```
-**✓ Fini quand :** tuer un Loup débloque sa carte + le bonus, persiste ; audits OK.
-
-### P1.8 — Décor de couche procédural
-**Skills :** `/studio-screenshot` `/perf-profile`
-**Pourquoi :** le bible d'art existe mais n'est pas implémenté ; sans upload, en Frames.
-
-```
-P1.8 — CombatClient : applyZoneDecor(couche) échange la palette des 3 couches de
-parallaxe selon zone-art-direction.md, en décor 100% procédural (Frames), aucun
-upload, statique, transition douce. /studio-screenshot par couche 1→5,
-/perf-profile pour confirmer 60 fps.
-```
-**✓ Fini quand :** /studio-screenshot montre 5 ambiances distinctes, /perf-profile 60 fps.
-
-### P1.9 — Audit d'affichage des grands nombres
-**Skills :** `/luau-lint` `/code-review`
-**Pourquoi :** les valeurs dépassent vite le million (GAME_SPEC 12).
-
-```
-P1.9 — Lance /luau-lint pour grep les string.format %d sur des valeurs
-potentiellement > 1e6. Route tout affichage d'or/xp/stat/dégâts par formatNumber
-(K/M/Md/T). tabular-nums où des chiffres s'alignent. /code-review sur les
-changements. Simule un joueur riche (or ~5e9).
-```
-**✓ Fini quand :** aucun débordement de texte, tout reste lisible.
-
-> **Fin de P1 :** `/doctor` (compteurs de contenu), `/gate-check`, `/retrospective`.
-
----
-
-## P2 — Première session (Jours 7–11)
-
-Un nouveau joueur est accueilli, fait un choix, apprend la boucle, veut un 2ᵉ run.
-
-### P2.1 — Écran de chargement
-**Skills :** `/studio-test`
-**Pourquoi :** `ReplicatedFirst` est vide.
-
-```
-P2.1 — src/ReplicatedFirst : écran de chargement (logo + barre de progression)
-pendant la réplication ; se retire sur game:IsLoaded() + délai mini. Style noir/
-mono/bordure épaisse, paysage, coin haut-gauche libre. /studio-test.
-```
-**✓ Fini quand :** au join, chargement visible puis enchaînement propre vers le menu.
-
-### P2.2 — Menu titre
-**Skills :** `/team-ui` `/studio-screenshot`
-**Pourquoi :** aucune porte d'entrée ; récompense du jour et pass visibles immédiatement.
-
-```
-P2.2 — Lance /team-ui pour le menu titre paysage (maquette #01) : logo à gauche, à
-droite [▶ JOUER] + ligne stats + badge récompense du jour + barre de pass + 6
-accès. HUD masqué tant que JOUER n'est pas pressé. JOUER reprend au dernier
-checkpoint. Rien dans le coin haut-gauche. /studio-screenshot pour valider.
-```
-**✓ Fini quand :** un joueur existant voit le menu au join ; JOUER lance le run ; /studio-screenshot propre.
-
-### P2.3 — Création du héros
-**Skills :** `/team-ui`
-**Pourquoi :** un seul choix qui compte (la voie) donne une identité de build dès la 1ʳᵉ minute.
-
-```
-P2.3 — Lance /team-ui pour l'écran de création (maquette #02), au tout premier join
-seulement (flag seenCreation) : choix de voie (GUERRIER/MAGE), une teinte (4
-gratuites), un nom filtré. "Commencer" accorde l'arme de tier 1 de la voie,
-persiste, lance le tutoriel P2.9. Classe toujours pilotée par l'arme (GAME_SPEC 3.3).
-```
-**✓ Fini quand :** nouveau compte → création → run ; compte existant → menu direct.
-
-### P2.4 — Équipe de 3 pets
-**Skills :** `/team-combat` `/code-review` `/studio-test`
-**Pourquoi :** Director's Cut #3 — les pets deviennent la moitié du build.
-
-```
-P2.4 — Lance /team-combat : passe d'1 slot pet à une ÉQUIPE de 3. equipe.pets[1..3]
-persisté. StatsService additionne les 3 (DPS additifs, Tank/Heal en %). Chaque pet :
-passif + compétence déclenchée (cooldown propre), data-driven. Client : 3 sprites
-(Tank devant, DPS/Heal derrière). Étends la logique de rôles/dégâts, ne la change
-pas. /code-review + /studio-test.
-```
-**✓ Fini quand :** 3 pets équipés → 3 sprites, effets appliqués, persiste.
-
-### P2.5 — Moteur de compétences actives
-**Skills :** `/prototype` `/team-combat` `/remotes-audit` `/exploit-check`
-**Pourquoi :** Director's Cut #1 — le changement le plus important : « placer son burst avant le gros coup ».
-
-```
-P2.5 — 1) /prototype pour caler la cadence / le feeling des cooldowns. 2)
-/team-combat pour le moteur serveur-autoritaire : 3 slots, config par voie
-(Guerrier = Exécution/Rempart/Cri ; Mage = Météore/Barrière/Surcharge), RemoteEvent
-"castAbility", effet calculé serveur, améliorées par les talents (P2.6). Payload
-update = état des cooldowns. 3) /remotes-audit + /exploit-check sur castAbility
-(rate-limit, aucun calcul client).
-```
-**✓ Fini quand :** les 3 compétences se lancent, cooldowns respectés, /remotes-audit + /exploit-check propres.
-
-### P2.6 — Arbre de talents (backend)
-**Skills :** `/design-system` `/code-review`
-**Pourquoi :** Director's Cut #13 — une identité de build qui survit au rebirth.
-
-```
-P2.6 — Lance /design-system pour design/gdd/talents-gdd.md (2 arbres, 3 branches
-Fureur/Gardien/Tactique, effets par nœud, déblocages de compétences). Puis
-TalentService : 1 point tous les 5 niveaux, nœuds data-driven, respec GRATUIT au
-feu de camp, persiste + SURVIT au rebirth, StatsService lit les effets, RemoteEvents
-validés. /code-review.
-```
-**✓ Fini quand :** allouer/respec fonctionnent ; l'allocation reste après un rebirth ; /code-review OK.
-
-### P2.7 — UI de l'arbre de talents
-**Skills :** `/team-ui`
-**Pourquoi :** le moment « dépenser un point » doit avoir une vraie décision (maquette #05).
-
-```
-P2.7 — Lance /team-ui pour l'UI plein écran (maquette #05) : onglets Guerrier/Mage,
-3 branches côte à côte, nœuds (acquis/dispo/verrouillé), "▶" sur ceux qui
-débloquent une compétence, carte de détail au tap, bouton Réinitialiser (grisé hors
-feu de camp), compteur de points. Paysage, coin haut-gauche libre.
-```
-**✓ Fini quand :** navigable, allocation/respec via P2.6, lisible.
-
-### P2.8 — Compétences + pets dans le HUD
-**Skills :** `/team-ui` `/studio-test`
-**Pourquoi :** c'est là que le combat devient un jeu (maquette #03).
-
-```
-P2.8 — Lance /team-ui : intègre au HUD (maquette #03) la barre de 3 compétences
-centrée en bas (prête = bordure jaune + "▶", cooldown = compte à rebours, charge =
-jauge) + indices clavier Q/W/E sur PC. Tap tuile / touche → castAbility. Bascule
-Avant/Arrière conservée. /studio-test au tap et au clavier.
-```
-**✓ Fini quand :** je lance mes 3 compétences au tap et au clavier, cooldowns en direct.
-
-### P2.9 — FTUE : 5 coach-marks
-**Skills :** `/team-ui` `/studio-test`
-**Pourquoi :** aucun onboarding aujourd'hui.
-
-```
-P2.9 — Lance /team-ui (ux-designer en tête) : tutoriel du 1er run seulement (flag
-seenFtue), 5 coach-marks gatés un à la fois — (1) tiens droite, (2) le combat est
-auto, (3) lis les dégâts flottants, (4) ouvre l'inventaire et équipe un drop, (5)
-dépense un point de stat. Se termine au 1er feu de camp. Rien dans le coin Roblox.
-/studio-test sur un nouveau compte.
-```
-**✓ Fini quand :** nouveau compte → 5 étapes sans blocage ; compte existant → aucun coach-mark.
-
-### P2.10 — Menu réglages
-**Skills :** `/team-ui`
-**Pourquoi :** volume, mouvement réduit et lisibilité sont des attentes de base ; alimente P5.
-
-```
-P2.10 — Lance /team-ui : menu Réglages — volume Musique, volume SFX, mouvement
-réduit (coupe shake + wipes), teinte de difficulté haute-visibilité, taille des
-nombres de dégâts. Persisté côté client.
-```
-**✓ Fini quand :** chaque réglage a un effet immédiat et survit à un rejoin.
-
-### P2.11 — Inventaire complet (GAME_SPEC §1.2)
-**Skills :** `/team-ui` `/design-review` `/studio-screenshot`
-**Pourquoi :** l'écran que le joueur ouvre le plus. Le backend existe dans EquipmentService.
-
-```
-P2.11 — Lance /team-ui pour l'inventaire plein écran paysage (maquette #06 +
-GAME_SPEC 1.2) : 6 slots équipés à gauche (dont PET ×3) ; grille 100 cases (bordure
-de rareté) ; tri rareté/puissance/set/récent ; filtre slot/set/voie ; tap objet →
-comparaison (deltas vert/rouge) ; verrou ; "Vendre < [rareté] non équipé/
-verrouillé" + confirmation ; fusion inline ; ramassage auto (rareté min + [ ]
-Guerrier + [ ] Mage) VISIBLE sur la page ; totaux en bas. Découpe en 2–3
-sous-tâches. Valide avec /design-review contre GAME_SPEC 1.2 et /studio-screenshot
-sur téléphone + PC.
-```
-**✓ Fini quand :** /design-review confirme la conformité §1.2 ; chaque action fonctionne.
-
-### P2.12 — Château + échelle de rebirth
-**Skills :** `/team-ui` `/design-review`
-**Pourquoi :** GAME_SPEC admet que le rebirth « devient monotone vers R15 ».
-
-```
-P2.12 — Lance /team-ui pour l'écran Château (maquette #12) : checkpoints 10 km,
-panneau rebirth (coût, or, bonus), échelle des déblocages — R5 +1 rangée
-d'inventaire, R10 débloque l'Ascension (hook), R15 garde un build de talents à
-travers le reset, R20 checkpoint offert (hook). Implémente R5 et R15. /design-review
-sur l'échelle.
-```
-**✓ Fini quand :** R5 donne la rangée ; l'écran affiche le prochain déblocage.
-
-> **Fin de P2 :** `/tech-debt` (cataloguer la dette UI accumulée), `/gate-check`, `/retrospective`.
-
----
-
-## P3 — Raisons de revenir (Jours 12–15)
-
-Un hook quotidien, des objectifs visibles, une raison de battre son score d'hier. C'est le moteur de rétention.
-
-### P3.1 — Récompense quotidienne
-**Skills :** `/team-economy` `/datastore-review` `/exploit-check`
-**Pourquoi :** la raison nº 1 d'ouvrir l'app demain.
-
-```
-P3.1 — Lance /team-economy : DailyRewardService, cycle de 7 jours croissant, streak
-avec 48 h de grâce, réclamée au menu, autoritaire serveur via lastClaim (os.time
-comparé au temps serveur). Badge qui pulse au menu. /datastore-review sur la
-persistance, /exploit-check sur l'anti-triche horloge.
-```
-**✓ Fini quand :** jour 2 → réclamable une fois ; <48 h garde le streak, >48 h le remet à 1 ; audits OK.
-
-### P3.2 — Missions quotidiennes
-**Skills :** `/design-system` `/code-review`
-**Pourquoi :** des objectifs concrets qui structurent la session.
-
-```
-P3.2 — /design-system pour design/gdd/missions-gdd.md (pool, récompenses, reroll).
-Puis MissionService : 3 missions/jour, récompense or/xp, 1 reroll/jour, reset
-serveur. Branche-toi sur les events déjà émis par CombatServer. UI simple au menu.
-/code-review.
-```
-**✓ Fini quand :** les 3 s'affichent, progressent, se réclament, reset le lendemain.
-
-### P3.3 — Codes promo
-**Skills :** `/remotes-audit` `/exploit-check`
-**Pourquoi :** un levier d'outreach créateurs bon marché.
-
-```
-P3.3 — CodeService : table serveur { code = { reward, expiry } }, une réclamation
-par joueur (set persisté), RemoteEvent redeemCode. Petit panneau "Entrer un code"
-au menu. /remotes-audit + /exploit-check sur redeemCode (rate-limit, replay).
-```
-**✓ Fini quand :** un code valide donne l'or une fois ; déjà utilisé / invalide → message clair ; audits OK.
-
-### P3.4 — Classements
-**Skills :** `/wiki-query` `/datastore-review`
-**Pourquoi :** la spec les exclut ; c'est de la rétention gratuite.
-
-```
-P3.4 — /wiki-query "OrderedDataStore budget best practices". Puis LeaderboardService :
-"meilleur km" et "rebirths", global, MAJ en fin de run / rebirth (pcall + budget),
-affichés au menu + au feu de camp, + un classement "km cette saison" reset hebdo.
-/datastore-review.
-```
-**✓ Fini quand :** finir un run met à jour mon entrée ; le top 10 s'affiche ; budget OK.
-
-### P3.5 — Bonus de collection
-**Skills :** `/balance-check` `/code-review`
-**Pourquoi :** Director's Cut #15 — rend le farm de doublons et le stuff de voie opposée utile.
-
-```
-P3.5 — CollectionService : "4 pièces d'un set (toute rareté)" → passif permanent ;
-"12 sets" → titre + cosmétique ; idem 40 pets. Appliqué dans StatsService, persiste.
-S'appuie sur ownsItem/count. /balance-check sur les passifs, /code-review.
-```
-**✓ Fini quand :** compléter un set débloque son passif ; visible dans l'inventaire ; /balance-check OK.
-
-### P3.6 — Donjon du jour (backend)
-**Skills :** `/team-combat` `/exploit-check` `/datastore-review`
-**Pourquoi :** Director's Cut #16 — un rituel quotidien court et compétitif : la meilleure primitive de rétention.
-
-```
-P3.6 — Lance /team-combat : DailyDungeonService, graine fixe/jour (date UTC), 5
-salles + 1 boss, ~4 min, identiques pour tous, combat = moteur existant, chrono
-serveur, butin Rare+ garanti, classement de temps du jour (OrderedDataStore), 1
-tentative classée/jour. /exploit-check sur le timer/score, /datastore-review sur le
-classement.
-```
-**✓ Fini quand :** 2 comptes lancent le même donjon ; finir enregistre un temps ; audits OK.
-
-### P3.7 — UI du donjon du jour
-**Skills :** `/team-ui`
-**Pourquoi :** maquette #08.
-
-```
-P3.7 — Lance /team-ui pour l'UI (maquette #08) : chemin des 5 salles + boss (salle
-courante allumée), chrono en direct vs record du jour, mini-classement, bandeau de
-récompense, bouton ENTRER. Paysage, coin haut-gauche libre.
-```
-**✓ Fini quand :** navigable, reflète l'état de P3.6.
-
-### P3.8 — Pass de saison (backend)
-**Skills :** `/monetization-model` `/team-economy` `/datastore-review`
-**Pourquoi :** Director's Cut #18 — le système à plus haut ROI de rétention *et* de revenu.
-
-```
-P3.8 — Lance /monetization-model pour structurer le pass (paliers, split gratuit/
-premium, courbe d'XP). Puis /team-economy : SeasonPassService, saisons de 8
-semaines, ~50 paliers, XP gagnée en jouant à tout, table de récompenses (gratuite :
-or/œufs/gemmes ; premium : ~80% cosmétiques), achat premium RÉTROACTIF, persiste
-progression + flag. Wiring de l'achat = P4.6. /datastore-review.
-```
-**✓ Fini quand :** jouer fait monter l'XP ; un palier octroie la récompense gratuite ; structure premium prête.
-
-### P3.9 — UI du pass de saison
-**Skills :** `/team-ui`
-**Pourquoi :** la piste de paliers est naturellement horizontale — parfait en paysage (maquette #09).
-
-```
-P3.9 — Lance /team-ui pour l'UI (maquette #09) : piste de paliers horizontale, 2
-rangées gratuite/premium, palier courant encadré (bord jaune), barre d'XP vers le
-suivant, bouton [DÉBLOQUER LE PREMIUM] + note "rétroactif". Coin haut-gauche libre.
-```
-**✓ Fini quand :** reflète l'état de P3.8 ; le bouton premium ouvrira le prompt d'achat en P4.
-
-### P3.10 — Ligne « prochain objectif » du HUD
-**Skills :** `/code-review` `/studio-test`
-**Pourquoi :** un run finit toujours sur un objectif suivant.
-
-```
-P3.10 — Dans le HUD, une ligne sous la boîte best-km/taux : le plus proche de
-{ prochain checkpoint, prochain boss, prochain rebirth abordable }. Calcul serveur,
-poussé dans le payload. /code-review + /studio-test.
-```
-**✓ Fini quand :** la ligne se met à jour en avançant et pointe le bon objectif.
-
-### P3.11 — Couche d'analytics
-**Skills :** `/retention-analysis` `/code-review`
-**Pourquoi :** c'est comme ça que chaque décision post-lancement se prend.
-
-```
-P3.11 — Lance /retention-analysis pour définir le schéma d'events + le funnel qu'il
-doit alimenter (join → 1er boss → 1er rebirth → 1er achat). Puis AnalyticsService :
-events custom Roblox Analytics, pas de PII, un seul Analytics.log(name, props),
-branché aux points clés. /code-review.
-```
-**✓ Fini quand :** les events apparaissent dans le tableau de bord après une session de test.
-
-> **Fin de P3 :** `/gate-check`, `/retrospective`. Si en retard : `/scope-check`.
-
----
-
-## P4 — Monétisation (Jours 16–19)
-
-Des options d'achat qui accélèrent ou élargissent le jeu — jamais bloquer la progression. Un joueur gratuit finit tout.
-
-### P4.1 — Note de design monétisation
-**Skills :** `/monetization-model` `/economy-audit`
-**Pourquoi :** la règle écrite, sinon la monétisation dérive vers le pay-to-win.
-
-```
-P4.1 — Lance /monetization-model (workflow complet : catalogue GamePass/DevProduct,
-pricing, projections). Écris design/economy/monetization.md avec la règle — tout
-achat = gain de temps/confort/cosmétique, aucun ne touche stat/DEF/RES/drop, joueur
-gratuit finit tout. Lance /economy-audit sur le catalogue proposé. Je relis avant
-P4.2.
-```
-**✓ Fini quand :** le doc existe, /economy-audit OK, je l'ai validé.
-
-### P4.2 — Game passes (permanents)
-**Skills :** `/team-economy` `/economy-audit` `/exploit-check`
-**Pourquoi :** ils composent de la valeur plus on joue longtemps.
-
-```
-P4.2 — Lance /team-economy : ×2 Or, ×2 XP, Avance auto (dé-gate le fast-mode), +50
-slots (100→150), VIP. Cache UserOwnsGamePassAsync (pcall, refresh sur
-PromptGamePassPurchaseFinished). Hooks : StatsService, EquipmentService,
-CombatServer. IDs en config. /economy-audit (pricing) + /exploit-check (hooks
-d'ownership).
-```
-**✓ Fini quand :** simuler chaque pass applique l'effet et persiste ; audits OK.
-
-### P4.3 — Dev products + ProcessReceipt
-**Skills :** `/wiki-query` `/team-economy` `/remotes-audit` `/exploit-check` `/datastore-review`
-**Pourquoi :** un `ProcessReceipt` non idempotent = double octroi ou perte d'achat.
-
-```
-P4.3 — /wiki-query "ProcessReceipt idempotency pattern". Puis /team-economy : packs
-d'or (4 tailles), Revive (branche le stub, vrai productId), Respec, Jeton de
-rebirth, Œuf/coffre (probas AFFICHÉES). ProcessReceipt : idempotent (clé purchaseId
-persistée), pcall, accorde-persiste-enregistre, gère tous les productId,
-PurchaseGranted seulement après sauvegarde. /remotes-audit + /exploit-check
-(double-fire) + /datastore-review.
-```
-**✓ Fini quand :** chaque produit s'achète, l'octroi persiste, un double-fire n'accorde qu'une fois ; audits OK.
-
-### P4.4 — Système de cosmétiques
-**Skills :** `/team-economy` `/code-review`
-**Pourquoi :** Director's Cut #19 — revenu cosmétique illimité et éthique.
-
-```
-P4.4 — Lance /team-economy : CosmeticService — skins de héros, auras de pet, styles
-de nombres de dégâts, mobilier, plaques, effets de kill. Transmog : skiner un objet
-sans changer ses stats. Inventaire cosmétique persisté, data-driven. Gacha (coffre)
-ICI uniquement, table de probas exposée. Zéro impact puissance. /code-review.
-```
-**✓ Fini quand :** équiper un skin change l'apparence ; le style de nombres s'applique ; rien ne bouge côté stats.
-
-### P4.5 — UI boutique + prompts contextuels
-**Skills :** `/team-ui` `/economy-audit`
-**Pourquoi :** vendre dans la friction ressentie convertit mieux qu'un menu statique.
-
-```
-P4.5 — Lance /team-ui pour la boutique (maquette #10) : onglets Skins/Auras/Effets/
-Mobilier/Plaques + "Améliorations" (game passes), bannière Pack de départ, lien
-"Voir les probabilités" sur le coffre. + Prompts contextuels via
-PromptProductPurchase : Revive à la mort, "+50 slots" inventaire plein, bannière
-"×2 or" au farm lent. Coin haut-gauche libre. /economy-audit sur l'ensemble.
-```
-**✓ Fini quand :** chaque achat via Prompt*, le prompt contextuel au bon déclencheur ; /economy-audit OK.
-
-### P4.6 — Piste premium du pass de saison
-**Skills :** `/exploit-check` `/economy-audit`
-**Pourquoi :** ferme la boucle P3.8 — le premium est la piste de revenu du pass.
-
-```
-P4.6 — Branche l'achat du premium : dev product / game pass "Premium Saison N",
-ProcessReceipt octroie le flag premium de la saison courante (rétroactif sur les
-paliers atteints), persiste, fin de saison → flag réinitialisé. /exploit-check
-(ProcessReceipt) + /economy-audit.
-```
-**✓ Fini quand :** acheter le premium au palier 12 débloque d'un coup les 12 récompenses premium.
-
-### P4.7 — Avantages Roblox Premium
-**Skills :** `/economy-audit` `/code-review`
-**Pourquoi :** Roblox pousse le trafic Premium vers les jeux qui le récompensent.
-
-```
-P4.7 — Players:GetPremiumMembershipType + PremiumMembershipChanged : +10% d'or et
-une récompense quotidienne exclusive, appliqués dans StatsService /
-DailyRewardService, pcall. /economy-audit (impact) + /code-review.
-```
-**✓ Fini quand :** simuler un compte Premium donne le bonus d'or.
-
-> **Fin de P4 :** `/economy-audit` passe complète + `/monetization-model` en mode audit ; `/gate-check` (un compte gratuit passe-t-il partout ?), `/retrospective`.
-
----
-
-## P5 — Feel & polish (Jours 20–23)
-
-Chaque action a du poids ; le look noir-et-mono est un choix, pas une pauvreté.
-
-### P5.0 — Lancer la passe de polish
-**Skills :** `/team-polish`
-**Pourquoi :** `/team-polish` orchestre qa-tester → technical-artist → sound-designer → ui-programmer sur toute la phase. Les tâches P5.1–P5.8 sont son plan de travail.
-
-```
-P5.0 — Lance /team-polish sur tout le jeu. Le qa-tester joue et note chaque moment
-qui sonne faux ; on priorise ensemble ; puis on exécute les tâches P5.1–P5.8
-ci-dessous. Tout respecte le réglage "mouvement réduit" (P2.10). Aucun upload
-d'asset — audio de la bibliothèque Roblox ou que tu possèdes.
-```
-**✓ Fini quand :** la liste priorisée est validée, P5.1–P5.8 planifiées.
-
-### P5.1–P5.3 — Son : groupes + sliders, SFX, musique par biome
-**Skills :** `/team-polish` `/wiki-query`
-**Pourquoi :** `SoundService` n'est jamais touché ; un jeu muet ne « ressent » rien ; la musique par couche soutient « La Descente ».
-
-```
-P5.1–P5.3 — SoundGroups Musique + SFX branchés sur les sliders (P2.10), pool de
-Sound réutilisables. SFX sur : coup, critique, kill, level-up, engagement de boss,
-drop par rareté, achat, rebirth, interruption réussie (via les events serveur
-existants). Un lit musical par groupe de couches + fondu enchaîné + musique de feu
-de camp calme. /wiki-query "SoundGroup volume best practices" si besoin.
-```
-**✓ Fini quand :** les sliders agissent ; un combat de 30 s "sonne" juste ; la musique change en fondu par couche.
-
-### P5.4–P5.7 — VFX, pool de dégâts, intro boss, game-feel GUI
-**Skills :** `/team-polish` `/perf-profile` `/studio-screenshot`
-**Pourquoi :** la liste §12 de GAME_SPEC est un plancher ; Director's Cut #22 va plus loin — tout GUI, tout pas cher, toute la différence.
-
-```
-P5.4–P5.7 — Effets GUI : flash de l'ennemi touché, court screen-shake sur coups de
-boss, burst de level-up, halo de rareté au drop, wipe de rebirth. Pool recyclé pour
-les nombres de dégâts flottants (GAME_SPEC 12). Carte d'intro boss (nom + taunt de
-P1.5) + bannière de victoire + flash "NOUVEAU RECORD". Barre de vie de boss avec
-pastilles de phase, flash de critique bref plein écran, faisceaux de butin par
-rareté, hit-stop léger. Tout respecte "mouvement réduit". /perf-profile sur un
-combat de boss chargé + /studio-screenshot.
-```
-**✓ Fini quand :** les coups "claquent", /perf-profile confirme pas de churn d'instances, mouvement réduit enlève shake/wipes.
-
-### P5.8 — QA paysage / multi-appareil
-**Skills :** `/studio-screenshot` `/perf-profile`
-**Pourquoi :** le socle P0.9 doit tenir de ~19,5:9 à 16:9 sans rupture ni chevauchement du HUD Roblox.
-
-```
-P5.8 — /studio-screenshot dans l'émulateur d'appareils Studio : téléphone large,
-iPad, PC. Vérifie : zones d'appui ≥ 44 px, coin haut-gauche jamais couvert
-(TopbarInset), safe area iOS, la grille 3 colonnes s'étire sans rupture, TextScaled
-lisible partout. /perf-profile sur mobile émulé (> 30 fps). Corrige ce qui casse.
-```
-**✓ Fini quand :** les 3 profils d'appareil sont propres et jouables ; /perf-profile OK.
-
-> **Fin de P5 :** `/gate-check`, `/retrospective`.
-
----
-
-## P6 — Durcir & QA (Jours 24–26)
-
-Ça survit aux exploiteurs, à une panne DataStore et à un playthrough complet.
-
-### P6.1 — Audit de sécurité complet
-**Skills :** `/exploit-check` `/remotes-audit`
-**Pourquoi :** tout ce qui vient du client est attaquable. Une seule faille d'autorité client ruine l'économie.
-
-```
-P6.1 — Lance /exploit-check (audit complet) puis /remotes-audit. Vérifie : chaque
-RemoteEvent valide type/plage/cohérence et est rate-limité ; aucune autorité client
-sur or/xp/loot/stats/talents/achats ; aucun RemoteFunction client→serveur ;
-ProcessReceipt idempotent ; castAbility + input d'interruption plafonnés. Corrige
-tout. Rapport dans production/security/.
-```
-**✓ Fini quand :** /exploit-check et /remotes-audit propres, corrections appliquées.
-
-### P6.2 — Résilience des données
-**Skills :** `/datastore-review`
-**Pourquoi :** DataStore échoue régulièrement ; le jeu doit rester jouable et ne jamais dupliquer/perdre.
-
-```
-P6.2 — Lance /datastore-review (audit complet). Vérifie : verrou de session, champ
-"version" + migration testée, BindToClose sauve tous les joueurs sous charge (8
-joueurs, kick simultané), chemin "DataStore indispo → session non sauvegardée +
-warning" jouable. Ajoute les tests manquants.
-```
-**✓ Fini quand :** /datastore-review propre, les 4 scénarios passent, documentés.
-
-### P6.3 — Performance
-**Skills :** `/perf-profile`
-**Pourquoi :** cible 30 fps mobile ; un combat de boss + 3 pets + compétences est le pire cas.
-
-```
-P6.3 — Lance /perf-profile : heartbeat serveur < 33 ms avec 8 joueurs, client
-< 800 Mo et > 30 fps sur mobile émulé, aucun churn d'instance GUI par frame.
-MicroProfiler sur un combat de boss chargé. Optimise les points chauds. Rapport
-dans production/perf-reports/.
-```
-**✓ Fini quand :** /perf-profile confirme les cibles, documenté.
-
-### P6.4 — Tests automatisés (TestEZ)
-**Skills :** `/luau-lint` `/code-review`
-**Pourquoi :** la math de combat / les odds de loot / la fusion se cassent silencieusement au moindre refactor.
-
-```
-P6.4 — tests/ avec TestEZ : math de combat (mitigation, crit, cadence),
-combatBaseForLevel, odds de la table de loot (statistique), recettes de fusion,
-courbe de coût de rebirth, formatNumber, ProcessReceipt idempotent (mock). CI
-(.github/workflows/ci.yml). /luau-lint sur les tests + /code-review sur leur
-qualité (cas limites, pas juste le happy path).
-```
-**✓ Fini quand :** suite verte en local et en CI ; /code-review confirme la couverture des cas limites.
-
-### P6.5 — Playthrough de balance
-**Skills :** `/balance-check` `/economy-audit`
-**Pourquoi :** valider la cible ~20% de retraversée post-rebirth (GAME_SPEC 8.1) et qu'un compte gratuit passe partout.
-
-```
-P6.5 — Playthrough complet couches 1→12 + une boucle de rebirth. Lance
-/balance-check (courbes, murs) et /economy-audit (un compte gratuit passe le boss
-couche 3 et fait un rebirth ; monétisation optionnelle du début à la fin). Note les
-timings. Ajuste enemyPowerScale / mults de boss via GameConfig seulement si les
-données le disent.
-```
-**✓ Fini quand :** les deux audits passent, playthrough documenté avec timings, pas de blocage.
-
-### P6.6 — Cas limites
-**Skills :** `/studio-test` `/bug-report`
-**Pourquoi :** les bugs se cachent dans « inventaire plein », « déco en plein boss », « DataStore froid ».
-
-```
-P6.6 — Via /studio-test, teste : inventaire plein (drop refusé + message),
-déconnexion en plein combat de boss, rebirth à km 0, checkpoint au-delà du max,
-1ʳᵉ session avec DataStore froid, achat pendant une déconnexion. Pour chaque
-anomalie, lance /bug-report (repro, attendu/observé, sévérité).
-```
-**✓ Fini quand :** chaque cas se comporte correctement, aucun crash / perte, bugs consignés.
-
-> **Fin de P6 :** `/tech-debt` (catalogue final), `/gate-check` (porte polish → live), `/retrospective`.
-
----
-
-## P7 — Publier (Jours 27–28 + · bloqué jusqu'au débannissement)
-
-Un place configuré, classé, découvrable, avec monétisation en ligne.
-
-### P7.0 — Pré-requis : débannissement
-**Skills :** `/asset-audit`
-**Pourquoi :** uploader d'autres assets pendant la sanction = strikes supplémentaires = risque de ban permanent.
-
-```
-P7.0 — Vérifie l'état du compte Roblox. Si toujours banni : ne rien uploader/
-publier, on reste sur P0–P6. Si débanni : révoque puis régénère la clé Open Cloud
-avant tout upload. Lance /asset-audit pour la liste des assets encore référencés.
-Régénère au besoin les sprites à risque avec un prompt "entièrement blindé, aucune
-peau nue, modeste", revue humaine avant upload.
-```
-**✓ Fini quand :** le compte est utilisable, la clé est neuve, /asset-audit propre.
-
-### P7.1–P7.2 — Config du place + maturité de contenu
-**Skills :** `/publish-review`
-**Pourquoi :** une fiche complète + un classement « Légère » = plus de découverte et une audience plus large.
-
-```
-P7.1–P7.2 — Lance /publish-review (checklist pré-publication : DataStore, exploit,
-perf, contenu, métadonnées, rollback). Configure le place : nom, description, genre
-RPG, icône 512², 3–5 miniatures, ~8 joueurs max. Questionnaire de maturité →
-"Légère". Guide-moi pour les étapes Creator Dashboard à faire moi-même.
-```
-**✓ Fini quand :** /publish-review passe, fiche complète, classification affichée.
-
-### P7.3 — Creator Dashboard : IDs & badges
-**Skills :** `/studio-test`
-**Pourquoi :** les IDs de dev/pass en config ont besoin des vrais identifiants ; les badges sont des jalons partageables.
-
-```
-P7.3 — Crée les vrais game passes + dev products au Creator Dashboard, reporte
-leurs IDs dans la config (P4.2/P4.3/P4.6). Crée les badges : 1er boss, km 25/50/
-100, 1er rebirth, 1er donjon. Branche l'octroi serveur (pcall). /studio-test avec
-les vrais IDs.
-```
-**✓ Fini quand :** chaque achat de test cible le vrai ID ; un badge se débloque en jeu.
-
-### P7.4 — CI/CD de publication
-**Skills :** `/doctor`
-**Pourquoi :** publier à la main est source d'erreur ; ne publier que si les tests passent.
-
-```
-P7.4 — Job "publish" dans .github/workflows/ci.yml : build Rojo + publish via Open
-Cloud sur push de tag, secret = nouvelle clé Open Cloud, ne publie que si les tests
-P6.4 sont verts. Lance /doctor pour vérifier que tous les configs toolchain sont
-valides.
-```
-**✓ Fini quand :** /doctor propre, un tag pousse une nouvelle version du place automatiquement.
-
-### P7.5 — Soft launch
-**Skills :** `/launch-checklist` `/retention-analysis` `/bug-report` `/hotfix`
-**Pourquoi :** attraper ce qui casse en réel avant l'exposition publique.
-
-```
-P7.5 — Lance /launch-checklist (plan de soft launch, métriques, go/no-go). Place en
-non-listé / amis seulement 2–3 jours. Lance /retention-analysis sur les premières
-données (funnel join→1er boss→1er rebirth→1er achat). Pour chaque bug : /bug-report ;
-pour un problème live urgent : /hotfix.
-```
-**✓ Fini quand :** 2–3 jours de données, hotfixes S0/S1 faits, go pour le public.
-
-### P7.6 — Lancement public
-**Skills :** `/team-release` `/release-checklist` `/changelog` `/patch-notes`
-**Pourquoi :** le lancement n'est pas la fin — le suivi J+1/J+7 décide de la suite.
-
-```
-P7.6 — Lance /team-release pour orchestrer la sortie (vérif QA + sécu + perf, config,
-publish). /release-checklist pour la checklist complète (marketing, comms,
-monitoring). /changelog puis /patch-notes pour les notes de version joueur. Liste
-le place, poste sur Discord/réseaux, outreach créateurs avec des codes (P3.3).
-Suivi J+1/J+7 via /retention-analysis. Cadence de contenu : couches 13–15 + un set
-de raid dans les 2 semaines.
-```
-**✓ Fini quand :** le place est public, un inconnu peut join → jouer → acheter → rejoin avec ses achats.
-
----
-
-## ✓ « Jeu complet à 100 % »
-
-- [ ] Couches 1–12 jouables de bout en bout — rosters réels, décor, scaling, boss à mécanique.
-- [ ] 50 armes · 96 armures · 12 sets symétriques · 40 pets, tout droppable.
-- [ ] Chargement → menu → création → 1ʳᵉ run guidée, sans cul-de-sac.
-- [ ] 3 compétences actives + arbre de talents (respec au feu) + équipe de 3 pets, tous serveur-autoritaires.
-- [ ] Inventaire à la spec §1.2, filtres de ramassage auto en première page.
-- [ ] Rebirth qui tient la cible ~20 % de retraversée + déblocage qualitatif tous les 5.
-- [ ] Récompense quotidienne, 3 missions, codes, 2 classements, donjon du jour, pass de saison (gratuite + premium).
-- [ ] 5 game passes + ~10 dev products ; un joueur gratuit passe provablement partout ; probas affichées.
-- [ ] `ProcessReceipt` idempotent ; les octrois persistent au rejoin.
-- [ ] Musique + SFX sur chaque action ; VFX + game-feel ; mouvement réduit respecté.
-- [ ] `/exploit-check` propre ; aucune autorité client ; chaque remote rate-limité ; sauvegarde à verrou + version + BindToClose.
-- [ ] Paysage verrouillé ; coin HUD Roblox libre partout ; > 30 fps et lisible sur téléphone milieu de gamme.
-- [ ] Plus de DEV_MODE, plus de remote dev, plus d'asset modéré, tests verts en CI, `/doctor` propre.
-- [ ] Place configuré, classé, avec icône, miniatures, badges, Discord ; `/publish-review` passé.
-
-> Après le lancement, l'ordre se pilote aux données via `/retention-analysis` : la marche du
-> funnel qui saigne le plus devient le sprint suivant. Le bloc social lourd du Director's Cut
-> (feux de camp partagés, échange, Ascension, défis, raids co-op, crews) se construit ici —
-> `/team-economy` pour l'échange, `/team-combat` pour les raids, `/wiki-query` pour
-> MessagingService — une fois qu'il y a des joueurs pour le remplir.
+| Construire | `/team-combat` `/team-ui` `/team-economy` `/team-polish` `/team-release` |
+| Code & sécu | `/code-review` `/luau-lint` `/exploit-check` `/remotes-audit` `/datastore-review` `/perf-profile` |
+| Design & éco | `/design-review` `/design-system` `/gdd` `/map-systems` `/balance-check` `/economy-audit` `/monetization-model` `/retention-analysis` |
+| Planif & santé | `/project-stage-detect` `/doctor` `/sprint-plan` `/estimate` `/scope-check` `/gate-check` `/milestone-review` `/retrospective` `/tech-debt` `/prototype` `/brainstorm` |
+| Studio (MCP) | `/studio-test` (après chaque changement de code) `/studio-inspect` `/studio-screenshot` |
+| Non applicables | `/generate-asset` `/asset-from-image` (Blender/3D) · `/start` `/onboard` `/reverse-document` (projet déjà onboardé + GDD écrit) |
+
+Documents de référence : `docs/plan/01-directors-cut.md` (vision) · `02-maquettes.md` (14
+wireframes) · `03-sur-tous-les-ecrans.md` (multi-appareil) · `04-playbook-prompts.md` +
+`05-ship-roadmap.md` (brouillons v1, remplacés par ce fichier).
