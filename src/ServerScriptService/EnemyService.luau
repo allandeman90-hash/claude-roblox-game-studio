@@ -92,7 +92,7 @@ end
 -- Everything a mob's LEVEL drives, BEFORE roster / boss multipliers:
 --   HP / ATK : matched to a REFERENCE curve-player `levelLead` levels below the
 --              mob's level - that player has spent max(0, level - levelLead) *
---              statPointsPerLevel points, refVitShare into VIT (-> MaxHP =
+--              refPointsPerLevel points, refVitShare into VIT (-> MaxHP =
 --              VIT * hpPerVit) and refPowShare into POW (-> physATK = baseAtk +
 --              POW * atkPerPow), then x enemyPowerScale.
 --   EXP / gold : geometric per LEVEL (expPerLevel / goldPerLevel), so the reward
@@ -102,7 +102,8 @@ function EnemyService.combatBaseForLevel(level)
     local P = GameConfig.Player
     local S = P.startingStats
     local L = math.max(1, math.floor(level or 1))
-    local pts = math.max(0, L - (E.levelLead or 1)) * GameConfig.Level.statPointsPerLevel
+    -- [D1] reference points/level is DECOUPLED from the player curve (Enemy.refPointsPerLevel).
+    local pts = math.max(0, L - (E.levelLead or 1)) * (E.refPointsPerLevel or 5)
     local vit = S.vit + (E.refVitShare or 0.5) * pts
     local pow = S.pow + (E.refPowShare or 0.42) * pts
     local scale = E.enemyPowerScale or 1

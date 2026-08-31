@@ -22,8 +22,15 @@ local GameConfig = {}
 -- LEVEL & XP
 --========================================================
 GameConfig.Level = {
-    -- [ACTIVE] GAME_SPEC.md 3.1 - unchanged.
-    statPointsPerLevel = 5,
+    -- [D1 - validated 2026-08-31] Stats rise AUTOMATICALLY on level-up: this many
+    -- points/level, split by GameConfig.ClassGrowth (class x subclass).
+    autoPointsPerLevel   = 4,
+    -- Plus ONE free player-allocated point every N levels (1:1, any stat, SPD <= 200).
+    freePointEveryLevels = 5,
+    -- [DEPRECATED alias] the interim MANUAL-allocation code (CombatServer line 114,
+    -- StatsService) reads this until Track G1 flips it to the auto model. Kept equal
+    -- to autoPointsPerLevel so the interim hand-out already matches D1 (5 -> 4).
+    statPointsPerLevel   = 4,
 }
 
 -- [ACTIVE] validated (etape 1 + etape 2.5 offset). XP required to advance
@@ -93,10 +100,16 @@ GameConfig.Combat = {
     critMultiplier = 2,
 }
 
--- [ACTIVE - etape 3] Critical chance = LUK / 10000. The crit roll is the ONLY
--- random element of the V1 damage calculation.
+-- [ACTIVE - D1 validated 2026-08-31] Critical chance = min(1, LUK / 2500).
+-- (Was LUK / 10000 - too weak to ever matter.) Capped at 1.0 (Edge Case: crit > 100%).
 function GameConfig.Combat.critRate(luk)
-    return luk / 10000
+    return math.min(1, math.max(0, luk or 0) / 2500)
+end
+
+-- [D1] Destroyer subclass ONLY: dedicated crit scaling (~17% at level 100, no gear;
+-- scales hard with LUK gear + talents). Base / other classes use critRate above.
+function GameConfig.Combat.critRateDestroyer(luk, level)
+    return math.min(1, math.max(0, luk or 0) / 1800 + 0.0012 * math.max(1, level or 1))
 end
 
 -- [ACTIVE - etape 3 / etape 4.0] Multiplicative mitigation, never `ATK - DEF`.
@@ -115,6 +128,40 @@ end
 
 function GameConfig.Combat.magicMitigation(res)
     return math.max(GameConfig.Combat.mitigationFloor, 100 / (100 + math.max(0, res)))
+end
+
+--========================================================
+-- CLASS GROWTH  (D1 - validated 2026-08-31)
+--========================================================
+-- The 4 auto points/level (Level.autoPointsPerLevel) are split across the 5 stats
+-- by these per-class / per-subclass percentages (each row sums to 1.0). SPD share
+-- is design-capped at 0.22. "warrior" / "mage" = the neutral tables used before
+-- Rebirth 5; berserker/guardian (warrior R5), destroyer/sage (mage R5).
+-- Free points + earned skill points (Q29) are added ON TOP by StatsService.
+GameConfig.ClassGrowth = {
+    warrior   = { pow = 0.45, int = 0.00, vit = 0.40, spd = 0.10, luk = 0.05 },
+    mage      = { pow = 0.00, int = 0.31, vit = 0.49, spd = 0.10, luk = 0.10 },
+    berserker = { pow = 0.42, int = 0.00, vit = 0.28, spd = 0.22, luk = 0.08 },
+    guardian  = { pow = 0.35, int = 0.00, vit = 0.55, spd = 0.05, luk = 0.05 },
+    destroyer = { pow = 0.00, int = 0.40, vit = 0.30, spd = 0.08, luk = 0.22 },
+    sage      = { pow = 0.00, int = 0.34, vit = 0.52, spd = 0.07, luk = 0.07 },
+}
+
+-- Auto-derived stats at `level` for a class key (startingStats + the auto pool
+-- split by the class %). Does NOT include free points or earned skill points.
+--   warrior L100 -> pow ~180, vit ~164 (HP 820), spd ~41, luk ~21
+function GameConfig.ClassGrowth.statsAtLevel(classKey, level)
+    local split = GameConfig.ClassGrowth[classKey] or GameConfig.ClassGrowth.warrior
+    local S = GameConfig.Player.startingStats
+    local L = math.max(1, math.floor(level or 1))
+    local pool = GameConfig.Level.autoPointsPerLevel * (L - 1)
+    return {
+        pow = S.pow + split.pow * pool,
+        int = S.int + split.int * pool,
+        vit = S.vit + split.vit * pool,
+        spd = math.min(GameConfig.Combat.spdMax, S.spd + split.spd * pool),
+        luk = S.luk + split.luk * pool,
+    }
 end
 
 --========================================================
@@ -257,12 +304,17 @@ GameConfig.Enemy = {
     -- [ACTIVE - enemy-rebalance] EVERYTHING (HP / ATK / EXP / gold) is driven by
     -- the mob's LEVEL - EnemyService.combatBaseForLevel - not the old 1.35^zone.
     --   HP / ATK : matched to a REFERENCE curve-player `levelLead` levels below
-    --     the mob; that player spent max(0, L - levelLead) * statPointsPerLevel
+    --     the mob; that player spent max(0, L - levelLead) * refPointsPerLevel
     --     points, refVitShare -> VIT, refPowShare -> POW ; result x enemyPowerScale.
     --   EXP / gold : base.exp / base.gold x (expPerLevel / goldPerLevel)^(L-1),
     --     exponent capped at scaleExpCap. Calibrated so the total ~matches the old
     --     per-zone curve at the boundaries, but tracks the exact mob level.
     levelLead       = 1,
+    -- [D1 - validated 2026-08-31] reference enemy's points/level, DECOUPLED from the
+    -- player's Level.autoPointsPerLevel (4). 4.7 => a same-level mob out-points a
+    -- naked player by ~18% - that gap IS the level-wall pressure (gear/pets/earned
+    -- points/first-strike/regen close it). Master difficulty dial (Q119): 4.2 .. 5.0.
+    refPointsPerLevel = 4.7,
     refVitShare     = 0.50,   -- reference build: half the earned points into VIT ...
     refPowShare     = 0.42,   -- ... most of the rest into the damage stat (POW)
     enemyPowerScale = 1.0,    -- global HP/ATK dial (>1 harder, <1 easier). 1.0 =
@@ -342,6 +394,24 @@ GameConfig.Security = {
     -- Anti-abuse log: one warn when a player racks up sustained rejects.
     remoteAbuseRejectThreshold = 40,   -- cumulative rejects before a warn
     remoteAbuseWarnCooldownSec = 30,   -- at most one warn / this many seconds / player
+}
+
+--========================================================
+-- PERSISTENCE  (save throttling + session lock timing)
+--========================================================
+-- One throttled writer per server persists every dirty session. Handlers only
+-- flag `dirty`; guaranteed writes happen on PlayerRemoving / BindToClose / the
+-- rebirth milestone. The session lock is heartbeat-refreshed well inside its
+-- stale window so another server never steals a live session. No secrets here.
+GameConfig.Persistence = {
+    saveTickSec            = 10,   -- throttled-writer loop cadence
+    saveMinIntervalSec     = 45,   -- >= 1 write / this many seconds / player (dirty only)
+    lockHeartbeatSec       = 30,   -- refresh the lock ts this often (must be < lockStaleSec)
+    lockStaleSec           = 90,   -- a lock older than this is assumed abandoned
+    bindToCloseDeadlineSec = 25,   -- BindToClose waits up to this for saves to finish
+    maxRetries             = 5,    -- DataStore call retries (exponential backoff)
+    loadLockRetries        = 3,    -- retries when the stored lock is held by a live session
+    loadLockRetryWaitSec   = 2,
 }
 
 --========================================================
