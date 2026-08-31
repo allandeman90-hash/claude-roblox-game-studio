@@ -1,14 +1,14 @@
 # Quête Minute — Index des systèmes
 
-**Version :** 1.0 · **Mis à jour :** 2026-08-31
+**Version :** 1.1 · **Mis à jour :** 2026-08-31
 
 Catalogue de tous les systèmes du jeu. Le GDD maître (`master-gdd.md`) donne la vue d'ensemble ;
 chaque système aura son GDD détaillé dans `design/gdd/` (à écrire en P1).
 
 | Système | GDD | Statut | Priorité |
 |---|---|---|---|
-| Cœur de jeu (marche + combat auto) | `core-gameplay-gdd.md` | à écrire | P1 |
-| Combat (résolution, cadence, DEF/RES, fuite) | `combat-gdd.md` | à écrire · code partiel existant | P1 |
+| Cœur de jeu (marche + combat auto) | `core-gameplay-gdd.md` | **écrit** (v1.0, 2026-08-31) | P1 |
+| Combat (résolution, cadence, DEF/RES, fuite) | `combat-gdd.md` | **écrit** (v1.0, 2026-08-31) · code partiel existant | P1 |
 | Pouvoirs actifs (3 slots, auto/manuel) | `abilities-gdd.md` | à écrire | P1 |
 | Mécaniques de boss (phases, interruption, adds, enrage) | `boss-mechanics-gdd.md` | à écrire | P1 |
 | Progression (niveau, stats auto, points gagnés) | `progression-gdd.md` | à écrire | P1 |
