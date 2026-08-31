@@ -69,12 +69,6 @@ local RESPAWN_DIST         = 0.9    -- walk this far from a kill for it to respa
 local CAMPFIRE_EVERY       = GameConfig.World.campfireEveryKm
 local CAMPFIRE_RANGE       = GameConfig.World.campfireRangeKm
 local MOB_TICK             = 0.1
-local REVIVE_PRODUCT_ID    = 0     -- non-GDD (monetization); slated for removal
-
--- ⚠️ DEV ONLY — REMOVE BEFORE RELEASE. Enables the "devReset" remote (+ the
--- client's RESET button) that wipes a player's progression for balance testing.
-local DEV_MODE = true
-local REVIVE_PRICE_ROBUX   = 50
 
 --===== Progression helpers =====
 -- XP required to advance FROM `level` to `level + 1`.
@@ -506,8 +500,6 @@ local function startCombat(player)
                         combatEvent:FireClient(player, {
                             type       = "gameOver",
                             distance   = st.pos or 0,
-                            productId  = REVIVE_PRODUCT_ID,
-                            revivePrice = REVIVE_PRICE_ROBUX,
                         })
                         sendUpdate(player, st)
                     else
@@ -704,34 +696,6 @@ combatEvent.OnServerEvent:Connect(function(player, data)
         -- so old clients don't error.
         return
 
-    elseif data.type == "devReset" then
-        -- ⚠️ DEV ONLY — REMOVE BEFORE RELEASE. Full progression wipe for testing.
-        if not DEV_MODE then return end
-        local start = GameConfig.Player.startingStats
-        st.playerLevel       = 1
-        st.playerExp         = 0
-        st.playerExpToNext   = xpNeeded(1)
-        st.statPoints        = 0
-        st.gold              = 0
-        st.exp               = 0
-        st.statPow, st.statInt, st.statVit, st.statSpd, st.statLuk =
-            start.pow, start.int, start.vit, start.spd, start.luk
-        st.rebirths          = 0
-        st.bigBossesBeaten   = 0
-        st.fastMode          = false
-        st.deaths            = 0
-        st.checkpointMaxKm   = 0
-        st.selectedCheckpoint = 0
-        st.encPreview        = {}
-        EquipmentService.restore(player, {})
-        PlayerDataService.wipe(player)
-        restartRun(player, st, 0)
-        sendUpdate(player, st)
-        combatEvent:FireClient(player, { type = "inventory", slots = {},
-            summary = EquipmentService.getInventorySummary(player),
-            filters = EquipmentService.getFilters(player) })
-        return
-
     elseif data.type == "restart" then
         if not st.gameOver then return end
         -- KEEP everything; RESET distance to the chosen checkpoint (default 0).
@@ -839,26 +803,11 @@ combatEvent.OnServerEvent:Connect(function(player, data)
     end
 end)
 
---===== Developer Product: Revive purchase handler =====
-MarketplaceService.ProcessReceipt = function(receiptInfo)
-    local player = Players:GetPlayerByUserId(receiptInfo.PlayerId)
-    if not player then
-        return Enum.ProductPurchaseDecision.NotProcessedYet
-    end
-
-    if receiptInfo.ProductId == REVIVE_PRODUCT_ID then
-        local st = states[player]
-        if st and st.gameOver then
-            st.gameOver     = false
-            st.playerHp     = st.playerMaxHp
-            st.enemyHp      = st.enemyMaxHp
-            st.combatActive = true
-            st.isMoving     = false
-            sendUpdate(player, st)
-        end
-        return Enum.ProductPurchaseDecision.PurchaseGranted
-    end
-
+--===== Developer Product receipts =====
+-- Stub. The idempotent ProcessReceipt (dedicated receipt DataStore + PurchaseId
+-- registry) is written in B4. No products are live until then, so every receipt
+-- is deferred rather than granted.
+MarketplaceService.ProcessReceipt = function(_receiptInfo)
     return Enum.ProductPurchaseDecision.NotProcessedYet
 end
 

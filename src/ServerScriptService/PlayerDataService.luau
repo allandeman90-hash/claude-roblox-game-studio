@@ -215,19 +215,6 @@ function PlayerDataService.getProfile(player)
     return sess and sess.profile or nil
 end
 
--- ⚠️ DEV ONLY — REMOVE BEFORE RELEASE. Erase the stored profile + the in-session
--- copy so the next load / the current run starts from a fresh default.
-function PlayerDataService.wipe(player)
-    local sess = sessions[player]
-    if sess then
-        sess.profile = PlayerDataService.defaultProfile()
-        sess.dirty = false
-    end
-    if dsUsable ~= false then
-        pcall(function() store:RemoveAsync(keyFor(player)) end)
-    end
-end
-
 function PlayerDataService.isPersisting(player)
     local sess = sessions[player]
     return sess ~= nil and sess.dsAvailable == true

@@ -8,7 +8,6 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
-local MarketplaceService = game:GetService("MarketplaceService")
 
 -- Zone system data (decor palette + enemy roster per zone).
 local ZoneConfig = require(ReplicatedStorage:WaitForChild("ZoneConfig"))
@@ -650,8 +649,6 @@ end
 local gameOverWindow    = background:FindFirstChild("GameOverWindow")
 local gameOverDistText  = gameOverWindow and gameOverWindow:FindFirstChild("DistanceText")
 local restartButton     = gameOverWindow and gameOverWindow:FindFirstChild("RestartButton")
-local reviveButton      = gameOverWindow and gameOverWindow:FindFirstChild("ReviveButton")
-local reviveProductId   = 0
 
 --===== Helpers =====
 local function formatNumber(n)
@@ -1009,10 +1006,6 @@ combatEvent.OnClientEvent:Connect(function(data)
             statusText.TextColor3 = Color3.fromRGB(255, 120, 120)
         end
     elseif data.type == "gameOver" then
-        reviveProductId = data.productId or 0
-        if reviveButton then
-            reviveButton.Text = string.format("RÉAPPARAÎTRE\n%d ROBUX", data.revivePrice or 0)
-        end
         if gameOverWindow then
             gameOverWindow.Visible = true
             if gameOverDistText then
@@ -1041,14 +1034,6 @@ if restartButton then
     end)
 end
 
-if reviveButton then
-    reviveButton.MouseButton1Click:Connect(function()
-        if reviveProductId > 0 then
-            MarketplaceService:PromptProductPurchase(player, reviveProductId)
-        end
-    end)
-end
-
 --===== Rebirth button (GAME_SPEC.md 8.1) =====
 if rebirthButton then
     rebirthButton.MouseButton1Click:Connect(function()
@@ -1056,27 +1041,6 @@ if rebirthButton then
     end)
 end
 
---===== ⚠️ DEV ONLY — REMOVE BEFORE RELEASE : progression reset button =====
-local DEV_MODE = true
-if DEV_MODE and background then
-    local devBtn = Instance.new("TextButton")
-    devBtn.Name = "DevReset"
-    devBtn.Text = "RESET (DEV)"
-    devBtn.Font = Enum.Font.Code
-    devBtn.TextSize = 11
-    devBtn.TextColor3 = Color3.fromRGB(255, 210, 210)
-    devBtn.BackgroundColor3 = Color3.fromRGB(120, 30, 30)
-    devBtn.BackgroundTransparency = 0.15
-    devBtn.BorderSizePixel = 0
-    devBtn.AnchorPoint = Vector2.new(0, 0)
-    devBtn.Position = UDim2.new(0, 6, 0, 44)
-    devBtn.Size = UDim2.new(0, 94, 0, 20)
-    devBtn.ZIndex = 50
-    devBtn.Parent = background
-    devBtn.MouseButton1Click:Connect(function()
-        combatEvent:FireServer({ type = "devReset" })
-    end)
-end
 
 --===== Equipment overlay (GAME_SPEC.md 1.1 selectors / 1.2 inventory) =====
 local equipOverlay = background:FindFirstChild("EquipOverlay")
