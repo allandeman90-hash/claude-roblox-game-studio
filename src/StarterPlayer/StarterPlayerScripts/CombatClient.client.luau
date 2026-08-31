@@ -132,7 +132,11 @@ if not zoneBackdrop then
     zoneBackdrop.BackgroundTransparency = 1
     zoneBackdrop.BorderSizePixel = 0
     zoneBackdrop.ScaleType = Enum.ScaleType.Crop
-    zoneBackdrop.ZIndex = 0                              -- behind every other CombatZone child
+    -- RpgGui uses ZIndexBehavior.Global, so a child at ZIndex 0 renders BEHIND
+    -- the opaque ancestor frames (Background). ZIndex 1 = tied with the parallax
+    -- layers but, being a deeper sibling added after them, still draws behind
+    -- MidLayer (z2) / NearLayer (z3) / the sprites.
+    zoneBackdrop.ZIndex = 1
     zoneBackdrop.Parent = combatZone
 end
 local zoneLabel   = combatZone:FindFirstChild("ZoneLabel")
@@ -152,29 +156,29 @@ local campfireContinueBtn = campfireDecor and campfireDecor:FindFirstChild("Cont
 --===== Zone decor =====
 -- A zone transition only restyles the existing ScrollBackground layers
 -- (sky / hills / ground / trees / rocks). No other UI is touched.
--- `hide` = the painted backdrop covers this layer's job (sky / distant hills),
--- so make its tiles + props invisible instead of tinting them.
+-- `hide` = a painted backdrop is doing this layer's job, so make its tiles and
+-- every prop invisible instead of tinting them (avoids the flat-colour parallax
+-- clashing with the detailed art).
 local function paintLayer(layer, tileColor, d, hide)
     if not layer then return end
-    local tileT = hide and 1 or 0
+    local t = hide and 1 or 0
     for _, tile in ipairs(layer:GetChildren()) do
         if tile:IsA("GuiObject") then
             tile.BackgroundColor3 = tileColor
-            tile.BackgroundTransparency = tileT
+            tile.BackgroundTransparency = t
             for _, prop in ipairs(tile:GetChildren()) do
                 if prop:IsA("GuiObject") then
                     local n = prop.Name
                     if string.match(n, "^Star") then
                         prop.BackgroundColor3 = d.star
-                        prop.BackgroundTransparency = tileT
                     elseif string.match(n, "^Hill") then
                         prop.BackgroundColor3 = d.hill
-                        prop.BackgroundTransparency = tileT
                     elseif string.match(n, "^Tree") then
                         prop.BackgroundColor3 = d.tree
                     elseif string.match(n, "^Rock") then
                         prop.BackgroundColor3 = d.rock
                     end
+                    prop.BackgroundTransparency = t
                 end
             end
         end
@@ -186,21 +190,23 @@ local function applyZoneDecor(zoneId)
     -- Painted backdrop for this couche (falls back to the tinted parallax if
     -- the art is missing / not yet uploaded).
     local backdrop = AssetMap["bg_zone" .. tostring(zoneId)]
+    local hasArt = backdrop ~= nil
     if zoneBackdrop then
         zoneBackdrop.Image = backdrop or ""
-        zoneBackdrop.Visible = backdrop ~= nil
+        zoneBackdrop.Visible = hasArt
     end
+    -- The painted backdrop becomes the scene fill; drop the black CombatZone bg.
+    combatZone.BackgroundTransparency = hasArt and 1 or 0
 
     local cfg = ZoneConfig.getZone(zoneId)
     if not (cfg and cfg.decor) then return end
     local d = cfg.decor
-    local hasArt = backdrop ~= nil
-    -- With a painted backdrop, the far/mid parallax (sky + distant hills) is
-    -- redundant; keep only the near layer (ground line + close trees/rocks)
-    -- scrolling as a foreground silhouette.
+    -- With a painted backdrop, the whole flat-colour parallax is hidden and the
+    -- sprites stand directly on the art. Without art, the tinted parallax is
+    -- the background (original behaviour).
     paintLayer(farLayer, d.farSky, d, hasArt)
     paintLayer(midLayer, d.midSky, d, hasArt)
-    paintLayer(nearLayer, d.ground, d, false)
+    paintLayer(nearLayer, d.ground, d, hasArt)
 end
 
 -- HeroTimeBox: ZONE / DIST + all-time record + this-session XP/min & gold/min.
