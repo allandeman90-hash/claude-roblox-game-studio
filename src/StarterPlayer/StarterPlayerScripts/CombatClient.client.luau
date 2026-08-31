@@ -14,6 +14,7 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local ZoneConfig = require(ReplicatedStorage:WaitForChild("ZoneConfig"))
 -- Slug -> rbxassetid map for the generated pixel-art sprites (GENERATED file).
 local AssetMap = require(ReplicatedStorage:WaitForChild("AssetMap"))
+local GameConfig = require(ReplicatedStorage:WaitForChild("GameConfig"))
 
 local player = Players.LocalPlayer
 
@@ -43,6 +44,11 @@ local enemyHpBar    = enemyHpPanel:FindFirstChild("EnemyHpBar")
 local enemyHpFill   = enemyHpBar:FindFirstChild("HpFill")
 local enemyHpText   = enemyHpPanel:FindFirstChild("EnemyHpText")
 
+-- The floating combat HP bars are now sprite-sized; the numeric readout would
+-- overflow, and current HP reads better from the bar fill during a fight.
+if playerHpText then playerHpText.Visible = false end
+if enemyHpText then enemyHpText.Visible = false end
+
 local heroPanel   = bottomPanel:FindFirstChild("HeroPanel")
 local heroInfoBox = heroPanel:FindFirstChild("HeroInfoBox")
 local heroLevel   = heroInfoBox:FindFirstChild("HeroLevel")
@@ -63,6 +69,48 @@ local infoName     = enemyInfoBox:FindFirstChild("InfoName")
 local infoLevel    = enemyInfoBox:FindFirstChild("InfoLevel")
 local infoMaxHp    = enemyInfoBox:FindFirstChild("InfoMaxHp")
 local infoExp      = enemyInfoBox:FindFirstChild("InfoExp")
+-- Stale template label (never updated by code); the enemy has no meaningful SPD.
+local infoSpd      = enemyInfoBox:FindFirstChild("InfoSpd")
+if infoSpd then infoSpd.Visible = false end
+
+-- Compact, non-overlapping hero info: reuse the (unused) title as the HP line,
+-- then stack 5 full-width rows: LV/XP, PV, Arme, Armr, Pet.
+local heroPvLine = heroInfoBox:FindFirstChild("HeroTitle")
+do
+    local rows = { heroLevel, heroPvLine, heroWeapon, heroArmor, heroPet }
+    for i, lbl in ipairs(rows) do
+        if lbl then
+            lbl.Position = UDim2.new(0, 10, 0.02 + (i - 1) * 0.195, 0)
+            lbl.Size = UDim2.new(1, -20, 0.18, 0)
+            lbl.TextScaled = false
+            lbl.TextSize = 14
+            lbl.TextXAlignment = Enum.TextXAlignment.Left
+            lbl.TextTruncate = Enum.TextTruncate.AtEnd
+        end
+    end
+end
+
+-- Combat HP bars: rounded corners, no white outline.
+do
+    local function styleBar(bar)
+        if not bar then return end
+        local st = bar:FindFirstChildWhichIsA("UIStroke")
+        if st then st:Destroy() end
+        local function corner(o)
+            if o:IsA("GuiObject") and not o:FindFirstChildWhichIsA("UICorner") then
+                local uc = Instance.new("UICorner")
+                uc.CornerRadius = UDim.new(0, 3)
+                uc.Parent = o
+            end
+        end
+        corner(bar)
+        for _, d in ipairs(bar:GetDescendants()) do
+            if d:IsA("Frame") then corner(d) end
+        end
+    end
+    styleBar(playerHpBar)
+    styleBar(enemyHpPanel)
+end
 
 -- Scroll background references
 local scrollBg    = combatZone:FindFirstChild("ScrollBackground")
@@ -119,10 +167,49 @@ local function applyZoneDecor(zoneId)
     paintLayer(nearLayer, d.ground, d)
 end
 
--- HeroTimeBox extra labels
+-- HeroTimeBox: ZONE / DIST + all-time record + this-session XP/min & gold/min.
 local timeLabel   = heroTimeBox:FindFirstChild("TimeLabel")
 local timeValue   = heroTimeBox:FindFirstChild("TimeValue")
 local distLabel   = heroTimeBox:FindFirstChild("DistLabel")
+do
+    local rows = {
+        { timeLabel, timeValue },
+        { distLabel, distValue },
+    }
+    local function mkRow(name, labelText)
+        local lbl = heroTimeBox:FindFirstChild(name .. "Label")
+        local val = heroTimeBox:FindFirstChild(name .. "Value")
+        if not lbl then
+            lbl = timeLabel:Clone() ; lbl.Name = name .. "Label" ; lbl.Text = labelText ; lbl.Parent = heroTimeBox
+        end
+        if not val then
+            val = timeValue:Clone() ; val.Name = name .. "Value" ; val.Text = "" ; val.Parent = heroTimeBox
+        end
+        return { lbl, val }
+    end
+    rows[3] = mkRow("Record", "RECORD")
+    rows[4] = mkRow("Rate", "/MIN")
+    for i, pair in ipairs(rows) do
+        local y = 0.02 + (i - 1) * 0.245
+        if pair[1] then
+            pair[1].Position = UDim2.new(0, 14, y, 0)
+            pair[1].Size = UDim2.new(0.34, 0, 0.22, 0)
+            pair[1].TextSize = 12
+        end
+        if pair[2] then
+            pair[2].Position = UDim2.new(0.36, 0, y, 0)
+            pair[2].Size = UDim2.new(0.62, -14, 0.22, 0)
+            pair[2].TextSize = 13
+        end
+    end
+end
+local recordValue = heroTimeBox:FindFirstChild("RecordValue")
+local rateValue   = heroTimeBox:FindFirstChild("RateValue")
+
+-- This-session income rates (reset on rejoin). Track gross gains only so
+-- shop / rebirth spending doesn't drag the gold rate negative.
+local sessionT0, lastXp, lastGold = os.clock(), nil, nil
+local xpGained, goldGained = 0, 0
 
 --===== Scene (world traversal) =====
 -- Static backdrop; the HERO moves. ONE linear layout, NO mirror: the same
@@ -131,20 +218,51 @@ local distLabel   = heroTimeBox:FindFirstChild("DistLabel")
 --   .. WALK_HI (wall / right). Forward you traverse left->right, backward right->left.
 local enemyStep1 = combatZone:FindFirstChild("EnemyStep1")
 local enemyStep2 = combatZone:FindFirstChild("EnemyStep2")
-local ENC_FRAC    = { 0.35, 0.70 }    -- fallback ; the server sends enc.rel per mob
-local WALK_LO, WALK_HI = 0.15, 0.85   -- hero's walkable band (portals sit just outside it)
+local ENC_FRAC    = { 0.5, 0.95 }     -- fallback ; the server sends enc.rel per mob
+local WALK_LO, WALK_HI = 0.15, 0.88   -- hero's walkable band (portals sit just outside it)
 local PORTAL_L, PORTAL_R = 0.05, 0.95 -- blue (go back) / red (go forward)
 local WALL_LEAN   = 0.10              -- lean a touch further against the km-0 boundary
-local SCENE_Y     = 0.62
+local SCENE_Y     = 0.62              -- vertical centre of the slot Frames
+local SLOT_H      = 0.40              -- slot Frame height (CombatZone fraction; matches RpgGui)
+local GROUND_Y    = 0.86              -- CombatZone Y where a combatant's feet rest (top of the drawn ground)
+local SPRITE_FEET_R = (GROUND_Y - (SCENE_Y - SLOT_H / 2)) / SLOT_H  -- GROUND_Y as a slot-relative Y
 local FIGHT_NUDGE = 0.06              -- hero stops just short of the enemy block
 local heroTargetX    = WALK_LO
 local enemyHpTargetX = WALK_HI
 local sceneLastStepKey = nil          -- floor(km) of the step the hero is currently in
 local sceneFacing    = "right"        -- set ONLY when crossing into a new step
-local NAMETAG_VERSION = 6
+local NAMETAG_VERSION = 8
 
 local function stepXtoScreen(frac)
     return WALK_LO + math.clamp(frac or 0, 0, 1) * (WALK_HI - WALK_LO)
+end
+
+-- Fight-difficulty colour from MY effective stats vs. the enemy's HP/ATK:
+-- roughly (seconds for me to kill it) / (seconds for it to kill me).
+-- 6 tiers: grey trivial, green easy, yellow medium, orange hard, red very hard, purple extreme.
+local DIFF_COLOURS = {
+    Color3.fromRGB(150, 150, 155),
+    Color3.fromRGB(105, 205, 105),
+    Color3.fromRGB(220, 210, 90),
+    Color3.fromRGB(240, 155, 70),
+    Color3.fromRGB(230, 80, 80),
+    Color3.fromRGB(200, 90, 220),
+}
+local function difficultyColour(data, enemyHp, enemyAtk, enemyMagic)
+    local myAtk = math.max(1, data.playerAtk or 1)
+    local myHp  = math.max(1, data.playerMaxHp or 1)
+    local resist = enemyMagic and (data.playerRes or 0) or (data.playerDef or 0)
+    local mit = 100 / (100 + math.max(0, resist))
+    local C = GameConfig.Combat
+    local myInterval = math.max(C.minAttackInterval,
+        C.playerAttackInterval / (1 + math.max(0, (data.statSpd or 1) - 1) * C.spdCadenceCoef))
+    local ttk = math.max(1, enemyHp or 1) / (myAtk / myInterval)                       -- kill it
+    local ttd = myHp / math.max(0.1, math.max(0, enemyAtk or 0) / C.enemyAttackInterval * mit)  -- it kills me
+    local r = ttk / ttd
+    local tier =
+        (r <= 0.12 and 1) or (r <= 0.30 and 2) or (r <= 0.70 and 3)
+        or (r <= 1.40 and 4) or (r <= 3.00 and 5) or 6
+    return DIFF_COLOURS[tier]
 end
 
 --===== Combatant sprites (hero / enemy / pet) ==========================
@@ -153,6 +271,11 @@ end
 -- opponent, so the pick follows sceneFacing:
 --   forward (hero on the LEFT)  -> hero faces right, enemy faces left
 --   back    (hero on the RIGHT) -> hero faces left,  enemy faces right
+-- Sprite size as a fraction of its (roughly square, in px) slot Frame.
+local BASE_SPRITE_W, BASE_SPRITE_H = 0.55, 0.55   -- ~55px mob
+local BOSS_SPRITE_MUL = 1.5
+local HPBAR_W, HPBAR_H = 0.077, 0.026             -- floating HP bar, matched to a sprite's width
+
 local function spriteFor(slug, faceRight)
     if not slug then return nil end
     if faceRight then
@@ -169,9 +292,9 @@ local function ensureSprite(slot)
         img.Name = "Sprite"
         img.BackgroundTransparency = 1
         img.BorderSizePixel = 0
-        img.AnchorPoint = Vector2.new(0.5, 1)
-        img.Position = UDim2.new(0.5, 0, 1, 0)
-        img.Size = UDim2.new(1, 0, 1, 0)
+        img.AnchorPoint = Vector2.new(0.5, 1)                -- bottom-centre = the creature's feet
+        img.Position = UDim2.new(0.5, 0, SPRITE_FEET_R, 0)   -- feet on the ground line
+        img.Size = UDim2.new(BASE_SPRITE_W, 0, BASE_SPRITE_H, 0)
         img.ScaleType = Enum.ScaleType.Fit
         img.ResampleMode = Enum.ResamplerMode.Pixelated
         img.ZIndex = 4
@@ -183,14 +306,19 @@ end
 -- Paint <slug> on a slot (mirrored per faceRight). No matching asset -> the
 -- sprite hides and the slot's text label + box stay (discreet fallback, no
 -- emoji, no coloured placeholder frame).
-local function paintCombatant(slot, slug, faceRight)
+local function paintCombatant(slot, slug, faceRight, active, boss)
     if not slot then return end
     local img = ensureSprite(slot)
     local asset = spriteFor(slug, faceRight)
     local want = asset or ""
     if img.Image ~= want then img.Image = want end   -- avoid redundant writes each update
     img.Visible = asset ~= nil
+    local mul = boss and BOSS_SPRITE_MUL or 1
+    img.Size = UDim2.new(BASE_SPRITE_W * mul, 0, BASE_SPRITE_H * mul, 0)
+    img.ImageColor3 = (active ~= false) and Color3.new(1, 1, 1) or Color3.fromRGB(200, 200, 200)
     slot.BackgroundTransparency = asset and 1 or 0
+    local sk = slot:FindFirstChildWhichIsA("UIStroke")
+    if sk then sk.Enabled = asset == nil end   -- the outline box is only for the text fallback
     local lbl = slot:FindFirstChild("EnemyLabel") or slot:FindFirstChild("HeroLabel")
     if lbl then lbl.Visible = asset == nil end
 end
@@ -205,8 +333,8 @@ end
 if not petSprite then
     petSprite = Instance.new("ImageLabel")
     petSprite.Name = "PetSprite"
-    petSprite.AnchorPoint = Vector2.new(0.5, 0.5)
-    petSprite.Size = UDim2.new(0.10, 0, 0.30, 0)
+    petSprite.AnchorPoint = Vector2.new(0.5, 1)          -- feet on the ground line
+    petSprite.Size = UDim2.new(0.052, 0, 0.15, 0)        -- smaller than the hero (a companion)
     petSprite.BackgroundTransparency = 1
     petSprite.BorderSizePixel = 0
     petSprite.ScaleType = Enum.ScaleType.Fit
@@ -216,11 +344,12 @@ if not petSprite then
     petSprite.Parent = combatZone
 end
 local petLungeUntil = 0
+local petRole = nil   -- "dps"|"tank"|"heal"|nil ; mirrors data.petRole for the RenderStepped follow
 
---===== Step portals + crossing transition =====
--- Every step shows TWO gates: BLUE at the left (walk into it = go back a step) and
--- RED at the right (= go forward a step). The blue one is hidden in the very first
--- step (km 0-1) since nothing is behind it. Crossing plays a coloured flash.
+--===== Step crossing transition =====
+-- The only step-boundary feedback the player wants is a brief crossing wipe
+-- (playStepTransition). The old pulsing edge "portals" are kept as hidden stubs
+-- so the rest of the code can still reference them without nil-checks.
 local function makePortal(name, col)
     local p = combatZone:FindFirstChild(name)
     if p then return p end
@@ -244,10 +373,12 @@ local function makePortal(name, col)
     p.Parent = combatZone
     return p
 end
-local bluePortal = makePortal("BluePortal", Color3.fromRGB(70, 150, 255))   -- go BACK  (left)
-local redPortal  = makePortal("RedPortal",  Color3.fromRGB(255, 70, 70))    -- go FORWARD (right)
+local bluePortal = makePortal("BluePortal", Color3.fromRGB(70, 150, 255))
+local redPortal  = makePortal("RedPortal",  Color3.fromRGB(255, 70, 70))
 bluePortal.Position = UDim2.new(PORTAL_L, 0, SCENE_Y, 0)
 redPortal.Position  = UDim2.new(PORTAL_R, 0, SCENE_Y, 0)
+bluePortal.Visible = false   -- removed per design: no edge markers, only the crossing wipe
+redPortal.Visible  = false
 
 local stepTransition = combatZone:FindFirstChild("StepTransition")
 if not stepTransition then
@@ -261,11 +392,13 @@ if not stepTransition then
     stepTransition.Visible = false
     stepTransition.Parent = combatZone
 end
+-- Brief, soft crossing wipe - a gentle light veil, NOT an alarm flash. A cool
+-- tint going back, a warm tint going forward; barely-there peak opacity.
 local function playStepTransition(goingBack)
-    stepTransition.BackgroundColor3 = goingBack and Color3.fromRGB(110, 175, 255) or Color3.fromRGB(255, 120, 120)
+    stepTransition.BackgroundColor3 = goingBack and Color3.fromRGB(205, 225, 255) or Color3.fromRGB(255, 240, 220)
     stepTransition.Visible = true
     stepTransition.BackgroundTransparency = 1
-    local tin = TweenService:Create(stepTransition, TweenInfo.new(0.10, Enum.EasingStyle.Quad), { BackgroundTransparency = 0.05 })
+    local tin = TweenService:Create(stepTransition, TweenInfo.new(0.10, Enum.EasingStyle.Quad), { BackgroundTransparency = 0.80 })
     tin.Completed:Connect(function()
         local tout = TweenService:Create(stepTransition, TweenInfo.new(0.30, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 1 })
         tout.Completed:Connect(function() stepTransition.Visible = false end)
@@ -273,6 +406,27 @@ local function playStepTransition(goingBack)
     end)
     tin:Play()
 end
+
+-- Low-HP screen flash: the ONLY red screen effect. A UNIFORM full-screen red
+-- pulse while the player is alive and under 20% HP - no gradient, so there is no
+-- red bar at the top edge / above the death counter. Clears at / above 20%.
+local lowHpVignette = background:FindFirstChild("LowHpVignette")
+if not lowHpVignette then
+    lowHpVignette = Instance.new("Frame")
+    lowHpVignette.Name = "LowHpVignette"
+    lowHpVignette.Parent = background
+end
+lowHpVignette.Size = UDim2.new(1, 0, 1, 0)
+lowHpVignette.Position = UDim2.new(0, 0, 0, 0)
+lowHpVignette.BackgroundColor3 = Color3.fromRGB(200, 25, 25)
+lowHpVignette.BackgroundTransparency = 1
+lowHpVignette.BorderSizePixel = 0
+lowHpVignette.ZIndex = 8              -- above the scene, below GameOver / overlays / HUD text
+lowHpVignette.Visible = false
+lowHpVignette.Active = false
+local _oldGrad = lowHpVignette:FindFirstChildOfClass("UIGradient")
+if _oldGrad then _oldGrad:Destroy() end   -- drop the old edge-band gradient if present
+local lowHpActive = false   -- set by updateUI, pulsed by RenderStepped
 
 -- Persistent name+level plate for each enemy block. One tight line just ABOVE
 -- the block (the HP bar takes the spot under it, mirroring the hero).
@@ -287,14 +441,14 @@ local function ensureNameTag(slot)
         tag.BorderSizePixel = 0
         tag.Font = Enum.Font.GothamBold
         tag.TextScaled = false
-        tag.TextSize = 17
+        tag.TextSize = 14
         tag.TextWrapped = false
         tag.TextTruncate = Enum.TextTruncate.AtEnd
         tag.TextYAlignment = Enum.TextYAlignment.Bottom
         tag.TextStrokeTransparency = 0.3
         tag.AnchorPoint = Vector2.new(0.5, 1)
         tag.Size = UDim2.new(3.2, 0, 0.30, 0)
-        tag.Position = UDim2.new(0.5, 0, -0.05, 0)
+        tag.Position = UDim2.new(0.5, 0, 0.62, 0)   -- just above the ground-standing sprite
         tag.ZIndex = 6
         tag.Parent = slot
     end
@@ -320,10 +474,9 @@ local function updateScene(data)
     end
 
     local back = (sceneFacing == "left")
-    -- Portal sits at the step exit in the hero's CURRENT travel direction.
-    -- RED (forward) always shown ; BLUE (back) shown except in the first step.
-    redPortal.Visible = true
-    bluePortal.Visible = (stepKey >= 1)
+    -- Edge portals removed; the step crossing wipe is the only boundary cue.
+    redPortal.Visible = false
+    bluePortal.Visible = false
 
     local activeIndex, activeFrac
     for i, e in ipairs(encs) do if e and e.active then activeIndex = i end end
@@ -331,7 +484,7 @@ local function updateScene(data)
         local enc = encs[i]
         local tag = slot and ensureNameTag(slot)
         if slot and enc then
-            local frac = enc.rel or ENC_FRAC[i] or (i == 1 and 0.35 or 0.70)
+            local frac = enc.rel or ENC_FRAC[i] or (i == 1 and 0.5 or 0.95)
             slot.Visible = not enc.cleared
             slot.Position = UDim2.new(stepXtoScreen(frac), 0, SCENE_Y, 0)
             if enc.active then activeFrac = frac end
@@ -345,13 +498,15 @@ local function updateScene(data)
             local sk = slot:FindFirstChildWhichIsA("UIStroke")
             if sk then sk.Color = enc.active and Color3.fromRGB(255, 80, 80) or Color3.new(1, 1, 1) end
             -- Enemy faces the hero: forward -> hero on its left -> enemy faces left.
-            paintCombatant(slot, enc.id, back)
+            paintCombatant(slot, enc.id, back, enc.active, enc.kind == "boss")
             if tag then
                 tag.Visible = not enc.cleared
                 tag.Text = string.format("%s  \u{00B7}  Lv.%d", enc.name or "???", enc.level or 0)
-                tag.TextColor3 = enc.active and Color3.fromRGB(255, 90, 90)
-                    or (enc.kind == "boss") and Color3.fromRGB(255, 190, 90)
-                    or Color3.fromRGB(210, 220, 230)
+                tag.TextColor3 = difficultyColour(data, enc.hp, enc.atk, enc.magic)
+                -- The boss sprite is BOSS_SPRITE_MUL taller; lift its plate by the
+                -- extra height so it clears the head like a mob's, not the chest.
+                local rise = (enc.kind == "boss") and (BASE_SPRITE_H * (BOSS_SPRITE_MUL - 1)) or 0
+                tag.Position = UDim2.new(0.5, 0, 0.62 - rise, 0)
             end
         elseif slot then
             slot.Visible = false
@@ -438,6 +593,17 @@ local SCROLL_SCALE   = 0.02  -- near layer scroll speed per step
 local heroStatsBox       = heroPanel:FindFirstChild("HeroStatsBox")
 local availablePointsLabel = heroStatsBox and heroStatsBox:FindFirstChild("AvailablePoints")
 
+-- Stat allocation buttons. Wired HERE (early) so the first click after joining
+-- isn't lost while the rest of this long script is still executing.
+for _, statName in ipairs({ "POW", "INT", "VIT", "SPD", "LUK" }) do
+    local btn = heroStatsBox and heroStatsBox:FindFirstChild("Btn" .. statName)
+    if btn then
+        btn.MouseButton1Click:Connect(function()
+            combatEvent:FireServer({ type = "allocateStat", stat = statName })
+        end)
+    end
+end
+
 -- Game Over window references
 local gameOverWindow    = background:FindFirstChild("GameOverWindow")
 local gameOverDistText  = gameOverWindow and gameOverWindow:FindFirstChild("DistanceText")
@@ -465,6 +631,7 @@ local function updateUI(data)
         or (playerRatio <= 0.50) and Color3.fromRGB(230, 200, 60)
         or Color3.fromRGB(80, 210, 90)
     playerHpText.Text = string.format("%d/%d", data.playerHp, data.playerMaxHp)
+    lowHpActive = (data.playerHp or 0) > 0 and playerRatio <= 0.20 and not (data.gameOver == true)
 
     -- Enemy HP bar + name
     local enemyRatio = math.clamp(data.enemyHp / math.max(1, data.enemyMaxHp), 0, 1)
@@ -472,9 +639,12 @@ local function updateUI(data)
     enemyHpText.Text = string.format("%d/%d", data.enemyHp, data.enemyMaxHp)
     enemyName.Text = string.format("%s Lv.%d", data.enemyName, data.enemyLevel)
 
-    -- Hero panel: LV (+ Rebirth count) + current/next XP, then the 3 equipment lines.
+    -- Hero panel: LV (+ Rebirth count) + XP, then HP, then the 3 equipment lines.
     local rbTag = (data.rebirths and data.rebirths > 0) and string.format("  R%d", data.rebirths) or ""
     heroLevel.Text  = string.format("LV: %d%s   XP: %d/%d", data.playerLevel, rbTag, data.playerExp or 0, data.playerExpToNext or 0)
+    if heroPvLine then
+        heroPvLine.Text = string.format("PV: %d / %d", data.playerHp or 0, data.playerMaxHp or 0)
+    end
     heroWeapon.Text = string.format("Arme: %s", data.equipWeapon or "—")
     heroArmor.Text  = string.format("Armr: %s", data.equipArmor or "—")
     if heroPet then
@@ -541,20 +711,31 @@ local function updateUI(data)
         if ic then ic.ImageTransparency = data.canRebirth and 0 or 0.5 end
     end
 
-    -- Enemy info panel
-    if data.isMoving then
-        infoName.Text  = "Exploring..."
-        infoLevel.Text = "---"
-        infoMaxHp.Text = "MAX HP:  ---"
-        infoExp.Text   = "EXP: ---"
+    -- Enemy info panel: only populated during an actual fight (no default mob).
+    local inFight = false
+    for _, e in ipairs(data.encounters or {}) do
+        if e and e.active then inFight = true break end
+    end
+    local infoAtk  = enemyInfoBox:FindFirstChild("InfoAtk")
+    local infoInt  = enemyInfoBox:FindFirstChild("InfoInt")
+    local infoType = enemyInfoBox:FindFirstChild("InfoType")
+    if not inFight then
+        infoName.Text  = data.isMoving and "Exploration..." or "\u{2014}"
+        infoName.TextColor3 = Color3.fromRGB(180, 180, 185)
+        infoLevel.Text = ""
+        infoMaxHp.Text = ""
+        infoExp.Text   = ""
+        if infoAtk  then infoAtk.Text  = "" end
+        if infoInt  then infoInt.Text  = "" end
+        if infoType then infoType.Text = "" end
     else
+        local diffCol = difficultyColour(data, data.enemyMaxHp, data.enemyAtk, data.enemyDamageType == "magic")
         infoName.Text  = data.enemyName
-        infoLevel.Text = string.format("Lv %d", data.enemyLevel)
-        infoMaxHp.Text = string.format("MAX HP:  %d", data.enemyMaxHp)
+        infoName.TextColor3 = diffCol
+        infoLevel.Text = string.format("Lv %d", data.enemyLevel or 0)
+        infoLevel.TextColor3 = diffCol
+        infoMaxHp.Text = string.format("PV:  %d / %d", data.enemyHp or 0, data.enemyMaxHp or 0)
         infoExp.Text   = string.format("EXP: %d", data.enemyExp or 0)
-        local infoAtk = enemyInfoBox:FindFirstChild("InfoAtk")
-        local infoInt = enemyInfoBox:FindFirstChild("InfoInt")
-        local infoType = enemyInfoBox:FindFirstChild("InfoType")
         if data.enemyIsBoss and data.enemyAtkSplit then
             local atkPct = math.floor(data.enemyAtkSplit * 100 + 0.5)
             if infoAtk then infoAtk.Text = string.format("ATK: %d%%", atkPct) end
@@ -619,8 +800,9 @@ local function updateUI(data)
 
     -- Hero + pet sprites. sceneFacing is fresh (updateScene just set it).
     local heroFaceRight = (sceneFacing ~= "left")
-    paintCombatant(heroSlot, data.gearIsMagic and "hero_mage" or "hero_warrior", heroFaceRight)
+    paintCombatant(heroSlot, data.gearIsMagic and "hero_mage" or "hero_warrior", heroFaceRight, true, false)
     if petSprite then
+        petRole = data.petRole
         local petAsset = data.petRole and spriteFor("pet_" .. data.petRole, heroFaceRight) or nil
         if petSprite.Image ~= (petAsset or "") then petSprite.Image = petAsset or "" end
         petSprite.Visible = petAsset ~= nil
@@ -640,9 +822,25 @@ local function updateUI(data)
     -- Enemy visuals are driven by updateScene (2 enemies per step, positioned).
     if enemySlot then enemySlot.Visible = false end
 
-    -- HeroTimeBox: zone and distance
+    -- HeroTimeBox: zone / distance / all-time record / this-session rates.
     if timeValue then timeValue.Text = tostring(data.zone) end
-    if distValue then distValue.Text = string.format("%.1f KM", data.distance or 0) end
+    if distValue then distValue.Text = string.format("%.1f km", data.distance or 0) end
+    if recordValue then
+        recordValue.Text = string.format("%.1f km", math.max(data.bestKm or 0, data.distance or 0))
+    end
+    do
+        local xp, gold = data.exp or 0, data.gold or 0
+        if lastXp then
+            if xp > lastXp then xpGained += xp - lastXp end
+            if gold > lastGold then goldGained += gold - lastGold end
+        end
+        lastXp, lastGold = xp, gold
+        local mins = math.max(1 / 60, (os.clock() - sessionT0) / 60)
+        if rateValue then
+            rateValue.Text = string.format("%s xp  \u{00B7}  %s or",
+                formatNumber(xpGained / mins), formatNumber(goldGained / mins))
+        end
+    end
 
     -- Prominent distance display in the combat zone
     if distLabelCZ then
@@ -691,7 +889,7 @@ local function createDamageNumber(target, amount, isCrit)
         xPos = heroSlot and heroSlot.Position.X.Scale or WALK_LO
     end
     xPos = xPos + math.random(-2, 2) / 1000
-    local yPos = SCENE_Y - 0.20   -- just above the fighter's head
+    local yPos = GROUND_Y - 0.26   -- floats up from just above the fighter's head
 
     label.Position = UDim2.new(xPos, 0, yPos, 0)
     label.Size = UDim2.new(0.15, 0, 0.08, 0)
@@ -792,17 +990,6 @@ if campfireStayBtn then
     campfireStayBtn.MouseButton1Click:Connect(function()
         -- RESTER : la regeneration serveur continue d'elle-meme, rien a envoyer.
     end)
-end
-
---===== Stat allocation buttons =====
-local statNamesList = {"POW", "INT", "VIT", "SPD", "LUK"}
-for _, statName in ipairs(statNamesList) do
-    local btn = heroStatsBox and heroStatsBox:FindFirstChild("Btn" .. statName)
-    if btn then
-        btn.MouseButton1Click:Connect(function()
-            combatEvent:FireServer({type = "allocateStat", stat = statName})
-        end)
-    end
 end
 
 --===== Game Over buttons =====
@@ -1192,29 +1379,42 @@ RunService.RenderStepped:Connect(function()
         local bob = isMovingState and (math.sin(tick() * 11) * 0.009) or 0
         heroSlot.Position = UDim2.new(nx, 0, SCENE_Y + bob, 0)
         heroSlot.Rotation = isMovingState and ((moveDirState == "left") and -4 or 4) or 0
-        -- HP bar rides just under the hero.
+        -- Small HP bar sits on the ground just under the hero (scaled to a sprite's width).
         if playerHpBar then
-            playerHpBar.Position = UDim2.new(nx, 0, SCENE_Y + 0.22, 0)
+            playerHpBar.AnchorPoint = Vector2.new(0.5, 0)
+            playerHpBar.Size = UDim2.new(HPBAR_W, 0, HPBAR_H, 0)
+            playerHpBar.Position = UDim2.new(nx, 0, GROUND_Y + 0.02, 0)
         end
     end
 
-    -- Enemy HP bar rides under the enemy being fought, same band as the hero's.
+    -- Enemy HP bar rides on the ground under the enemy being fought.
     if enemyHpPanel and enemyHpPanel.Visible then
-        enemyHpPanel.Position = UDim2.new(enemyHpTargetX, 0, SCENE_Y + 0.22, 0)
+        enemyHpPanel.AnchorPoint = Vector2.new(0.5, 0)
+        enemyHpPanel.Size = UDim2.new(HPBAR_W, 0, HPBAR_H, 0)
+        enemyHpPanel.Position = UDim2.new(enemyHpTargetX, 0, GROUND_Y + 0.02, 0)
     end
 
-    -- Portals: gentle glow pulse.
-    local pulse = 0.10 + math.abs(math.sin(tick() * 3)) * 0.32
-    if bluePortal then bluePortal.BackgroundTransparency = pulse end
-    if redPortal then redPortal.BackgroundTransparency = pulse end
+    -- Low-HP red screen flash (uniform, whole screen).
+    if lowHpVignette then
+        if lowHpActive then
+            lowHpVignette.Visible = true
+            lowHpVignette.BackgroundTransparency = 0.58 + math.abs(math.sin(tick() * 7)) * 0.30
+        elseif lowHpVignette.Visible then
+            lowHpVignette.Visible = false
+        end
+    end
 
-    -- Pet trails just behind the hero and lunges toward the enemy on each hit.
+    -- Pet follows the hero. The TANK fairy guards the FRONT (toward the enemy);
+    -- DPS / HEAL fairies hover BEHIND. All lunge toward the enemy on each hit.
     if petSprite and petSprite.Visible and heroSlot then
         local hx = heroSlot.Position.X.Scale
+        local faceSign = (sceneFacing == "left") and -1 or 1   -- +1 = enemy is to the hero's right
+        local sideSign = (petRole == "tank") and 1 or -1        -- +1 = front (toward enemy), -1 = behind
         local lunge = (tick() < petLungeUntil) and 0.05 or 0
         local bob = isMovingState and (math.sin(tick() * 13) * 0.010) or 0
-        local px = math.max(0.04, hx - 0.08) + lunge   -- trails the hero, never off the left edge
-        petSprite.Position = UDim2.new(px, 0, SCENE_Y + 0.07 + bob, 0)
+        -- hero<->pet separation halved (0.09 -> 0.045) so the fairy hugs the hero.
+        local px = math.clamp(hx + faceSign * (sideSign * 0.045 + lunge), 0.04, 0.92)
+        petSprite.Position = UDim2.new(px, 0, GROUND_Y + bob, 0)
     end
 end)
 
