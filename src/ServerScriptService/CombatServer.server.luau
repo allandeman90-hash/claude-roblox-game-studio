@@ -6,7 +6,6 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local MarketplaceService = game:GetService("MarketplaceService")
 
 -- Zone system (decor + enemy roster) and progression milestones
 -- (rest = campfire + shop every 50 km ; boss every 100 km).
@@ -261,7 +260,7 @@ local function sendUpdate(player, s)
         checkpointMaxKm = s.checkpointMaxKm or 0,
         bestKm          = s.bestKm or 0,
         selectedCheckpoint = s.selectedCheckpoint or 0,
-        rebirthSkillPct = math.floor(GameConfig.Rebirth.skillEffectPerRebirth * (s.rebirths or 0) * 100),
+        rebirthSkillPct = math.floor((GameConfig.Rebirth.skillMult(s.rebirths or 0) - 1) * 100),
         rebirthXpBonus  = math.floor(GameConfig.Rebirth.xpBonusPerRebirth * (s.rebirths or 0) * 100),
         gearAtkPoints   = s.gearAtkPoints or 0,
         gearHpPoints    = s.gearHpPoints or 0,
@@ -874,13 +873,7 @@ combatEvent.OnServerEvent:Connect(function(player, data)
     end
 end)
 
---===== Developer Product receipts =====
--- Stub. The idempotent ProcessReceipt (dedicated receipt DataStore + PurchaseId
--- registry) is written in B4. No products are live until then, so every receipt
--- is deferred rather than granted.
-MarketplaceService.ProcessReceipt = function(_receiptInfo)
-    return Enum.ProductPurchaseDecision.NotProcessedYet
-end
+-- Developer Product receipts are owned by ReceiptService.server.luau (B4).
 
 --===== Player lifecycle =====
 Players.PlayerAdded:Connect(function(player)

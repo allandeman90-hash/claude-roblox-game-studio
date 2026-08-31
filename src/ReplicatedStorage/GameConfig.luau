@@ -33,13 +33,13 @@ GameConfig.Level = {
     statPointsPerLevel   = 4,
 }
 
--- [ACTIVE] validated (etape 1 + etape 2.5 offset). XP required to advance
--- FROM level N to level N+1: 2*N*(N+1) + 40. The +40 offset stops the first
--- few levels being earned in 1-2 kills (~10 XP each) without changing the
--- mid / late curve.
---   N=1 -> 44 | N=2 -> 52 | N=5 -> 100 | N=10 -> 260 | N=25 -> 1340 | N=50 -> 5140
+-- [D2 - validated 2026-08-31] XP to advance FROM level N to N+1. Curve A "Douce":
+-- round(6 + 0.5 * n^1.10). The geometric x1.35 of the GDD is impossible (sum ~3e13);
+-- this sums to ~4300 to reach level 100 => cap in ~1-2 h, first level-wall ~km 25-30
+-- (fast rebirth cycle by design). The 0.5 coefficient is the D6 fine-tune dial.
+--   N=1 -> 7 | N=10 -> 12 | N=25 -> 24 | N=50 -> 45 | N=99 -> 89 | sum(1..99) ~4300
 function GameConfig.Level.xpForNextLevel(n)
-    return 2 * n * (n + 1) + 40
+    return math.round(6 + 0.5 * n ^ 1.10)
 end
 
 --========================================================
@@ -259,14 +259,17 @@ end
 -- count. RESETS level, stat points, gold, distance. Cost is gold: the player
 -- must hold >= cost(n) and ends the rebirth with 0 gold.
 --   cost(n)  = baseCost * costScaling^(n-1)   (n = the rebirth being bought, 1-indexed)
---   bonus    = +damageBonusPerRebirth dmg, +xpBonusPerRebirth XP, ADDITIVE per rebirth
+--   bonus    = crescent skillMult on earned points + additive xpBonusPerRebirth XP
 GameConfig.Rebirth = {
     baseCost              = 10000,
     costScaling           = 2.2,
-    -- Each rebirth makes every ALLOCATED skill point +10% more effective
-    -- (compounds with re-levelling). Rebirth 0: 1 pt POW -> +2 ATK ;
-    -- rebirth 3: 1 pt POW -> +2.6 ATK. Applies to POW/INT/VIT/SPD/LUK.
-    skillEffectPerRebirth = 0.10,
+    -- [D2 - validated 2026-08-31] Rebirth makes every EARNED stat point (auto +
+    -- free + earned, NEVER the starting stats) more effective on a CRESCENT curve
+    -- (Q38: +10% R1, +12% R2, +14% R3 ...). Cumulative:
+    --   skillMult(n) = 1 + 0.10n + 0.01*n*(n-1)   (R1 x1.10, R5 x1.70, R10 x2.90)
+    -- D6 check: if the first ~50 post-rebirth levels feel trivial, split into a
+    -- softer auto-stat mult (1 + 0.06n) + this curve for earned/free only.
+    skillEffectPerRebirth = 0.10,   -- [DEPRECATED] display-only; real bonus = skillMult()
     xpBonusPerRebirth     = 0.25,   -- +25% XP per rebirth (additive)
 }
 
@@ -276,15 +279,82 @@ function GameConfig.Rebirth.cost(n)
     return math.round(GameConfig.Rebirth.baseCost * GameConfig.Rebirth.costScaling ^ (n - 1))
 end
 
--- Effectiveness multiplier applied to ALLOCATED skill points (the small
--- starting stats are never multiplied). 1.0 at rebirth 0, +0.10 per rebirth.
+-- Crescent effectiveness multiplier on EARNED stat points (Q38). Starting stats
+-- are never multiplied. R0 x1.00, R1 x1.10, R2 x1.22, R3 x1.36, R5 x1.70, R10 x2.90.
 function GameConfig.Rebirth.skillMult(rebirths)
-    return 1 + GameConfig.Rebirth.skillEffectPerRebirth * math.max(0, rebirths or 0)
+    local n = math.max(0, math.floor(rebirths or 0))
+    return 1 + 0.10 * n + 0.01 * n * (n - 1)
 end
 
 function GameConfig.Rebirth.xpMult(rebirths)
     return 1 + GameConfig.Rebirth.xpBonusPerRebirth * math.max(0, rebirths or 0)
 end
+
+--========================================================
+-- NIGHTMARE  (Mode Cauchemar - D2 validated 2026-08-31)
+--========================================================
+-- Per-couche infinite difficulty ladder. Global gate: beat the Couche 6 boss.
+-- Unlock Cauchemar I at ~killsForTierOne boss kills of a couche, +killsPerExtraTier
+-- per tier after. Per tier k (1-indexed): enemies get SEPARATE hp / atk mults (they
+-- compound in the no-flee death race, keep each modest), rewards (gold / XP /
+-- earned-point faucet / pet-drop RATE) a flat mult, rarity odds UNCHANGED. Enrage
+-- timer on bosses ONLY in Nightmare. Hero auto-advances full speed. Permanent.
+-- Difficulty (~2.09^k product) outpaces rewards (1.80^k) ~16%/tier => real ceiling.
+GameConfig.Nightmare = {
+    hpMultPerTier          = 1.55,
+    atkMultPerTier         = 1.35,
+    rewardMultPerTier      = 1.80,
+    enrageBaseSeconds      = 95,    -- enrage(k) = max(floor, base - step*k)
+    enrageStepSeconds      = 5,
+    enrageFloorSeconds     = 30,
+    killsForTierOne        = 100,   -- couche boss kills to unlock Cauchemar I
+    killsPerExtraTier      = 25,
+    globalGateBossCouche   = 6,
+    earnedPointsPerNewTier = 1,     -- permanent, first clear of a new tier per couche only
+}
+
+function GameConfig.Nightmare.hpMult(tier)
+    return GameConfig.Nightmare.hpMultPerTier ^ math.max(0, tier or 0)
+end
+
+function GameConfig.Nightmare.atkMult(tier)
+    return GameConfig.Nightmare.atkMultPerTier ^ math.max(0, tier or 0)
+end
+
+function GameConfig.Nightmare.rewardMult(tier)
+    return GameConfig.Nightmare.rewardMultPerTier ^ math.max(0, tier or 0)
+end
+
+function GameConfig.Nightmare.enrageSeconds(tier)
+    local N = GameConfig.Nightmare
+    return math.max(N.enrageFloorSeconds, N.enrageBaseSeconds - N.enrageStepSeconds * math.max(1, tier or 1))
+end
+
+--========================================================
+-- SEASON PASS  (S1 - D2 validated 2026-08-31, recalibrated)
+--========================================================
+-- 8 weeks, 50 tiers, flat xpPerTier. Daily quests alone do NOT finish the pass:
+-- a quests-only day = ~550 XP (~55% of a tier) -> quests-only player lands ~tier
+-- 33. Completing needs Descente / dungeon / 100 km segments. The 100 km segment
+-- award is the one-shot "ENORME" of Q85. Nothing past the last tier (Q88).
+GameConfig.SeasonPass = {
+    xpPerTier   = 1000,
+    tiers       = 50,
+    seasonWeeks = 8,
+    XpSources = {
+        mobCurrentCouche    = 1,      -- mob in the player's current couche
+        mobOldCouche        = 0,      -- couche <= record - 2 : anti-AFK
+        coucheBoss          = 25,     -- first kill / day / couche
+        bigBoss             = 120,    -- first / day
+        dungeonFloorCleared = 8,
+        dungeonFloorBoss    = 30,
+        soloRaidCleared     = 150,
+        dailyQuest          = 40,     -- each of the 10  (was 70)
+        dailyQuestAllBonus  = 150,    -- all 10 done (was 250) -> quests-only day = 40*10+150 = 550
+        segment100kmFirst   = 3000,   -- first time this season, per 100 km segment
+        dailyRewardDay7     = 200,
+    },
+}
 
 --========================================================
 -- ENEMIES
@@ -297,7 +367,7 @@ GameConfig.Enemy = {
     -- Zone-1 baseline. maxHp / atk here are LEGACY (unused - HP/ATK are
     -- level-driven). exp / gold ARE still read as the level-0 anchor for the
     -- per-level reward curve below.
-    base       = { maxHp = 50, atk = 6, exp = 10, gold = 5 },
+    base       = { maxHp = 50, atk = 6, exp = 10, gold = 8 },   -- [D2] gold anchor 5 -> 8
     zoneScaling  = 1.35,   -- LEGACY: was enemy HP/ATK/gold per zone. Now unused by
                            -- EnemyService (kept for shop weapon/armor power refs).
 
@@ -321,7 +391,8 @@ GameConfig.Enemy = {
                               -- a same-level fight is ~even; the player's edge is
                               -- their +levelLead, gear, pet and smarter play.
     expPerLevel     = 1.02,   -- EXP  x this per mob level  (1.02^10 ~= 1.22 / zone, unchanged total)
-    goldPerLevel    = 1.03,   -- gold x this per mob level  (1.03^10 ~= 1.35 / zone, unchanged total)
+    goldPerLevel    = 1.026,  -- [D2] gold x this per mob level. Flattened 1.03 -> 1.026 so
+                              -- gold/climb grows ~x2.0/rebirth vs cost x2.2 (Q64: rebirth keeps the lead).
     scaleExpCap  = 90,     -- clamp the per-level exponent. Past ~level 900 the numbers
                            -- stop being meaningful and (x boss mults, rounded) would
                            -- overflow int64.
