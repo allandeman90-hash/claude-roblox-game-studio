@@ -33,10 +33,40 @@ HERE = Path(__file__).resolve().parent
 ASSETS = HERE.parent.parent / "assets" / "images"
 ASSET_MAP = HERE.parent.parent / "src" / "ReplicatedStorage" / "AssetMap.luau"
 CACHE_DIR = HERE / ".cache"
-CACHE_FILE = CACHE_DIR / "uploads.json"
+# v2 cache: the pre-ban run used uploads.json with a now-defunct naming scheme
+# and dead asset ids. Start clean, keep the old file for reference.
+CACHE_FILE = CACHE_DIR / "uploads-v2.json"
+
+# Only these dirs are uploaded (relative to assets/images/). Everything else
+# under assets/images/ -- notably assets2/ (source sheets) -- is ignored.
+SCAN_DIRS = [
+    "hero/final", "hero/flip",
+    "monsters/final", "monsters/flip",
+    "bosses/final", "bosses/flip",
+    "backgrounds",
+]
+EXTS = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}
 
 API_ASSETS = "https://apis.roblox.com/assets/v1/assets"
 API_OP = "https://apis.roblox.com/assets/v1/operations/{}"
+
+
+CREDS_FILE = Path.home() / ".roblox" / "open-cloud.env"
+
+
+def load_creds_file() -> None:
+    """If ROBLOX_API_KEY is not already in the env, source ~/.roblox/open-cloud.env
+    (KEY=VALUE lines). That file lives outside the repo and outside OneDrive and
+    is never committed."""
+    if os.environ.get("ROBLOX_API_KEY") or not CREDS_FILE.exists():
+        return
+    for line in CREDS_FILE.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, _, v = line.partition("=")
+        os.environ.setdefault(k.strip(), v.strip())
+    print(f"loaded credentials from {CREDS_FILE}")
 
 
 def load_cache() -> dict:
@@ -70,9 +100,10 @@ def upload_one(session: requests.Session, path: Path, asset_id_slug: str,
         "description": "Quete minute — generated pixel-art asset (assetgen)",
         "creationContext": {"creator": creator_block()},
     }
+    mime = EXTS.get(path.suffix.lower(), "image/png")
     files = {
         "request": (None, json.dumps(request_json), "application/json"),
-        "fileContent": (path.name, path.read_bytes(), "image/png"),
+        "fileContent": (path.name, path.read_bytes(), mime),
     }
     r = session.post(API_ASSETS, files=files, timeout=60)
     if r.status_code == 429:
@@ -144,6 +175,7 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
+    load_creds_file()
     cache = load_cache()  # sha1 -> {assetId, slug, category}
 
     if args.map_only:
@@ -156,18 +188,26 @@ def main() -> int:
     if not key and not args.dry_run:
         raise SystemExit("ROBLOX_API_KEY is not set. See README.md section 5.")
 
-    pngs = sorted(ASSETS.rglob("*.png"))
-    if args.only:
-        pngs = [p for p in pngs if p.parent.name in set(args.only)]
-    if not pngs:
-        print("no PNGs under assets/images/ (run generate.py + postprocess.py first).", file=sys.stderr)
+    scan = [d for d in SCAN_DIRS if not args.only or d.split("/")[0] in set(args.only)]
+    imgs: list[Path] = []
+    for rel in scan:
+        d = ASSETS / rel
+        if not d.is_dir():
+            print(f"  !! {rel}/ absent, ignore", file=sys.stderr)
+            continue
+        for p in sorted(d.iterdir()):
+            if p.suffix.lower() in EXTS:
+                imgs.append(p)
+    if not imgs:
+        print("no images in the scanned dirs (run generate/slice + make_flips.py first).", file=sys.stderr)
         return 1
+    print(f"{len(imgs)} images to consider across {len(scan)} dir(s).")
 
     session = requests.Session()
     session.headers["x-api-key"] = key
 
     uploaded = skipped = failed = 0
-    for png in pngs:
+    for png in imgs:
         slug = png.stem
         digest = sha1_of(png)
         if digest in cache and cache[digest].get("assetId"):

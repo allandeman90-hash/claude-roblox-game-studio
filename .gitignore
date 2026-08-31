@@ -9,9 +9,12 @@
 /dist/
 /node_modules/
 
-# Environment
+# Environment / secrets — never commit credentials
 .env
 .env.local
+*.env
+.roblox/
+**/open-cloud.env
 
 # IDE
 .vscode/
@@ -51,5 +54,11 @@ production/session-state/*.md
 # assetgen pipeline — caches and raw renders (final PNGs in assets/images/ ARE committed)
 tools/assetgen/.cache/
 tools/assetgen/out_raw/
+# generated mirror sprites (regenerate with tools/assetgen/make_flips.py)
+assets/images/*/flip/
+# generated combat atlases (regenerate with tools/assetgen/pack_atlas.py)
+tools/assetgen/atlas_*.png
+tools/assetgen/atlas-manifest.json
+tools/assetgen/_atlas_preview.png
 __pycache__/
 *.pyc

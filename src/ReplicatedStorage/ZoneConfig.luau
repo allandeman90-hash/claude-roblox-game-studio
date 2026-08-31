@@ -4,14 +4,19 @@
 -- selection) and client (decor). Contains NO combat / XP / stat
 -- logic - it only describes decor and the enemy roster per zone.
 --
--- 1 zone = 10 km (decor grid). Prototype ships Zone 1 fully;
--- Zone 2 is only registered ("prepared") and left undeveloped.
+-- 1 zone = 1 "couche" = 10 km (KM_PER_ZONE), 10 steps of 1 km.
+-- The 12 couches of "La Descente" (see design/narrative/la-descente.md)
+-- are all defined here with their 6-monster roster and decor palette.
 --
 -- Progression milestones (paliers) are distance-based and
 -- independent from the decor zones:
 --   * every 50 km  -> REST  (campfire regen + shop, one combined stop)
---   * every 100 km -> BOSS  (dynamic level, see ZoneService)
+--   * every 10 km  -> BOSS  (dynamic level, see ZoneService) - a named
+--                     Gardien closes each couche
 -- Priority when marks coincide: boss > rest.
+--
+-- Enemy `id` / boss `id` / boss `bigId` = sprite slug in AssetMap
+-- (client-side art only; enters NO combat math).
 --==============================================================
 
 local ZoneConfig = {}
@@ -20,73 +25,241 @@ ZoneConfig.KM_PER_ZONE = 10
 
 -- Milestone spacing (km). Marks land exactly on these multiples.
 ZoneConfig.REST_EVERY_KM = 50   -- campfire (regen) + shop, same stop
-ZoneConfig.BOSS_EVERY_KM = 10   -- GAME_SPEC.md 6.2 : one boss per zone
+ZoneConfig.BOSS_EVERY_KM = 10   -- one Gardien per couche
+
+--============ Enemy role multipliers ============
+-- Applied by EnemyService on top of the level-driven base stats
+-- (hp / atk / exp / gold). Tune here, not per-monster. `economy-designer`
+-- (Track D3) owns the final values; these are a sane placeholder spread.
+local R = {
+	chaff   = { hpMul = 0.65, atkMul = 0.85, expMul = 0.70, goldMul = 1.15 },
+	swift   = { hpMul = 0.90, atkMul = 1.25, expMul = 1.00, goldMul = 1.00 },
+	bruiser = { hpMul = 1.15, atkMul = 1.10, expMul = 1.10, goldMul = 1.05 },
+	tank    = { hpMul = 1.75, atkMul = 0.80, expMul = 1.30, goldMul = 1.10 },
+	caster  = { hpMul = 0.75, atkMul = 1.50, expMul = 1.15, goldMul = 1.05 },
+	elite   = { hpMul = 1.40, atkMul = 1.20, expMul = 1.55, goldMul = 1.45 },
+}
+
+-- mk("Nom affiché", "mob_slug", "role") -> flat enemy def for a roster.
+local function mk(name, id, role)
+	local m = R[role] or R.bruiser
+	return {
+		name = name, id = id, role = role,
+		hpMul = m.hpMul, atkMul = m.atkMul, expMul = m.expMul, goldMul = m.goldMul,
+	}
+end
+
+local function rgb(r, g, b)
+	return Color3.fromRGB(r, g, b)
+end
 
 ZoneConfig.Zones = {
-	--========================= ZONE 1 =========================
+	--===================== COUCHE 1 - Plaine de l'Aube =====================
 	[1] = {
-		id = 1,
-		name = "Plaine de l'Aube",
-		developed = true,
-
-		-- Decor palette applied by the client to the existing
-		-- ScrollBackground layers (Far / Mid / Near + their props).
+		id = 1, name = "Plaine de l'Aube", developed = true,
 		decor = {
-			farSky = Color3.fromRGB(15, 20, 40),
-			star   = Color3.fromRGB(200, 200, 220),
-			midSky = Color3.fromRGB(25, 35, 55),
-			hill   = Color3.fromRGB(30, 45, 65),
-			ground = Color3.fromRGB(35, 70, 35),
-			tree   = Color3.fromRGB(20, 50, 20),
-			rock   = Color3.fromRGB(60, 60, 65),
+			farSky = rgb(20, 26, 54), star = rgb(205, 205, 225), midSky = rgb(30, 40, 60),
+			hill = rgb(34, 50, 40), ground = rgb(46, 74, 40), tree = rgb(24, 54, 24), rock = rgb(64, 62, 58),
 		},
-
-		-- Regular enemies: one is rolled at random on each encounter.
-		-- Multipliers are applied on top of the game's existing
-		-- per-zone base stats (enemyStatsForZone in CombatServer),
-		-- so the combat / XP / gold systems stay untouched.
-		-- `id` = sprite slug in AssetMap (client-side art only; enters no combat math).
 		enemies = {
-			{ name = "Slime",         id = "mob_slime_vert",   level = 1, hpMul = 1.0, atkMul = 1.0, expMul = 1.0, goldMul = 1.0 },
-			{ name = "Gobelin",       id = "mob_gobelin",       level = 1, hpMul = 1.2, atkMul = 1.1, expMul = 1.2, goldMul = 1.1 },
-			{ name = "Loup Sauvage",  id = "mob_loup",          level = 2, hpMul = 0.9, atkMul = 1.3, expMul = 1.1, goldMul = 1.0 },
-			{ name = "Chauve-souris", id = "mob_chauve_souris", level = 1, hpMul = 0.7, atkMul = 0.9, expMul = 0.8, goldMul = 1.3 },
+			mk("Rat", "mob_c01_rat", "chaff"),
+			mk("Larve de Poussière", "mob_c01_larve_poussiere", "chaff"),
+			mk("Gobelin Maraudeur", "mob_c01_gobelin_maraudeur", "swift"),
+			mk("Loup Efflanqué", "mob_c01_loup_efflanque", "bruiser"),
+			mk("Épouvantail", "mob_c01_epouvantail", "caster"),
+			mk("Ogre du Sentier", "mob_c01_ogre_sentier", "tank"),
 		},
-
-		-- (Bosses are no longer per decor-zone. See ZoneConfig.BossThemes
-		-- and ZoneService.rollBoss - they now trigger every 100 km with a
-		-- dynamically computed level.)
 	},
 
-	--========================= ZONE 2 =========================
-	-- Registered / "prepared" only. Not developed yet: no enemy
-	-- roster, no boss. Decor is defined so the transition at
-	-- 10 km is visible, but nothing else about Zone 2 exists.
+	--===================== COUCHE 2 - Carrière des Runes =====================
 	[2] = {
-		id = 2,
-		name = "Zone 2",
-		developed = false,
-
+		id = 2, name = "Carrière des Runes", developed = true,
 		decor = {
-			farSky = Color3.fromRGB(40, 15, 20),
-			star   = Color3.fromRGB(230, 200, 190),
-			midSky = Color3.fromRGB(55, 25, 25),
-			hill   = Color3.fromRGB(70, 35, 30),
-			ground = Color3.fromRGB(70, 45, 30),
-			tree   = Color3.fromRGB(55, 35, 20),
-			rock   = Color3.fromRGB(75, 60, 55),
+			farSky = rgb(60, 64, 70), star = rgb(90, 180, 180), midSky = rgb(78, 82, 88),
+			hill = rgb(74, 76, 80), ground = rgb(92, 88, 82), tree = rgb(60, 80, 70), rock = rgb(112, 108, 104),
 		},
+		enemies = {
+			mk("Chien de Gravats", "mob_c02_chien_gravats", "chaff"),
+			mk("Rampant de la Carrière", "mob_c02_rampant_carriere", "swift"),
+			mk("Éclat Runique", "mob_c02_eclat_runique", "caster"),
+			mk("Tailleur Maudit", "mob_c02_tailleur_maudit", "bruiser"),
+			mk("Sentinelle Gravée", "mob_c02_sentinelle_gravee", "elite"),
+			mk("Colosse de la Carrière", "mob_c02_colosse_carriere", "tank"),
+		},
+	},
 
-		enemies = {}, -- TODO Zone 2
+	--===================== COUCHE 3 - Bois des Murmures =====================
+	[3] = {
+		id = 3, name = "Bois des Murmures", developed = true,
+		decor = {
+			farSky = rgb(18, 24, 22), star = rgb(120, 200, 140), midSky = rgb(26, 34, 30),
+			hill = rgb(24, 32, 28), ground = rgb(30, 36, 28), tree = rgb(16, 30, 16), rock = rgb(44, 42, 48),
+		},
+		enemies = {
+			mk("Feu Follet", "mob_c03_feu_follet", "chaff"),
+			mk("Sylphe des Ronces", "mob_c03_sylphe_ronce", "swift"),
+			mk("Loup Sylvestre", "mob_c03_loup_sylvestre", "bruiser"),
+			mk("Pendu des Branches", "mob_c03_pendu_branches", "caster"),
+			mk("Champignon Rôdeur", "mob_c03_champignon_rodeur", "tank"),
+			mk("Tréant Tordu", "mob_c03_treant_tordu", "elite"),
+		},
+	},
+
+	--===================== COUCHE 4 - Champs de Cendres =====================
+	[4] = {
+		id = 4, name = "Champs de Cendres", developed = true,
+		decor = {
+			farSky = rgb(30, 14, 12), star = rgb(255, 140, 60), midSky = rgb(40, 18, 16),
+			hill = rgb(36, 22, 20), ground = rgb(28, 22, 20), tree = rgb(40, 20, 16), rock = rgb(32, 30, 32),
+		},
+		enemies = {
+			mk("Braise Vive", "mob_c04_braise_vive", "chaff"),
+			mk("Molosse de Suie", "mob_c04_molosse_suie", "swift"),
+			mk("Cendreux", "mob_c04_cendreux", "bruiser"),
+			mk("Porte-Torche", "mob_c04_porte_torche", "caster"),
+			mk("Fantassin Calciné", "mob_c04_fantassin_calcine", "elite"),
+			mk("Colosse de Braise", "mob_c04_colosse_braise", "tank"),
+		},
+	},
+
+	--===================== COUCHE 5 - Toundra des Âmes =====================
+	[5] = {
+		id = 5, name = "Toundra des Âmes", developed = true,
+		decor = {
+			farSky = rgb(150, 180, 205), star = rgb(200, 240, 255), midSky = rgb(170, 195, 215),
+			hill = rgb(180, 200, 215), ground = rgb(200, 215, 225), tree = rgb(140, 170, 190), rock = rgb(155, 178, 198),
+		},
+		enemies = {
+			mk("Éclat d'Âme", "mob_c05_eclat_ame", "chaff"),
+			mk("Givreux", "mob_c05_givreux", "swift"),
+			mk("Loup de Givre", "mob_c05_loup_givre", "bruiser"),
+			mk("Pleureuse Voilée", "mob_c05_pleureuse_voilee", "caster"),
+			mk("Marcheur Gelé", "mob_c05_marcheur_gele", "tank"),
+			mk("Titan de Glace", "mob_c05_titan_glace", "elite"),
+		},
+	},
+
+	--===================== COUCHE 6 - Côte des Naufrages =====================
+	[6] = {
+		id = 6, name = "Côte des Naufrages", developed = true,
+		decor = {
+			farSky = rgb(20, 40, 45), star = rgb(200, 220, 225), midSky = rgb(30, 52, 56),
+			hill = rgb(34, 54, 52), ground = rgb(40, 58, 55), tree = rgb(30, 50, 45), rock = rgb(55, 60, 62),
+		},
+		enemies = {
+			mk("Feu de Brume", "mob_c06_feu_brume", "chaff"),
+			mk("Marin Noyé", "mob_c06_marin_noye", "swift"),
+			mk("Crabe d'Épave", "mob_c06_crabe_epave", "bruiser"),
+			mk("Murène Dressée", "mob_c06_murene_dressee", "caster"),
+			mk("Garde Corallien", "mob_c06_garde_corallien", "tank"),
+			mk("Léviathan Échoué", "mob_c06_leviathan_echoue", "elite"),
+		},
+	},
+
+	--===================== COUCHE 7 - Ruines d'Aethel =====================
+	[7] = {
+		id = 7, name = "Ruines d'Aethel", developed = true,
+		decor = {
+			farSky = rgb(40, 30, 55), star = rgb(220, 120, 230), midSky = rgb(55, 42, 72),
+			hill = rgb(70, 60, 90), ground = rgb(120, 110, 100), tree = rgb(90, 80, 110), rock = rgb(200, 195, 185),
+		},
+		enemies = {
+			mk("Glyphe Flottant", "mob_c07_glyphe_flottant", "chaff"),
+			mk("Chien d'Albâtre", "mob_c07_chien_albatre", "swift"),
+			mk("Automate Brisé", "mob_c07_automate_brise", "bruiser"),
+			mk("Érudit Spectral", "mob_c07_erudit_spectral", "caster"),
+			mk("Gardien de Marbre", "mob_c07_gardien_marbre", "tank"),
+			mk("Sphinx Déchu", "mob_c07_sphinx_dechu", "elite"),
+		},
+	},
+
+	--===================== COUCHE 8 - Terres Brisées =====================
+	[8] = {
+		id = 8, name = "Terres Brisées", developed = true,
+		decor = {
+			farSky = rgb(70, 50, 35), star = rgb(230, 200, 160), midSky = rgb(90, 66, 44),
+			hill = rgb(100, 74, 50), ground = rgb(110, 80, 55), tree = rgb(90, 64, 40), rock = rgb(150, 120, 90),
+		},
+		enemies = {
+			mk("Fragment Vif", "mob_c08_fragment_vif", "chaff"),
+			mk("Rampe des Angles", "mob_c08_rampe_angles", "swift"),
+			mk("Errant Défait", "mob_c08_errant_defait", "bruiser"),
+			mk("Veilleur Fracturé", "mob_c08_veilleur_fracture", "caster"),
+			mk("Chien Non-Euclidien", "mob_c08_chien_non_euclidien", "elite"),
+			mk("Masse Aberrante", "mob_c08_masse_aberrante", "tank"),
+		},
+	},
+
+	--===================== COUCHE 9 - Landes du Deuil =====================
+	[9] = {
+		id = 9, name = "Landes du Deuil", developed = true,
+		decor = {
+			farSky = rgb(55, 62, 60), star = rgb(160, 210, 210), midSky = rgb(62, 70, 68),
+			hill = rgb(60, 68, 66), ground = rgb(66, 72, 68), tree = rgb(50, 58, 54), rock = rgb(90, 94, 92),
+		},
+		enemies = {
+			mk("Lueur du Deuil", "mob_c09_lueur_deuil", "chaff"),
+			mk("Chien de Cendre et d'Os", "mob_c09_chien_cendre_os", "swift"),
+			mk("Porte-Étendard", "mob_c09_porte_etendard", "bruiser"),
+			mk("Poupée-Suaire", "mob_c09_poupee_suaire", "caster"),
+			mk("Spectre de Linceul", "mob_c09_spectre_linceul", "elite"),
+			mk("Golgoth du Deuil", "mob_c09_golgoth_deuil", "tank"),
+		},
+	},
+
+	--===================== COUCHE 10 - Forge de Fer =====================
+	[10] = {
+		id = 10, name = "Forge de Fer", developed = true,
+		decor = {
+			farSky = rgb(35, 32, 34), star = rgb(255, 150, 70), midSky = rgb(48, 44, 44),
+			hill = rgb(55, 48, 44), ground = rgb(50, 45, 42), tree = rgb(60, 50, 40), rock = rgb(80, 76, 74),
+		},
+		enemies = {
+			mk("Rivet Vivant", "mob_c10_rivet_vivant", "chaff"),
+			mk("Molosse à Vapeur", "mob_c10_molosse_vapeur", "swift"),
+			mk("Ouvrier de Fonte", "mob_c10_ouvrier_fonte", "bruiser"),
+			mk("Foreuse Naine", "mob_c10_foreuse_naine", "caster"),
+			mk("Contremaître Blindé", "mob_c10_contremaitre_blinde", "tank"),
+			mk("Marteleur de Forge", "mob_c10_marteleur_forge", "elite"),
+		},
+	},
+
+	--===================== COUCHE 11 - Faille du Vide =====================
+	[11] = {
+		id = 11, name = "Faille du Vide", developed = true,
+		decor = {
+			farSky = rgb(10, 6, 18), star = rgb(200, 80, 220), midSky = rgb(18, 10, 30),
+			hill = rgb(22, 14, 36), ground = rgb(16, 12, 24), tree = rgb(30, 18, 44), rock = rgb(36, 30, 48),
+		},
+		enemies = {
+			mk("Étincelle du Vide", "mob_c11_etincelle_vide", "chaff"),
+			mk("Limier du Vide", "mob_c11_limier_vide", "swift"),
+			mk("Rampant d'Ombre", "mob_c11_rampant_ombre", "bruiser"),
+			mk("Porteur du Néant", "mob_c11_porteur_neant", "caster"),
+			mk("Veilleur aux Yeux", "mob_c11_veilleur_yeux", "elite"),
+			mk("Gueule Béante", "mob_c11_gueule_beante", "tank"),
+		},
+	},
+
+	--===================== COUCHE 12 - Fin de Toute Chose =====================
+	[12] = {
+		id = 12, name = "Fin de Toute Chose", developed = true,
+		decor = {
+			farSky = rgb(6, 6, 14), star = rgb(255, 255, 255), midSky = rgb(12, 12, 24),
+			hill = rgb(16, 16, 30), ground = rgb(10, 10, 18), tree = rgb(20, 18, 34), rock = rgb(26, 24, 40),
+		},
+		enemies = {
+			mk("Poussière Finale", "mob_c12_poussiere_finale", "chaff"),
+			mk("Ombre Portée", "mob_c12_ombre_portee", "swift"),
+			mk("Reliquat", "mob_c12_reliquat", "bruiser"),
+			mk("Témoin Silencieux", "mob_c12_temoin_silencieux", "caster"),
+			mk("Effondrement", "mob_c12_effondrement", "elite"),
+			mk("Gardien du Seuil", "mob_c12_gardien_seuil", "tank"),
+		},
 	},
 }
 
---============ Boss themes (one per 100 km milestone) ============
--- Cosmetic only: name / optional stat multipliers. The boss LEVEL
--- is computed dynamically by ZoneService from the distance and the
--- player's own level - never a fixed value.
--- Intermediate bosses (zone gate, every 10 km). Generic elite identities; the
--- list cycles. `magic` alternates so the player meets both damage types often.
+--============ Intermediate bosses (unused at 10 km spacing; kept for tuning) ============
 ZoneConfig.IntermediateBosses = {
 	{ name = "Champion de la Zone", magic = false, atkSplit = 0.80 },
 	{ name = "Sentinelle Ancienne", magic = false, atkSplit = 0.85 },
@@ -103,26 +276,26 @@ function ZoneConfig.intermediateBoss(index)
 	return { name = "Champion de la Zone", magic = false, atkSplit = 0.80 }
 end
 
--- 12 BIG bosses at launch (GAME_SPEC.md 6.2), one every 100 km (10 zones).
--- `magic = true` -> deals magic damage (player RES matters); `atkSplit` is the
--- ATK/INT ratio shown in the info panel.
--- `id` = sprite slug in AssetMap (client-side art only; enters no combat math).
+--============ Les 12 Gardiens (one per couche, every 10 km) ============
+-- `id`    = boss sprite slug (the Gardien, met at km = index * 10)
+-- `bigId` = big-boss sprite slug (the "Gueule" / forme de domaine, every 100 km)
+-- `magic` = deals magic damage (player RES matters); `atkSplit` = ATK/INT ratio shown.
 ZoneConfig.BossThemes = {
-	{ name = "Roi Gobelin",         id = "boss_roi_gobelin",     magic = false, atkSplit = 0.75 },  -- km 10
-	{ name = "Golem de Pierre",     id = "boss_golem_pierre",    magic = false, atkSplit = 0.90 },  -- km 20
-	{ name = "Sorciere des Bois",   id = "boss_sorciere_bois",   magic = true,  atkSplit = 0.35 },  -- km 30
-	{ name = "Colosse des Cendres", id = "boss_colosse_cendres", magic = false, atkSplit = 0.80 },  -- km 40
-	{ name = "Liche Glaciale",      id = "boss_liche_glaciale",  magic = true,  atkSplit = 0.25 },  -- km 50
-	{ name = "Tyran des Abysses",   id = "boss_tyran_abysses",   magic = false, atkSplit = 0.70 },  -- km 60
-	{ name = "Archimage Dechu",     id = "boss_archimage_dechu", magic = true,  atkSplit = 0.20 },  -- km 70
-	{ name = "Behemoth",            id = "boss_behemoth",        magic = false, atkSplit = 0.85 },  -- km 80
-	{ name = "Spectre Hurlant",     id = "boss_spectre_hurlant", magic = true,  atkSplit = 0.40 },  -- km 90
-	{ name = "Dragon de Fer",       id = "boss_dragon_fer",      magic = false, atkSplit = 0.80 },  -- km 100
-	{ name = "Oeil du Vide",        id = "boss_oeil_vide",       magic = true,  atkSplit = 0.15 },  -- km 110
-	{ name = "Avatar de la Fin",    id = "boss_avatar_fin",      magic = false, atkSplit = 0.60 },  -- km 120
+	{ name = "Roi Gobelin",         id = "boss_roi_gobelin",     bigId = "bigboss_roi_gobelin",     magic = false, atkSplit = 0.75 },  -- km 10
+	{ name = "Golem de Pierre",     id = "boss_golem_pierre",    bigId = "bigboss_golem_pierre",    magic = false, atkSplit = 0.90 },  -- km 20
+	{ name = "Sorciere des Bois",   id = "boss_sorciere_bois",   bigId = "bigboss_sorciere_bois",   magic = true,  atkSplit = 0.35 },  -- km 30
+	{ name = "Colosse des Cendres", id = "boss_colosse_cendres", bigId = "bigboss_colosse_cendres", magic = false, atkSplit = 0.80 },  -- km 40
+	{ name = "Liche Glaciale",      id = "boss_liche_glaciale",  bigId = "bigboss_liche_glaciale",  magic = true,  atkSplit = 0.25 },  -- km 50
+	{ name = "Tyran des Abysses",   id = "boss_tyran_abysses",   bigId = "bigboss_tyran_abysses",   magic = false, atkSplit = 0.70 },  -- km 60
+	{ name = "Archimage Dechu",     id = "boss_archimage_dechu", bigId = "bigboss_archimage_dechu", magic = true,  atkSplit = 0.20 },  -- km 70
+	{ name = "Behemoth",            id = "boss_behemoth",        bigId = "bigboss_behemoth",        magic = false, atkSplit = 0.85 },  -- km 80
+	{ name = "Spectre Hurlant",     id = "boss_spectre_hurlant", bigId = "bigboss_spectre_hurlant", magic = true,  atkSplit = 0.40 },  -- km 90
+	{ name = "Dragon de Fer",       id = "boss_dragon_fer",      bigId = "bigboss_dragon_fer",      magic = false, atkSplit = 0.80 },  -- km 100
+	{ name = "Oeil du Vide",        id = "boss_oeil_vide",       bigId = "bigboss_oeil_vide",       magic = true,  atkSplit = 0.15 },  -- km 110
+	{ name = "Avatar de la Fin",    id = "boss_avatar_fin",      bigId = "bigboss_avatar_fin",      magic = false, atkSplit = 0.60 },  -- km 120
 }
 
--- Cycles the theme list past boss 12 (deeper zones reuse identities, stats keep scaling).
+-- Cycles the theme list past boss 12 (deeper couches reuse identities, stats keep scaling).
 function ZoneConfig.bossTheme(index)
 	local n = #ZoneConfig.BossThemes
 	if index >= 1 and n > 0 then
