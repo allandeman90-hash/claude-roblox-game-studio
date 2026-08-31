@@ -93,6 +93,16 @@ function PlayerDataService.defaultProfile()
         inventaire = {},          -- reserved (inventory etape)
         verrouilles = {},         -- reserved
         filtres = { rareteMin = "commun", guerrier = true, mage = true },
+
+        -- Monetization (B4). Additive: migrate() backfills these on old profiles.
+        gemmes = 0,
+        boosts = {},               -- [category] = { mult = number, expiresAt = os.time()+N }
+        fusionTokens = 0,
+        renameCredits = 0,
+        passTierCredits = 0,
+        unclaimedProducts = {},     -- queue: { { kind = "cosmeticChest", chests = 1 }, ... }
+        processedReceipts = {},     -- [purchaseIdStr] = os.time()  (idempotency ledger, capped)
+
         _lock = nil,
         _savedAt = 0,
     }
@@ -250,6 +260,55 @@ end
 -- Back-compat alias: an immediate, guaranteed write.
 function PlayerDataService.save(player, profile)
     return PlayerDataService.flush(player, profile, true)
+end
+
+--===== Purchases (B4) =====
+local MAX_PROCESSED_RECEIPTS = 50
+
+-- Apply `applyFn(profile)` exactly once for `purchaseId`, then force-persist.
+-- Idempotency is enforced by profile.processedReceipts, which is written in the
+-- same flush as the effect. Returns one of:
+--   "granted"     - effect applied and persisted
+--   "already"     - this purchaseId was already applied (no-op)
+--   "no_session"  - no loaded session for this player
+--   "save_failed" - could not persist now (degraded / DataStore down)
+--
+-- On "save_failed" the in-memory mutation is KEPT (sess.dirty stays true): the
+-- throttled writer persists it when DataStore recovers. If the server dies
+-- first, nothing persisted and nothing was written to the receipt store, so
+-- Roblox's retry re-runs the grant from a clean slate. Either path is
+-- exactly-once.
+type GrantStatus = "granted" | "already" | "no_session" | "save_failed"
+function PlayerDataService.grantPurchase(player: Player, purchaseId: string, applyFn: (any) -> ()): GrantStatus
+    local sess = sessions[player]
+    if not sess then return "no_session" end
+    local profile = sess.profile
+    if type(profile.processedReceipts) ~= "table" then profile.processedReceipts = {} end
+    if profile.processedReceipts[purchaseId] ~= nil then return "already" end
+    if not sess.dsAvailable or dsUsable == false then return "save_failed" end
+
+    applyFn(profile)
+    profile.processedReceipts[purchaseId] = os.time()
+
+    -- Cap the ledger, dropping the oldest entries.
+    local ids = {}
+    for id in pairs(profile.processedReceipts) do
+        ids[#ids + 1] = id
+    end
+    if #ids > MAX_PROCESSED_RECEIPTS then
+        table.sort(ids, function(a, b)
+            return (profile.processedReceipts[a] or 0) < (profile.processedReceipts[b] or 0)
+        end)
+        for i = 1, #ids - MAX_PROCESSED_RECEIPTS do
+            profile.processedReceipts[ids[i]] = nil
+        end
+    end
+
+    sess.dirty = true
+    if PlayerDataService.flush(player, nil, true) then
+        return "granted"
+    end
+    return "save_failed"
 end
 
 --===== Lock heartbeat (light write: only bumps _lock.ts) =====
