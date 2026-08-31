@@ -3,20 +3,21 @@
 --
 -- Regular-enemy stat generation. Server-only, stateless.
 --
--- Zone power curve (GAME_SPEC.md 7.1): HP / ATK / gold scale x1.35 per
--- 10 km zone, applied uniformly and rounded to an integer. XP is NOT in
--- the 7.1 list -> it grows linearly (base.exp + (zone-1) * expPerZone).
+-- Everything (HP / ATK / EXP / gold) is LEVEL-driven now - combatBaseForLevel
+-- (enemy-rebalance etape). HP/ATK match a REFERENCE curve-player `levelLead`
+-- levels below the mob (same 5-points-per-level slope the player earns, so a
+-- same-level fight is ~even and the player's edge is level lead + gear + pet).
+-- EXP/gold grow geometrically per level (expPerLevel / goldPerLevel), calibrated
+-- to the old per-zone curve at the zone boundaries.
 --
--- Enemy level (GAME_SPEC.md 6.1, purely indicative - enters NO combat / XP /
--- gold calculation): a mob rolls a RANDOM level inside its zone's band, so a
--- zone shows a spread of levels. Band for zone Z = (Z-1)*10 .. Z*10, floored
--- at 1:  Z1 -> 1..10 | Z2 -> 10..20 | Z3 -> 20..30 | ... | Z10 -> 90..100.
+-- Enemy level (GAME_SPEC.md 6.1): ramps smoothly across a zone from lo+1 to
+-- zone*10-1 (mobs); the end-of-zone boss is exactly zone*10.
 --
--- Roster multipliers (ZoneConfig, zone 1) apply on TOP of the scaled base;
--- undeveloped zones use the raw scaled base as a fallback.
+-- Roster multipliers (ZoneConfig, zone 1) apply on TOP of the level base;
+-- undeveloped zones use the raw level base as a fallback.
 --
--- The BOSS still uses the old linear base (legacyBossBase) until the boss
--- etape reworks ZoneService.rollBoss + its multipliers.
+-- BOSS = combatBaseForLevel(zone*10) x Boss multipliers (all four stats).
+-- One NAMED boss per zone; BIG boss every 100 km.
 --==============================================================
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -75,9 +76,8 @@ function EnemyService.levelForKm(km)
     return math.clamp(math.floor(lo + 1 + frac * 8.5), lo + 1, zone * 10 - 1)
 end
 
--- Zone base stats BEFORE roster / boss multipliers.
---   maxHp / atk / gold : round(base * 1.35^(zone-1))
---   exp                : base.exp + (zone-1) * expPerZone   (linear)
+-- DEPRECATED - nothing calls this since HP/ATK/EXP/gold all went level-driven
+-- (combatBaseForLevel). Kept only so an external reader doesn't break.
 function EnemyService.baseStatsForZone(zone)
     local m = zoneMult(zone)
     local e = math.clamp((zone or 1) - 1, 0, SCALE_CAP)
@@ -86,6 +86,32 @@ function EnemyService.baseStatsForZone(zone)
         atk   = clampStat(BASE.atk * m),
         gold  = clampStat(BASE.gold * m),
         exp   = clampStat(BASE.exp * EXP_SCALING ^ e),
+    }
+end
+
+-- Everything a mob's LEVEL drives, BEFORE roster / boss multipliers:
+--   HP / ATK : matched to a REFERENCE curve-player `levelLead` levels below the
+--              mob's level - that player has spent max(0, level - levelLead) *
+--              statPointsPerLevel points, refVitShare into VIT (-> MaxHP =
+--              VIT * hpPerVit) and refPowShare into POW (-> physATK = baseAtk +
+--              POW * atkPerPow), then x enemyPowerScale.
+--   EXP / gold : geometric per LEVEL (expPerLevel / goldPerLevel), so the reward
+--              tracks the exact mob level instead of stepping once per zone. The
+--              exponent is capped like the old zone curve (scaleExpCap).
+function EnemyService.combatBaseForLevel(level)
+    local P = GameConfig.Player
+    local S = P.startingStats
+    local L = math.max(1, math.floor(level or 1))
+    local pts = math.max(0, L - (E.levelLead or 1)) * GameConfig.Level.statPointsPerLevel
+    local vit = S.vit + (E.refVitShare or 0.5) * pts
+    local pow = S.pow + (E.refPowShare or 0.42) * pts
+    local scale = E.enemyPowerScale or 1
+    local rewardExp = math.clamp(L - 1, 0, SCALE_CAP)
+    return {
+        maxHp = clampStat((vit * P.hpPerVit) * scale),
+        atk   = clampStat((P.baseAtk + pow * P.atkPerPow) * scale),
+        exp   = clampStat(E.base.exp * (E.expPerLevel or 1.02) ^ rewardExp),
+        gold  = clampStat(E.base.gold * (E.goldPerLevel or 1.03) ^ rewardExp),
     }
 end
 
@@ -102,40 +128,37 @@ function EnemyService.rollBoss(km)
     -- zone's curve, right above its toughest mob.
     local zone = ZoneConfig.zoneIdFromKm(km)
     if km % ZoneConfig.KM_PER_ZONE == 0 then zone = math.max(1, zone - 1) end
-    local b = EnemyService.baseStatsForZone(zone)
+    local cb = EnemyService.combatBaseForLevel(zone * 10)   -- boss level = zone * 10 ; drives hp/atk/exp/gold
     local B = GameConfig.Enemy.Boss
     local isBig = (km % B.bigEveryKm == 0)
 
-    local theme, hpM, atkM, expM, goldM, index
+    -- One NAMED boss per 10 km zone (GAME_SPEC 6.2). The list of 12 cycles for
+    -- deeper zones. Every 100 km that boss also gets the tougher "BIG" multipliers.
+    local index = math.max(1, math.floor(km / B.everyKm + 0.5))
+    local theme = ZoneConfig.bossTheme(index)
+    local hpM, atkM, expM, goldM
     if isBig then
-        index = math.max(1, math.floor(km / B.bigEveryKm + 0.5))
-        theme = ZoneConfig.bossTheme(index)
         hpM, atkM, expM, goldM = B.bigHpMult, B.bigAtkMult, B.bigExpMult, B.bigGoldMult
     else
-        index = math.max(1, math.floor(km / B.everyKm + 0.5))
-        theme = ZoneConfig.intermediateBoss(index)
         hpM, atkM, expM, goldM = B.hpMult, B.atkMult, B.expMult, B.goldMult
     end
 
-    -- BIG-boss ATK grows on a damped exponent (HP/EXP/gold keep the full curve),
+    -- BIG-boss ATK is damped by a flat factor (HP/EXP/gold keep their full mults),
     -- so the fight is a war of attrition the player can gear/farm for.
-    local atkBase = b.atk
-    if isBig and B.atkZoneDamping and B.atkZoneDamping < 1 then
-        local e = math.clamp((zone or 1) - 1, 0, SCALE_CAP)
-        atkBase = BASE.atk * (SCALING ^ (e * B.atkZoneDamping))
+    local atkBase = cb.atk
+    if isBig then
+        atkBase = atkBase * (B.bigBossAtkDamp or 0.6)
     end
 
     local magic = theme.magic == true
     return {
-        name       = isBig
-            and string.format(">> %s <<  (BIG BOSS %d)", theme.name, index)
-            or  string.format("%s  (Boss %d)", theme.name, index),
-        id         = theme.id,   -- sprite slug (nil for intermediate bosses); client art only
+        name       = theme.name,   -- clean display name, no "(Boss N)" tag
+        id         = theme.id,     -- sprite slug; client art only
         level      = zone * 10,
-        maxHp      = clampStat(b.maxHp * hpM),
+        maxHp      = clampStat(cb.maxHp * hpM),
         atk        = clampStat(atkBase * atkM),
-        exp        = clampStat(b.exp * expM),
-        gold       = clampStat(b.gold * goldM),
+        exp        = clampStat(cb.exp * expM),
+        gold       = clampStat(cb.gold * goldM),
         isBoss     = true,
         isBigBoss  = isBig,
         damageType = magic and "magic" or "physical",
@@ -184,22 +207,22 @@ end
 -- Returns { name, level, maxHp, atk, exp, gold, isBoss = false }.
 function EnemyService.rollEnemy(km)
     local zone = ZoneConfig.zoneIdFromKm(km)
-    local b = EnemyService.baseStatsForZone(zone)
     local level = EnemyService.levelForKm(km)
+    local cb = EnemyService.combatBaseForLevel(level)     -- hp / atk / exp / gold, all level-driven
 
     local cfg = ZoneConfig.getZone(zone)
     local roster = cfg and cfg.enemies
 
     if not roster or #roster == 0 then
-        -- Undeveloped zone: raw scaled base, so combat never breaks.
+        -- Undeveloped zone: raw level base - combat never breaks.
         return {
             name  = ((cfg and cfg.name) or ("Zone " .. zone)) .. " - Inconnu",
             id    = nil,   -- no sprite yet for undeveloped-zone mobs
             level = level,
-            maxHp = b.maxHp,
-            atk   = b.atk,
-            exp   = b.exp,
-            gold  = b.gold,
+            maxHp = cb.maxHp,
+            atk   = cb.atk,
+            exp   = cb.exp,
+            gold  = cb.gold,
             isBoss = false,
         }
     end
@@ -209,10 +232,10 @@ function EnemyService.rollEnemy(km)
         name  = def.name,
         id    = def.id,   -- sprite slug; client art only
         level = level,
-        maxHp = scale(b.maxHp, def.hpMul, 1),
-        atk   = scale(b.atk, def.atkMul, 1),
-        exp   = scale(b.exp, def.expMul, 1),
-        gold  = scale(b.gold, def.goldMul, 0),
+        maxHp = scale(cb.maxHp, def.hpMul, 1),
+        atk   = scale(cb.atk, def.atkMul, 1),
+        exp   = scale(cb.exp, def.expMul, 1),
+        gold  = scale(cb.gold, def.goldMul, 0),
         isBoss = false,
     }
 end

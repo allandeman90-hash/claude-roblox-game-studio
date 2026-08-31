@@ -247,41 +247,60 @@ GameConfig.Enemy = {
     defaultName  = "Slime",
     defaultLevel = 1,
 
-    -- Zone-1 baseline. HP / ATK / gold then scale x1.35 per 10 km zone
-    -- (GAME_SPEC.md 7.1), rounded to an integer. XP does NOT scale x1.35
-    -- (not listed in 7.1) - it grows linearly instead.
+    -- Zone-1 baseline. maxHp / atk here are LEGACY (unused - HP/ATK are
+    -- level-driven). exp / gold ARE still read as the level-0 anchor for the
+    -- per-level reward curve below.
     base       = { maxHp = 50, atk = 6, exp = 10, gold = 5 },
-    zoneScaling  = 1.35,   -- GAME_SPEC.md 7.1 : applied to enemy HP/ATK/gold
-                           -- (and, later, to shop weapon/armor power).
-    scaleExpCap  = 90,     -- clamp the 1.35 exponent. Zone 91 mob HP is already ~1e13;
-                           -- past that the numbers stop being meaningful and (x boss
-                           -- mults, rounded) would overflow int64. 90 zones = 900 km.
+    zoneScaling  = 1.35,   -- LEGACY: was enemy HP/ATK/gold per zone. Now unused by
+                           -- EnemyService (kept for shop weapon/armor power refs).
+
+    -- [ACTIVE - enemy-rebalance] EVERYTHING (HP / ATK / EXP / gold) is driven by
+    -- the mob's LEVEL - EnemyService.combatBaseForLevel - not the old 1.35^zone.
+    --   HP / ATK : matched to a REFERENCE curve-player `levelLead` levels below
+    --     the mob; that player spent max(0, L - levelLead) * statPointsPerLevel
+    --     points, refVitShare -> VIT, refPowShare -> POW ; result x enemyPowerScale.
+    --   EXP / gold : base.exp / base.gold x (expPerLevel / goldPerLevel)^(L-1),
+    --     exponent capped at scaleExpCap. Calibrated so the total ~matches the old
+    --     per-zone curve at the boundaries, but tracks the exact mob level.
+    levelLead       = 1,
+    refVitShare     = 0.50,   -- reference build: half the earned points into VIT ...
+    refPowShare     = 0.42,   -- ... most of the rest into the damage stat (POW)
+    enemyPowerScale = 1.0,    -- global HP/ATK dial (>1 harder, <1 easier). 1.0 =
+                              -- a same-level fight is ~even; the player's edge is
+                              -- their +levelLead, gear, pet and smarter play.
+    expPerLevel     = 1.02,   -- EXP  x this per mob level  (1.02^10 ~= 1.22 / zone, unchanged total)
+    goldPerLevel    = 1.03,   -- gold x this per mob level  (1.03^10 ~= 1.35 / zone, unchanged total)
+    scaleExpCap  = 90,     -- clamp the per-level exponent. Past ~level 900 the numbers
+                           -- stop being meaningful and (x boss mults, rounded) would
+                           -- overflow int64.
     statHardMax  = 1e15,   -- absolute clamp on any generated enemy/boss stat (anti-overflow).
-    expScaling   = 1.22,   -- XP now grows GEOMETRICALLY (was linear +5/zone). Slower
-                           -- than enemy 1.35 (stays punitive) but keeps the player's
-                           -- level income scaling with depth instead of flat-lining.
-    expPerZone   = 5,      -- DEPRECATED (linear model). Kept so old readers don't break.
+    expScaling   = 1.22,   -- LEGACY (old per-zone XP curve). Unused.
+    expPerZone   = 5,      -- LEGACY (linear model). Unused.
 
     -- Two boss tiers (GAME_SPEC.md 6.2 + design directive):
-    --   * INTERMEDIATE boss at every zone end (10 km) - a moderate spike, the
-    --     zone gate. Generic "elite" identity.
-    --   * BIG boss every 10 zones (100 km) - a real wall and an event. The 12
-    --     named bosses (ZoneConfig.BossThemes) are these; the list cycles past 12.
-    -- Stats = the zone base (x1.35 curve, EnemyService.baseStatsForZone) x mult.
+    --   * NAMED boss at every zone end (10 km) - the zone gate, a real fight.
+    --   * BIG boss every 10 zones (100 km) - a wall and an event; same 12 names
+    --     with tougher multipliers (ZoneConfig.BossThemes; the list cycles past 12).
+    -- Stats = combatBaseForLevel(zone*10) x the tier multipliers (all four stats).
     bossCount   = 12,
     Boss = {
         everyKm    = 10,
-        hpMult     = 3.5,   -- intermediate: ~10-15 s fight with on-curve gear
-        atkMult    = 2.0,
+        -- Combat is a fight to the DEATH (no flee) - HP x ATK multipliers COMPOUND
+        -- into the win/lose race, so keep them modest on the level-matched base.
+        -- hpMult 2.5 => ~2.5x fight length ; atkMult 1.3 => a real damage spike
+        -- that punishes an under-levelled / under-geared player without 2-shotting.
+        hpMult     = 2.5,
+        atkMult    = 1.3,
         expMult    = 6.0,
         goldMult   = 5.0,
 
         bigEveryKm  = 100,
         bigHpMult   = 14.0,  -- big boss: a wall (long attrition fight), needs the zone's set + drops
-        bigAtkMult  = 2.5,   -- lower: paired with atkZoneDamping so the fight is survivable
-        atkZoneDamping = 0.55,  -- BIG-boss ATK grows on a damped exponent (1.35^((zone-1)*0.55))
-                                -- so it is a war of attrition, not a first-hit coin flip.
-                                -- HP / EXP / gold keep the full 1.35 curve.
+        bigAtkMult  = 2.5,   -- lower: paired with bigBossAtkDamp so the fight is survivable
+        bigBossAtkDamp = 0.6,   -- BIG-boss ATK is damped by this flat factor (on top of
+                                -- bigAtkMult) so it is a war of attrition, not a first-hit
+                                -- coin flip. HP / EXP / gold keep their full multipliers.
+        atkZoneDamping = 0.55,  -- DEPRECATED (old 1.35^-exponent damping). Unused.
         bigExpMult  = 40.0,  -- clearing a big boss ~= several levels
         bigGoldMult = 30.0,
     },
@@ -311,8 +330,9 @@ GameConfig.World = {
                                 -- there is real space between mobs.
     stepsPerZone      = 10,      -- 10 steps per zone (1 km each)
     mobsPerStep       = 2,       -- 2 mobs per step; the LAST step's 2nd slot is the BOSS
-    stepFractions     = { 0.35, 0.70 },  -- where the 2 encounters sit within a step (0..1)
-                                         -- (central-ish so neither sits right on a step edge)
+    stepFractions     = { 0.5, 0.95 },   -- where the 2 encounters sit within a step (0..1):
+                                         -- mob 1 dead-centre, mob 2 mirrors the hero's start gap
+                                         -- from the right edge. Boss keeps its own frac (1.0).
     encounterRangeKm  = 0.06,    -- the hero must be right ON the mob to engage (no dash from afar)
     respawnBufferKm   = 0.55,    -- DEPRECATED: respawn is now step-based (leave the 1 km step)
     campfireEveryKm   = 50,

@@ -72,6 +72,7 @@ function PlayerDataService.defaultProfile()
         xpToNext = nil,           -- recomputed on load from the curve
         or_ = 0,
         distance = 0,
+        bestKm = 0,
         checkpointMax = 0,
         selectedCheckpoint = 0,
         rebirths = 0,
