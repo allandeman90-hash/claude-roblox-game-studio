@@ -91,6 +91,26 @@ indique le track qui doit la traiter.
 
 ---
 
+## Issus de Track E (narratif — E1-E4 terminé)
+
+1. **Namespaces de localisation** (Track F) : `boss_dialogue.*`,
+   `layer_card.<slug>.ambiance`, `codex.<slug>.lore`. Chaînes serveur, hors
+   filtre runtime (seul le nom de héros saisi passe `TextService`).
+2. **Composant « bandeau narrateur »** pour Béhémoth (ui-programmer) : style
+   distinct de la bulle, italique, sans portrait.
+3. **Flag `firstKill[gardienId]` / `[gardienId .. "_r2"]`**
+   (luau-gameplay-programmer) : conditionne les répliques héros `[chute]` à la
+   1ʳᵉ victoire (rencontres 1 et 2 séparées) ; persiste à travers Rebirth.
+4. **Capstone « les 12 Gardiens révélés »** (economy-designer) : récompense à
+   définir + chiffrer. Les Gardiens ne comptent pas dans les 5 familles.
+5. **Bonus codex** (economy-designer) : valeur du bonus par carte révélée +
+   les 5 bonus de complétion de famille (Élém→RES, Construct→réduc dégâts,
+   Bête→vitesse atk, Mort-vivant→régén, Humanoïde→or).
+6. **Gueules (big boss, 100 km)** : dialogue = lignes d'arrivée R1 du Gardien —
+   à reconfirmer selon le scope combat (C3). Signature raid par Gueule idem.
+7. **Bible §11** : réserver 3 identités de couche pour 13-15 (post-lancement) ;
+   Aethel = seul nom propre de lieu.
+
 ## Issus de Track D (modèle chiffré)
 
 - **`D1-stat-growth.md` tables B/C** calculées à `refPointsPerLevel 5.0` (avant
