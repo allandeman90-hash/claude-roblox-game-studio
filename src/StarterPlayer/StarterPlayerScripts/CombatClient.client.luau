@@ -213,34 +213,44 @@ local timeLabel   = heroTimeBox:FindFirstChild("TimeLabel")
 local timeValue   = heroTimeBox:FindFirstChild("TimeValue")
 local distLabel   = heroTimeBox:FindFirstChild("DistLabel")
 do
-    local rows = {
-        { timeLabel, timeValue },
-        { distLabel, distValue },
-    }
+    -- B6b: the HeroTimeBox in RpgGui fits ~2 lines; 4 crammed rows were illegible.
+    -- Drop the ZONE row (zone is already on the zone track + top HUD) -> 3 rows:
+    -- DIST / RECORD / /MIN.
     local function mkRow(name, labelText)
         local lbl = heroTimeBox:FindFirstChild(name .. "Label")
         local val = heroTimeBox:FindFirstChild(name .. "Value")
         if not lbl then
-            lbl = timeLabel:Clone() ; lbl.Name = name .. "Label" ; lbl.Text = labelText ; lbl.Parent = heroTimeBox
+            lbl = timeLabel:Clone() ; lbl.Name = name .. "Label" ; lbl.Parent = heroTimeBox
         end
+        lbl.Text = labelText
         if not val then
             val = timeValue:Clone() ; val.Name = name .. "Value" ; val.Text = "" ; val.Parent = heroTimeBox
         end
         return { lbl, val }
     end
-    rows[3] = mkRow("Record", "RECORD")
-    rows[4] = mkRow("Rate", "/MIN")
+
+    if distLabel then distLabel.Text = "DIST" end
+    local rows = {
+        { distLabel, distValue },
+        mkRow("Record", "RECORD"),
+        mkRow("Rate", "/MIN"),
+    }
+
+    -- ZONE row is retired from this box.
+    if timeLabel then timeLabel.Visible = false end
+    if timeValue then timeValue.Visible = false end
+
     for i, pair in ipairs(rows) do
-        local y = 0.02 + (i - 1) * 0.245
+        local y = 0.08 + (i - 1) * 0.30
         if pair[1] then
             pair[1].Position = UDim2.new(0, 14, y, 0)
-            pair[1].Size = UDim2.new(0.34, 0, 0.22, 0)
-            pair[1].TextSize = 12
+            pair[1].Size = UDim2.new(0.30, 0, 0.26, 0)
+            pair[1].TextSize = 13
         end
         if pair[2] then
-            pair[2].Position = UDim2.new(0.36, 0, y, 0)
-            pair[2].Size = UDim2.new(0.62, -14, 0.22, 0)
-            pair[2].TextSize = 13
+            pair[2].Position = UDim2.new(0.32, 0, y, 0)
+            pair[2].Size = UDim2.new(0.66, -14, 0.26, 0)
+            pair[2].TextSize = 14
         end
     end
 end
@@ -582,7 +592,15 @@ local ztRail      = zoneTrack and zoneTrack:FindFirstChild("Rail")
 local ztDot       = ztRail and ztRail:FindFirstChild("Dot")
 local ztTicks     = {}
 if ztRail then
-    for i = 1, 10 do ztTicks[i] = ztRail:FindFirstChild("Tick" .. i) end
+    for i = 1, 10 do
+        local tick = ztRail:FindFirstChild("Tick" .. i)
+        ztTicks[i] = tick
+        if tick then
+            -- B6c: evenly space the 10 ticks by code (the hand-placed 9/10 gap
+            -- was wrong). Set once, not per frame; keep Size / AnchorPoint.
+            tick.Position = UDim2.new((i - 1) / 10, 0, 0.5, 0)
+        end
+    end
 end
 
 local function updateZoneTrack(data)
@@ -861,8 +879,7 @@ local function updateUI(data)
     -- Enemy visuals are driven by updateScene (2 enemies per step, positioned).
     if enemySlot then enemySlot.Visible = false end
 
-    -- HeroTimeBox: zone / distance / all-time record / this-session rates.
-    if timeValue then timeValue.Text = tostring(data.zone) end
+    -- HeroTimeBox: distance / all-time record / this-session rates (B6b: no ZONE row).
     if distValue then distValue.Text = string.format("%.1f km", data.distance or 0) end
     if recordValue then
         recordValue.Text = string.format("%.1f km", math.max(data.bestKm or 0, data.distance or 0))

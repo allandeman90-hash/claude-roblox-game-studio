@@ -139,9 +139,10 @@ function LootService.rollDrop(player, context)
     local voie = (math.random() < 0.5) and "guerrier" or "mage"
     local id
 
-    if isBigBoss then
-        -- A big boss drops its OWN set (GAME_SPEC.md 5.1 / 6.2).
-        local bossIndex = math.max(1, math.floor((context.bossIndex or 1)))
+    if context and context.bossIndex then
+        -- ANY named boss (couche boss every 10 km, big boss every 100 km) drops
+        -- its OWN couche set (GAME_SPEC.md 5.1 / 6.2, B6d).
+        local bossIndex = math.max(1, math.floor(context.bossIndex))
         local setItems = EquipmentConfig.bossSetItems(bossIndex)
         local pool = (slot == "arme") and setItems.weapons or setItems.armor
         for _, entry in ipairs(pool) do
@@ -150,7 +151,7 @@ function LootService.rollDrop(player, context)
     end
 
     if not id then
-        -- Generic zone gear (mobs, intermediate bosses).
+        -- Generic zone gear (mobs, and bosses with no configured set).
         local slotEntry
         for _, e in ipairs(EquipmentConfig.LootPool) do
             if e.slot == slot then slotEntry = e break end

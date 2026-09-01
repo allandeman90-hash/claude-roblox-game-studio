@@ -367,7 +367,15 @@ function resolvePlayerHit(player, st)
     local lootMult = RewardService.multiplier(player, "loot", st)
     local petLootMult = RewardService.multiplier(player, "petLoot", st)
 
-    local bossIdx = st.enemyIsBigBoss and math.max(1, math.floor((st.pos or 0) / 100 + 0.5)) or nil
+    -- Boss loot index: ANY named boss drops its couche set (B6d). bossSetItems
+    -- already cycles 1..12, so an index past 12 is fine.
+    local bossIdx = nil
+    if st.isBoss then
+        local km = st.pos or 0
+        bossIdx = st.enemyIsBigBoss
+            and math.max(1, math.floor(km / 100 + 0.5))   -- big boss: 100/200/... -> 1/2/...
+            or math.max(1, math.floor(km / 10 + 0.5))     -- couche boss: ~10/20/... -> 1/2/...
+    end
     local drop = LootService.rollDrop(player, { zone = st.zone, isBoss = st.isBoss, isBigBoss = st.enemyIsBigBoss, bossIndex = bossIdx, dropRateMult = lootMult })
     if drop then
         local kept, reason = EquipmentService.addItem(player, drop, "loot")
@@ -445,6 +453,9 @@ local function startEncounter(player, st, enc)
     -- The HERO always strikes first; both attack timers start counting AFTER it.
     st.atkCharge = 0
     st.enemyCharge = 0
+    -- Sync the new enemy to the client BEFORE the opening hit, otherwise the
+    -- damage number / HP change lands on the previous enemy's sprite (B6a).
+    sendUpdate(player, st)
     resolvePlayerHit(player, st)
 end
 
