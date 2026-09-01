@@ -27,15 +27,16 @@ EquipmentConfig.ARMOR_SLOTS = { "casque", "plastron", "jambieres", "bottes" }
 -- `chance` is the drop weight (for the future loot system).
 -- `divin` is defined for a future update but inactive: equip() and any
 -- future loot roll must skip rarities whose `active` is false.
--- Etape 4.0: multipliers tightened to the validated band (was 1.0/1.5/2.2/3.5/6.0)
--- so a lucky drop is worth ~2-3 zones, not ~6.
+-- D4 (validated 2026-09-01): WIDE band restored (reverts the "Etape 4.0" tightening).
+-- Rarity is a PURE power multiplier. A Mythique is an event (GDD pillar 3): it stays
+-- ahead ~6 zones (6.0 / 1.30^6 = 1.24). Applies to weapons (weaponPct) AND armor (armorStat).
 EquipmentConfig.Rarities = {
     { id = "commun",     label = "Commun",     mult = 1.0, chance = 0.60,   active = true },
-    { id = "rare",       label = "Rare",       mult = 1.4, chance = 0.25,   active = true },
-    { id = "epique",     label = "Épique",     mult = 1.9, chance = 0.10,   active = true },
-    { id = "legendaire", label = "Légendaire", mult = 2.2, chance = 0.04,   active = true },
-    { id = "mythique",   label = "Mythique",   mult = 2.6, chance = 0.01,   active = true },
-    { id = "divin",      label = "Divin",      mult = 3.2, chance = 0.0005, active = false },
+    { id = "rare",       label = "Rare",       mult = 1.5, chance = 0.25,   active = true },
+    { id = "epique",     label = "Épique",     mult = 2.2, chance = 0.10,   active = true },
+    { id = "legendaire", label = "Légendaire", mult = 3.5, chance = 0.04,   active = true },
+    { id = "mythique",   label = "Mythique",   mult = 6.0, chance = 0.01,   active = true },
+    { id = "divin",      label = "Divin",      mult = 9.0, chance = 0.0005, active = false },
 }
 
 function EquipmentConfig.getRarity(id)
@@ -47,29 +48,51 @@ function EquipmentConfig.getRarity(id)
     return nil
 end
 
---===== Weapons (sample: 1 per voie - section 4.4 lists 50 at launch) =====
--- `base` holds the rarity x1.0 values; multiply by the rarity `mult`.
+--===== Weapons (D4: 50 total = 2 starter + 24 shop + 24 boss) =====
+-- Power is DERIVED from (zone, rarity); defs carry identity + zone only.
 EquipmentConfig.Weapons = {
-    epee_bronze = {
-        nom = "Épée de bronze", slot = "arme", voie = "guerrier",
-        lvIndicatif = 10, base = { atk = 100 },
-    },
-    baton_apprenti = {
-        -- Mage weapon: feeds magic power, not physical ATK (GAME_SPEC.md 3.3).
-        nom = "Bâton d'apprenti", slot = "arme", voie = "mage",
-        lvIndicatif = 10, base = { magicAtk = 100 },
-    },
-
-    --=== Low-tier test items (early game, ~zone 1 scale) ===--
+    --=== Starter weapons (given at hero creation - FTUE "arme de tier 1"). Zone 1,
+    --=== deliberately weak (isStarter -> x0.5 power) so the first shop weapon / drop
+    --=== is a real upgrade. ===--
     epee_courte = {
-        nom = "Épée courte", slot = "arme", voie = "guerrier",
-        lvIndicatif = 1, base = { atk = 5 },
+        nom = "Épée ébréchée", slot = "arme", voie = "guerrier",
+        zone = 1, lvIndicatif = 1, isStarter = true,
     },
     baguette_simple = {
-        nom = "Baguette simple", slot = "arme", voie = "mage",
-        lvIndicatif = 1, base = { magicAtk = 5 },
+        nom = "Badine fêlée", slot = "arme", voie = "mage",
+        zone = 1, lvIndicatif = 1, isStarter = true,
     },
 }
+
+--===== Shop / progression weapons (D4 - validated 2026-09-01) =====
+-- 24 weapons: 1 epee (guerrier) + 1 baguette (mage) per couche (zone 1..12). Power is
+-- DERIVED from (zone, rarity) via GameConfig.Equipment.weaponPct - these defs carry
+-- identity + zone only. lvIndicatif = round(35*zone - 17.5) (mid-couche mob level on
+-- the round(km*3.5) scale), indicative, never gates.
+local SHOP_WEAPON_DEFS = {
+    { zone = 1,  epee = "Lame de l'Aube",      baguette = "Badine de l'Aube" },
+    { zone = 2,  epee = "Tailloir Runique",    baguette = "Éclat Runique" },
+    { zone = 3,  epee = "Serpe des Murmures",  baguette = "Rameau Chuchotant" },
+    { zone = 4,  epee = "Braisière",           baguette = "Tison Ardent" },
+    { zone = 5,  epee = "Croc de Givre",       baguette = "Stalactite Spirituelle" },
+    { zone = 6,  epee = "Sabre d'Épave",       baguette = "Trident Corallien" },
+    { zone = 7,  epee = "Glaive d'Albâtre",    baguette = "Sceptre d'Aethel" },
+    { zone = 8,  epee = "Éclat Non-Euclidien", baguette = "Angle Impossible" },
+    { zone = 9,  epee = "Fauchon du Deuil",    baguette = "Crosse de Linceul" },
+    { zone = 10, epee = "Marteau de Fonte",    baguette = "Chalumeau Runique" },
+    { zone = 11, epee = "Entaille du Vide",    baguette = "Doigt du Néant" },
+    { zone = 12, epee = "Dernier Tranchant",   baguette = "Verbe Final" },
+}
+
+for _, def in ipairs(SHOP_WEAPON_DEFS) do
+    local lv = math.round(35 * def.zone - 17.5)
+    EquipmentConfig.Weapons[string.format("epee_z%02d", def.zone)] = {
+        nom = def.epee, slot = "arme", voie = "guerrier", zone = def.zone, lvIndicatif = lv,
+    }
+    EquipmentConfig.Weapons[string.format("baguette_z%02d", def.zone)] = {
+        nom = def.baguette, slot = "arme", voie = "mage", zone = def.zone, lvIndicatif = lv,
+    }
+end
 
 --===== Sets + set bonuses (GAME_SPEC.md 5.1) =====
 -- A set bonus applies ONLY when N equipped armor pieces share the SAME set AND
@@ -200,14 +223,21 @@ for bossIndex, s in ipairs(BOSS_SET_DEFS) do
         EquipmentConfig.Weapons["arme_" .. s.id .. suffix] = {
             nom = ((voie == "guerrier") and "Lame de " or "Sceptre de ") .. s.nom,
             slot = "arme", voie = voie, set = s.id, isBossWeapon = true,
+            zone = bossIndex, lvIndicatif = 35 * bossIndex,   -- [D4] boss weapon = x2.5 shop weapon of the same zone
         }
     end
 end
 
--- Multiplier on a weapon's derived power (boss weapons hit harder, GAME_SPEC 7.2).
+EquipmentConfig.StarterWeaponPowerMult = 0.5   -- D4: creation-gift weapons are deliberately weak
+
+-- Multiplier on a weapon's derived power. Boss weapons hit harder (x2.5, GAME_SPEC 7.2),
+-- starter weapons are halved so the first real weapon is an upgrade.
 function EquipmentConfig.weaponPowerMult(id)
     local w = EquipmentConfig.Weapons[id]
-    return (w and w.isBossWeapon) and EquipmentConfig.BossWeaponPowerMult or 1
+    if not w then return 1 end
+    if w.isBossWeapon then return EquipmentConfig.BossWeaponPowerMult end
+    if w.isStarter then return EquipmentConfig.StarterWeaponPowerMult end
+    return 1
 end
 
 -- The 4 armor ids + 2 weapon ids of a boss set (by 1-based big-boss index).

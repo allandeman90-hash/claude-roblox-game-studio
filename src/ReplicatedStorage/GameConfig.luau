@@ -184,7 +184,8 @@ GameConfig.Equipment = {
                             -- farming + rebirth close the residual ~4%/zone gap.
     priceScaling  = 1.35,   -- gold price growth per zone
 
-    weaponBase    = 8,      -- zone-1 weapon power  (-> weaponPct = power / 100)
+    weaponBase    = 100,    -- [D4] zone-1 weapon power. A zone-appropriate shop weapon
+                            -- ~doubles ATK (weaponPct = 100/100 = +100%). Was 8 (+8%).
     armorStatBase = 6,      -- zone-1 DEF or RES, PER armor piece
     hpPctPerPiece = 0.10,   -- each equipped armor piece: +10% of the VIT-derived MaxHP
 
