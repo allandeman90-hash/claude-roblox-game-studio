@@ -94,8 +94,9 @@ function PlayerDataService.defaultProfile()
         verrouilles = {},         -- reserved
         filtres = { rareteMin = "commun", guerrier = true, mage = true },
 
-        -- Monetization (B4). Additive: migrate() backfills these on old profiles.
+        -- Monetization (B4 / B5). Additive: migrate() backfills these on old profiles.
         gemmes = 0,
+        premiumSeason = false,      -- Premium Season pass flag (set by H6; reset each season)
         boosts = {},               -- [category] = { mult = number, expiresAt = os.time()+N }
         fusionTokens = 0,
         renameCredits = 0,

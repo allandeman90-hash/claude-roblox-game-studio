@@ -40,6 +40,10 @@ local LootService = require(script.Parent:WaitForChild("LootService"))
 -- is unavailable (Studio API access off) - the session just isn't persisted.
 local PlayerDataService = require(script.Parent:WaitForChild("PlayerDataService"))
 
+-- Single reward-multiplier resolver (B5). max() comfort sources (capped) x earned
+-- sources (Nightmare tier, rebirth bonus). Applied only in resolvePlayerHit.
+local RewardService = require(script.Parent:WaitForChild("RewardService"))
+
 -- Ensure RemoteEvent exists
 local combatEvent = ReplicatedStorage:FindFirstChild("CombatEvent")
 if not combatEvent then
@@ -353,13 +357,18 @@ function resolvePlayerHit(player, st)
     end
     st.enemyHp = 0
 
-    local xpGain   = math.floor(st.enemyExp * GameConfig.Rebirth.xpMult(st.rebirths))
-    local goldGain = st.enemyGold
+    -- All reward multipliers come from the one resolver (B5). `st` is the ctx:
+    -- it carries .rebirths now and .nightmareTier once G9 wires Nightmare.
+    local xpGain   = math.floor(st.enemyExp * RewardService.multiplier(player, "xp", st))
+    local goldGain = math.floor(st.enemyGold * RewardService.multiplier(player, "gold", st))
     st.exp  = st.exp + xpGain
     st.gold = st.gold + goldGain
 
+    local lootMult = RewardService.multiplier(player, "loot", st)
+    local petLootMult = RewardService.multiplier(player, "petLoot", st)
+
     local bossIdx = st.enemyIsBigBoss and math.max(1, math.floor((st.pos or 0) / 100 + 0.5)) or nil
-    local drop = LootService.rollDrop(player, { zone = st.zone, isBoss = st.isBoss, isBigBoss = st.enemyIsBigBoss, bossIndex = bossIdx })
+    local drop = LootService.rollDrop(player, { zone = st.zone, isBoss = st.isBoss, isBigBoss = st.enemyIsBigBoss, bossIndex = bossIdx, dropRateMult = lootMult })
     if drop then
         local kept, reason = EquipmentService.addItem(player, drop, "loot")
         combatEvent:FireClient(player, {
@@ -368,7 +377,7 @@ function resolvePlayerHit(player, st)
             fromBoss = drop.isBoss or false, kept = kept, reason = reason,
         })
     end
-    local petDrop = LootService.rollPetDrop(player, { zone = st.zone, isBoss = st.isBoss, isBigBoss = st.enemyIsBigBoss })
+    local petDrop = LootService.rollPetDrop(player, { zone = st.zone, isBoss = st.isBoss, isBigBoss = st.enemyIsBigBoss, dropRateMult = petLootMult })
     if petDrop then
         local kept, reason = EquipmentService.addItem(player, petDrop, "loot")
         combatEvent:FireClient(player, {
@@ -560,6 +569,7 @@ local function startCombat(player)
                         st.gameOver = true
                         st.moveDir = nil
                         st.deaths = (st.deaths or 0) + 1
+                        ShopService.closeShop(player)
                         markProfileDirty(player, st)
                         combatEvent:FireClient(player, {
                             type       = "gameOver",
@@ -681,6 +691,9 @@ function restartRun(player, st, startKm)
     st.encPreview          = {}
     st.currentEncounterPos = nil
     st.atCampfire         = nil
+    -- Close any open shop session: after restarting at a checkpoint the old shop
+    -- zone is stale and would sell over-tier gear (B5).
+    ShopService.closeShop(player)
     StatsService.recalc(player, st)
     st.playerHp        = st.playerMaxHp
     st.isMoving        = false

@@ -25,10 +25,18 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local EquipmentConfig = require(ReplicatedStorage:WaitForChild("EquipmentConfig"))
+local GameConfig = require(ReplicatedStorage:WaitForChild("GameConfig"))
 
 local LootService = {}
 
 local NORMAL_DROP_CHANCE = 0.05
+
+-- The loot / petLoot reward multiplier (RewardService, B5) scales the drop
+-- CHANCE only - rarity weights are never touched. Clamped so a boss draw can
+-- never become a guaranteed piece.
+local function scaledChance(base: number, mult: number?): number
+    return math.clamp(base * (mult or 1), 0, GameConfig.Rewards.dropRateCap)
+end
 
 -- Pet drop (etape 4.2): independent of the equipment roll. Rarer than gear.
 local PET_NORMAL_CHANCE  = 0.015
@@ -99,6 +107,7 @@ end
 function LootService.rollDrop(player, context)
     local zone = math.max(1, math.floor((context and context.zone) or 1))
     local isBoss = (context and context.isBoss) == true
+    local rateMult = (context and context.dropRateMult) or 1
 
     -- Enforce "no drop above the max zone reached". In the CombatServer flow the
     -- current zone is always a zone actually walked to, so this only bites if a
@@ -116,11 +125,14 @@ function LootService.rollDrop(player, context)
             roll = roll * 0.50
         end
         for _, row in ipairs(BOSS_SLOT_TABLE) do
-            if roll < row.upTo then slot = row.slot break end
+            if roll < math.min(row.upTo * rateMult, GameConfig.Rewards.dropRateCap) then
+                slot = row.slot
+                break
+            end
         end
         if not slot then return nil end
     else
-        if math.random() >= NORMAL_DROP_CHANCE then return nil end
+        if math.random() >= scaledChance(NORMAL_DROP_CHANCE, rateMult) then return nil end
         slot = EquipmentConfig.LootPool[math.random(1, #EquipmentConfig.LootPool)].slot
     end
 
@@ -172,10 +184,11 @@ function LootService.rollPetDrop(player, context)
     local dropZone = math.min(zone, cap)
 
     local isBigBoss = (context and context.isBigBoss) == true
+    local rateMult = (context and context.dropRateMult) or 1
     local chance = (isBigBoss and PET_BIGBOSS_CHANCE)
         or (isBoss and PET_BOSS_CHANCE)
         or PET_NORMAL_CHANCE
-    if math.random() >= chance then
+    if math.random() >= scaledChance(chance, rateMult) then
         return nil
     end
 

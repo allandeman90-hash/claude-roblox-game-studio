@@ -357,6 +357,38 @@ GameConfig.SeasonPass = {
 }
 
 --========================================================
+-- REWARDS  (multiplier resolver - B5, monetization.md 2 / Tension 5)
+--========================================================
+-- One resolver (RewardService.multiplier) is the ONLY place reward multipliers
+-- are computed. Comfort sources (paid) use max(), NEVER a product, and are hard-
+-- capped. Earned sources (Nightmare tier, rebirth bonus) deliberately multiply.
+--   multiplier(cat) = min(cap, max(perm pass, premium season, temp boost, Roblox Premium))
+--                     * Nightmare.rewardMult(tier) * rebirthBonus[cat](rebirths)
+-- Track I fills the real game-pass ids (0 = product not created yet -> inactive).
+GameConfig.Rewards = {
+    categoryCap = 3,        -- hard cap on the COMFORT multiplier, per category
+    dropRateCap = 0.95,     -- a drop chance never exceeds this after the loot multiplier
+
+    permanentPasses = {
+        doubleXp   = { id = 0, mult = { xp = 2 } },
+        doubleGold = { id = 0, mult = { gold = 2 } },
+        vip        = { id = 0, mult = { gold = 1.1 } },   -- +10% gold, folds into the cap
+    },
+
+    -- Premium Season pass: retroactive x3 on all four while profile.premiumSeason is set.
+    premiumSeason = { mult = { xp = 3, gold = 3, loot = 3, petLoot = 3 } },
+
+    -- Roblox Premium membership (I5): +10% gold, also folded into the cap.
+    premiumMembership = { gold = 1.1 },
+
+    -- Rebirth bonus per category (EARNED - deliberately multiplies). Missing
+    -- category -> 1.0. xp reuses the existing rebirth XP curve.
+    rebirthBonus = {
+        xp = function(n) return GameConfig.Rebirth.xpMult(n) end,
+    },
+}
+
+--========================================================
 -- ENEMIES
 --========================================================
 GameConfig.Enemy = {
