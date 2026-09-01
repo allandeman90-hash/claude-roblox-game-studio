@@ -29,7 +29,10 @@ local GameConfig = require(ReplicatedStorage:WaitForChild("GameConfig"))
 
 local LootService = {}
 
-local NORMAL_DROP_CHANCE = 0.05
+-- D5: drop rates + boss loot table are config-driven (EquipmentConfig.DropRates /
+-- .BossLootTable). Locals kept as aliases so the rest of this module is unchanged.
+local DR = EquipmentConfig.DropRates
+local NORMAL_DROP_CHANCE = DR.normalGear
 
 -- The loot / petLoot reward multiplier (RewardService, B5) scales the drop
 -- CHANCE only - rarity weights are never touched. Clamped so a boss draw can
@@ -39,23 +42,16 @@ local function scaledChance(base: number, mult: number?): number
 end
 
 -- Pet drop (etape 4.2): independent of the equipment roll. Rarer than gear.
-local PET_NORMAL_CHANCE  = 0.015
-local PET_BOSS_CHANCE    = 0.15
-local PET_BIGBOSS_CHANCE = 0.50   -- a big boss is an event
+local PET_NORMAL_CHANCE  = DR.normalPet
+local PET_BOSS_CHANCE    = DR.bossPet
+local PET_BIGBOSS_CHANCE = DR.bigBossPet   -- a big boss is an event
 
--- Boss equipment loot table (GAME_SPEC.md 6.3). Cumulative; a roll >= 0.50 is
--- "nothing" (the player still got the boss gold + XP).
-local BOSS_SLOT_TABLE = {
-    { slot = "bottes",    upTo = 0.14 },
-    { slot = "jambieres", upTo = 0.26 },
-    { slot = "plastron",  upTo = 0.36 },
-    { slot = "casque",    upTo = 0.45 },
-    { slot = "arme",      upTo = 0.50 },
-}
+-- Boss equipment loot table (GAME_SPEC.md 6.3) - config-driven (D5).
+local BOSS_SLOT_TABLE = EquipmentConfig.BossLootTable
 
 -- Rarity draw weights (GAME_SPEC.md 4.3). Only `active` rarities count. Bosses
 -- use the SAME table - no upward bias (GAME_SPEC.md 6.3).
-local NORMAL_WEIGHTS = { commun = 60, rare = 25, epique = 10, legendaire = 4, mythique = 1 }
+local NORMAL_WEIGHTS = DR.rarityWeights
 
 -- [player] = highest zone the player has actually reached (fed by CombatServer's
 -- progression loop via noteZoneReached). Drops are clamped to this.

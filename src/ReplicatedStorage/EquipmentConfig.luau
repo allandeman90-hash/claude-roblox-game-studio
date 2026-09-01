@@ -48,6 +48,28 @@ function EquipmentConfig.getRarity(id)
     return nil
 end
 
+--===== Drop rates + boss loot table (D5: moved here from LootService, config-driven) =====
+-- Values unchanged from GAME_SPEC.md 6.3 / 4.3. LootService reads these.
+EquipmentConfig.DropRates = {
+    normalGear    = 0.05,    -- equipment drop chance on a normal kill
+    normalPet     = 0.015,   -- pet drop chance on a normal kill
+    bossPet       = 0.15,    -- pet drop chance on a couche boss
+    bigBossPet    = 0.50,    -- pet drop chance on a big boss (an event)
+    -- rarity draw weights; bosses use the SAME table (no upward bias, GAME_SPEC 6.3).
+    rarityWeights = { commun = 60, rare = 25, epique = 10, legendaire = 4, mythique = 1 },
+}
+
+-- Boss equipment loot (GAME_SPEC.md 6.3): ONE draw. Cumulative thresholds; a roll
+-- >= 0.50 is "nothing" (player still got boss gold + XP). Big boss: roll is halved
+-- (roll * 0.5) => always lands a piece. Voie (guerrier/mage) is a separate 50/50 roll.
+EquipmentConfig.BossLootTable = {
+    { slot = "bottes",    upTo = 0.14 },
+    { slot = "jambieres", upTo = 0.26 },
+    { slot = "plastron",  upTo = 0.36 },
+    { slot = "casque",    upTo = 0.45 },
+    { slot = "arme",      upTo = 0.50 },
+}
+
 --===== Weapons (D4: 50 total = 2 starter + 24 shop + 24 boss) =====
 -- Power is DERIVED from (zone, rarity); defs carry identity + zone only.
 EquipmentConfig.Weapons = {
@@ -106,13 +128,24 @@ EquipmentConfig.SetBonusTiers = {
     [4] = { damage = 0.50, hp = 0.40, speed = 0.15 },
 }
 
--- Set identities (GAME_SPEC.md 5.1: "chaque set doit avoir une identite propre").
--- Multipliers applied to the base tier bonus.
+-- Set identities (GAME_SPEC.md 5.1 / D5: "chaque set une identite propre").
+-- Multipliers applied to the base tier bonus. One entry per boss set (keyed by
+-- set id), each on a damage / survie / vitesse axis with a boss-specific blend
+-- (La Descente). `equilibre` is kept for the "toile" starter set.
 EquipmentConfig.SetIdentities = {
-    offensif  = { damage = 1.35, hp = 0.60, speed = 0.50 },
-    defensif  = { damage = 0.60, hp = 1.55, speed = 0.50 },
-    rapide    = { damage = 0.80, hp = 0.70, speed = 2.00 },
-    equilibre = { damage = 1.00, hp = 1.00, speed = 1.00 },
+    equilibre    = { damage = 1.00, hp = 1.00, speed = 1.00 },  -- toile (starter)
+    roi_gobelin  = { damage = 1.05, hp = 1.05, speed = 0.90 },  -- equilibre doux
+    golem_pierre = { damage = 0.50, hp = 1.80, speed = 0.30 },  -- survie
+    sorciere     = { damage = 1.45, hp = 0.55, speed = 0.70 },  -- degats
+    colosse      = { damage = 0.85, hp = 1.55, speed = 0.30 },  -- survie (bruiser)
+    liche        = { damage = 1.60, hp = 0.65, speed = 0.25 },  -- degats (lourd, lent)
+    tyran        = { damage = 0.85, hp = 0.75, speed = 1.90 },  -- vitesse
+    archimage    = { damage = 1.70, hp = 0.40, speed = 0.45 },  -- degats (glass cannon)
+    behemoth     = { damage = 0.70, hp = 1.85, speed = 0.25 },  -- survie (le mur)
+    spectre      = { damage = 0.70, hp = 0.70, speed = 2.15 },  -- vitesse (extreme)
+    dragon_fer   = { damage = 1.20, hp = 1.10, speed = 0.80 },  -- equilibre haut tier
+    oeil_vide    = { damage = 1.75, hp = 0.45, speed = 0.40 },  -- degats (extreme)
+    avatar_fin   = { damage = 1.05, hp = 0.85, speed = 1.90 },  -- vitesse + degats (endgame)
 }
 
 EquipmentConfig.Sets = {
@@ -133,29 +166,22 @@ function EquipmentConfig.getSetBonus(count, setId)
     }
 end
 
---===== Armor (sample: Roi Gobelin set, 4 pieces x 2 voies) =====
--- Guerrier armor -> mostly DEF, Mage armor -> mostly RES (section 3.2).
+--===== Armor (D5: 96 boss-set pieces auto-generated below + 8 "toile" starter) =====
+-- Guerrier armor -> DEF, Mage armor -> RES (section 3.2). Stat value is DERIVED
+-- from (zone, rarity) via GameConfig.Equipment.armorStat - the `base` fields on
+-- "toile" are legacy/unused. Guerrier has NO RES (design decision 2026-09-01):
+-- magic bosses are beaten with kit / pets / timing, not a cross-stat.
 EquipmentConfig.Armor = {
-    casque_gobelin_g    = { nom = "Casque du Roi Gobelin",    slot = "casque",    voie = "guerrier", set = "roi_gobelin", lvIndicatif = 100, base = { def = 40, hp = 200 } },
-    plastron_gobelin_g  = { nom = "Plastron du Roi Gobelin",  slot = "plastron",  voie = "guerrier", set = "roi_gobelin", lvIndicatif = 100, base = { def = 60, hp = 300 } },
-    jambieres_gobelin_g = { nom = "Jambières du Roi Gobelin", slot = "jambieres", voie = "guerrier", set = "roi_gobelin", lvIndicatif = 100, base = { def = 45, hp = 220 } },
-    bottes_gobelin_g    = { nom = "Bottes du Roi Gobelin",    slot = "bottes",    voie = "guerrier", set = "roi_gobelin", lvIndicatif = 100, base = { def = 30, hp = 150 } },
+    --=== "Toile" starter set (given at hero creation). Zone 1. ===--
+    casque_toile_g    = { nom = "Coiffe de toile",   slot = "casque",    voie = "guerrier", set = "toile", zone = 1, lvIndicatif = 1 },
+    plastron_toile_g  = { nom = "Tunique de toile",  slot = "plastron",  voie = "guerrier", set = "toile", zone = 1, lvIndicatif = 1 },
+    jambieres_toile_g = { nom = "Chausses de toile", slot = "jambieres", voie = "guerrier", set = "toile", zone = 1, lvIndicatif = 1 },
+    bottes_toile_g    = { nom = "Bottes de toile",   slot = "bottes",    voie = "guerrier", set = "toile", zone = 1, lvIndicatif = 1 },
 
-    casque_gobelin_m    = { nom = "Casque du Roi Gobelin",    slot = "casque",    voie = "mage", set = "roi_gobelin", lvIndicatif = 100, base = { res = 40, hp = 200 } },
-    plastron_gobelin_m  = { nom = "Plastron du Roi Gobelin",  slot = "plastron",  voie = "mage", set = "roi_gobelin", lvIndicatif = 100, base = { res = 60, hp = 300 } },
-    jambieres_gobelin_m = { nom = "Jambières du Roi Gobelin", slot = "jambieres", voie = "mage", set = "roi_gobelin", lvIndicatif = 100, base = { res = 45, hp = 220 } },
-    bottes_gobelin_m    = { nom = "Bottes du Roi Gobelin",    slot = "bottes",    voie = "mage", set = "roi_gobelin", lvIndicatif = 100, base = { res = 30, hp = 150 } },
-
-    --=== Low-tier test set "Toile" (early game). DEF/RES + small HP. ===--
-    casque_toile_g    = { nom = "Coiffe de toile",   slot = "casque",    voie = "guerrier", set = "toile", lvIndicatif = 1, base = { def = 3, hp = 10 } },
-    plastron_toile_g  = { nom = "Tunique de toile",  slot = "plastron",  voie = "guerrier", set = "toile", lvIndicatif = 1, base = { def = 5, hp = 15 } },
-    jambieres_toile_g = { nom = "Chausses de toile", slot = "jambieres", voie = "guerrier", set = "toile", lvIndicatif = 1, base = { def = 4, hp = 12 } },
-    bottes_toile_g    = { nom = "Bottes de toile",   slot = "bottes",    voie = "guerrier", set = "toile", lvIndicatif = 1, base = { def = 2, hp = 8 } },
-
-    casque_toile_m    = { nom = "Coiffe de toile",   slot = "casque",    voie = "mage", set = "toile", lvIndicatif = 1, base = { res = 3, hp = 10 } },
-    plastron_toile_m  = { nom = "Tunique de toile",  slot = "plastron",  voie = "mage", set = "toile", lvIndicatif = 1, base = { res = 5, hp = 15 } },
-    jambieres_toile_m = { nom = "Chausses de toile", slot = "jambieres", voie = "mage", set = "toile", lvIndicatif = 1, base = { res = 4, hp = 12 } },
-    bottes_toile_m    = { nom = "Bottes de toile",   slot = "bottes",    voie = "mage", set = "toile", lvIndicatif = 1, base = { res = 2, hp = 8 } },
+    casque_toile_m    = { nom = "Coiffe de toile",   slot = "casque",    voie = "mage", set = "toile", zone = 1, lvIndicatif = 1 },
+    plastron_toile_m  = { nom = "Tunique de toile",  slot = "plastron",  voie = "mage", set = "toile", zone = 1, lvIndicatif = 1 },
+    jambieres_toile_m = { nom = "Chausses de toile", slot = "jambieres", voie = "mage", set = "toile", zone = 1, lvIndicatif = 1 },
+    bottes_toile_m    = { nom = "Bottes de toile",   slot = "bottes",    voie = "mage", set = "toile", zone = 1, lvIndicatif = 1 },
 }
 
 --===== Pets (sample: one per role - section 4.4 lists 40 at launch) =====
@@ -186,19 +212,21 @@ EquipmentConfig.LootPool = {
 -- voie). Big bosses drop their own set (see LootService).
 EquipmentConfig.BossWeaponPowerMult = 2.5   -- GAME_SPEC.md 7.2
 
+-- D5: each set's `identity` is its OWN id (key into SetIdentities) so the 12 feel
+-- distinct. `zone` = bossIndex (drives armorStat / weaponPct derivation).
 local BOSS_SET_DEFS = {
-    { id = "roi_gobelin",  nom = "Roi Gobelin",        identity = "equilibre" },
-    { id = "golem_pierre", nom = "Golem de Pierre",    identity = "defensif" },
-    { id = "sorciere",     nom = "Sorciere des Bois",  identity = "offensif" },
-    { id = "colosse",      nom = "Colosse des Cendres", identity = "defensif" },
-    { id = "liche",        nom = "Liche Glaciale",     identity = "offensif" },
-    { id = "tyran",        nom = "Tyran des Abysses",  identity = "equilibre" },
-    { id = "archimage",    nom = "Archimage Dechu",    identity = "offensif" },
-    { id = "behemoth",     nom = "Behemoth",           identity = "defensif" },
-    { id = "spectre",      nom = "Spectre Hurlant",    identity = "rapide" },
-    { id = "dragon_fer",   nom = "Dragon de Fer",      identity = "equilibre" },
-    { id = "oeil_vide",    nom = "Oeil du Vide",       identity = "offensif" },
-    { id = "avatar_fin",   nom = "Avatar de la Fin",   identity = "rapide" },
+    { id = "roi_gobelin",  nom = "Roi Gobelin",         identity = "roi_gobelin" },
+    { id = "golem_pierre", nom = "Golem de Pierre",     identity = "golem_pierre" },
+    { id = "sorciere",     nom = "Sorciere des Bois",   identity = "sorciere" },
+    { id = "colosse",      nom = "Colosse des Cendres", identity = "colosse" },
+    { id = "liche",        nom = "Liche Glaciale",      identity = "liche" },
+    { id = "tyran",        nom = "Tyran des Abysses",   identity = "tyran" },
+    { id = "archimage",    nom = "Archimage Dechu",     identity = "archimage" },
+    { id = "behemoth",     nom = "Behemoth",            identity = "behemoth" },
+    { id = "spectre",      nom = "Spectre Hurlant",     identity = "spectre" },
+    { id = "dragon_fer",   nom = "Dragon de Fer",       identity = "dragon_fer" },
+    { id = "oeil_vide",    nom = "Oeil du Vide",        identity = "oeil_vide" },
+    { id = "avatar_fin",   nom = "Avatar de la Fin",    identity = "avatar_fin" },
 }
 
 local ARMOR_PIECES = {
@@ -218,6 +246,7 @@ for bossIndex, s in ipairs(BOSS_SET_DEFS) do
             EquipmentConfig.Armor[piece.slot .. "_" .. s.id .. suffix] = {
                 nom  = piece.label .. " " .. s.nom,
                 slot = piece.slot, voie = voie, set = s.id,
+                zone = bossIndex, lvIndicatif = 35 * bossIndex,   -- [D5]
             }
         end
         EquipmentConfig.Weapons["arme_" .. s.id .. suffix] = {
