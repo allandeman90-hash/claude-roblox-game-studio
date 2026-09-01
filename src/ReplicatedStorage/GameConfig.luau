@@ -98,6 +98,21 @@ GameConfig.Combat = {
 
     -- [ACTIVE - etape 3] GAME_SPEC.md 3.1 : critical hit = x2 damage.
     critMultiplier = 2,
+
+    -- [D6 - validated 2026-09-01] Level-gap penalty. Gear scales geometrically
+    -- (x1.30/zone) but mobs scale linearly, so a geared player would blow past
+    -- the level cap and the Rebirth pitch goes soft. When a mob out-levels the
+    -- player by more than `threshold`, the player deals less and takes more,
+    -- proportional to the excess gap. This is what makes the level wall bite
+    -- (felt wall ~km 33-42; raise dealtStep to ~0.035 to tighten to km 30-37).
+    -- Applied in DamageService (both directions).
+    levelGap = {
+        threshold  = 5,      -- free grace before the penalty starts
+        dealtStep  = 0.028,  -- -2.8% player damage dealt per level of excess gap
+        dealtFloor = 0.12,   -- player always deals at least 12%
+        takenStep  = 0.022,  -- +2.2% damage taken per level of excess gap
+        takenCap   = 3.0,    -- damage taken never more than x3
+    },
 }
 
 -- [ACTIVE - D1 validated 2026-08-31] Critical chance = min(1, LUK / 2500).
@@ -462,10 +477,13 @@ GameConfig.Enemy = {
     },
 }
 
--- [ACTIVE - etape EnemyService] GAME_SPEC.md 6.1 : monster level = km x 10.
--- Purely indicative (4.1) - enters no combat calculation.
+-- [D1/D6 - validated] monster level = round(km * levelPerKm). The GAME_SPEC
+-- `km * 10` is unplayable; `~= km` puts the wall too far. 3.5 => the first
+-- level-wall bites ~km 28-35 (with the D6 level-gap penalty). Consumed by
+-- EnemyService.levelForKm.
+GameConfig.Enemy.levelPerKm = 3.5
 function GameConfig.Enemy.levelFromKm(km)
-    return math.max(1, math.floor(km * 10))
+    return math.max(1, math.round((km or 0) * GameConfig.Enemy.levelPerKm))
 end
 
 --========================================================

@@ -68,12 +68,10 @@ end
 -- zone, from lo+1 at the zone start to the boss level (zone*10) at the zone end,
 -- so the player feels a steady climb toward each end-of-zone boss.
 function EnemyService.levelForKm(km)
-    local kmPerZone = ZoneConfig.KM_PER_ZONE
-    local zone = ZoneConfig.zoneIdFromKm(km)
-    local lo = (zone - 1) * 10
-    local frac = math.clamp((km - (zone - 1) * kmPerZone) / kmPerZone, 0, 1)
-    -- mobs cap one level below the boss (zone*10); boss keeps the round number.
-    return math.clamp(math.floor(lo + 1 + frac * 8.5), lo + 1, zone * 10 - 1)
+    -- [D1/D6] mob level = round(km * GameConfig.Enemy.levelPerKm) (3.5). The wall
+    -- comes from this curve vs the player cap + the level-gap penalty, not from
+    -- a per-zone band any more.
+    return math.max(1, GameConfig.Enemy.levelFromKm(km))
 end
 
 -- DEPRECATED - nothing calls this since HP/ATK/EXP/gold all went level-driven

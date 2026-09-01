@@ -21,6 +21,15 @@ local GameConfig = require(ReplicatedStorage:WaitForChild("GameConfig"))
 
 local DamageService = {}
 
+-- [D6] How far the enemy out-levels the player, minus the grace threshold.
+-- 0 while the player keeps up; grows once a geared player pushes past the cap
+-- into mobs well above their level.
+local function excessGap(st)
+    local G = GameConfig.Combat.levelGap
+    local gap = (st.enemyLevel or 1) - (st.playerLevel or 1) - G.threshold
+    return math.max(0, gap)
+end
+
 -- The player hits the current enemy. Returns (damage: number, isCrit: boolean).
 function DamageService.playerHitEnemy(st)
     local dmg = st.playerAtk or 0
@@ -29,6 +38,8 @@ function DamageService.playerHitEnemy(st)
         dmg = dmg * GameConfig.Combat.critMultiplier
         isCrit = true
     end
+    local G = GameConfig.Combat.levelGap
+    dmg = dmg * math.max(G.dealtFloor, 1 - G.dealtStep * excessGap(st))
     return math.floor(dmg), isCrit
 end
 
@@ -43,6 +54,8 @@ function DamageService.enemyHitPlayer(st)
         mult = GameConfig.Combat.physicalMitigation(st.playerDef or 0)
     end
     local raw = (st.enemyAtk or 0) * mult
+    local G = GameConfig.Combat.levelGap
+    raw = raw * math.min(G.takenCap, 1 + G.takenStep * excessGap(st))
     return math.max(0, math.floor(raw))
 end
 
