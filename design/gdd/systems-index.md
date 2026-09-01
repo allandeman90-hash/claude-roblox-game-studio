@@ -9,8 +9,8 @@ chaque système aura son GDD détaillé dans `design/gdd/` (à écrire en P1).
 |---|---|---|---|
 | Cœur de jeu (marche + combat auto) | `core-gameplay-gdd.md` | **écrit** (v1.0, 2026-08-31) | P1 |
 | Combat (résolution, cadence, DEF/RES, fuite) | `combat-gdd.md` | **écrit** (v1.0, 2026-08-31) · code partiel existant | P1 |
-| Pouvoirs actifs (3 slots, auto/manuel) | `abilities-gdd.md` | à écrire | P1 |
-| Mécaniques de boss (phases, interruption, adds, enrage) | `boss-mechanics-gdd.md` | à écrire | P1 |
+| Pouvoirs actifs (3 slots, auto/manuel) | `abilities-gdd.md` | **écrit** (v1.0, 2026-09-01) | P1 |
+| Mécaniques de boss (phases, interruption, adds, enrage) | `boss-mechanics-gdd.md` | **écrit** (v1.0, 2026-09-01) · 12 signatures | P1 |
 | Progression (niveau, stats auto, points gagnés) | `progression-gdd.md` | **écrit** (v1.0, 2026-09-01) · renvoie à D1/D6 | P1 |
 | Talents (3 branches, respec gratuit) | `talents-gdd.md` | **écrit** (v1.0, 2026-09-01) | P1 |
 | Sous-classes (R5, Berserker/Gardien/Destructeur/Sage) | `subclass-gdd.md` | **écrit** (v1.0, 2026-09-01) · renvoie à D1 | P1 |
