@@ -106,9 +106,11 @@ GameConfig.Combat = {
     -- proportional to the excess gap. This is what makes the level wall bite
     -- (felt wall ~km 33-42; raise dealtStep to ~0.035 to tighten to km 30-37).
     -- Applied in DamageService (both directions).
+    -- [C2 - 2026-09-01] dealtStep 0.028 -> 0.035 : felt wall ~km 30-37, closer to
+    -- the Q26 target (25-35). Tune down in the K3 playtest if the wall bites early.
     levelGap = {
         threshold  = 5,      -- free grace before the penalty starts
-        dealtStep  = 0.028,  -- -2.8% player damage dealt per level of excess gap
+        dealtStep  = 0.035,  -- -3.5% player damage dealt per level of excess gap
         dealtFloor = 0.12,   -- player always deals at least 12%
         takenStep  = 0.022,  -- +2.2% damage taken per level of excess gap
         takenCap   = 3.0,    -- damage taken never more than x3
