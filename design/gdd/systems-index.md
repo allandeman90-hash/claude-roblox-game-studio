@@ -1,6 +1,6 @@
 # Quête Minute — Index des systèmes
 
-**Version :** 1.1 · **Mis à jour :** 2026-08-31
+**Version :** 1.2 · **Mis à jour :** 2026-09-01
 
 Catalogue de tous les systèmes du jeu. Le GDD maître (`master-gdd.md`) donne la vue d'ensemble ;
 chaque système aura son GDD détaillé dans `design/gdd/` (à écrire en P1).
@@ -11,10 +11,10 @@ chaque système aura son GDD détaillé dans `design/gdd/` (à écrire en P1).
 | Combat (résolution, cadence, DEF/RES, fuite) | `combat-gdd.md` | **écrit** (v1.0, 2026-08-31) · code partiel existant | P1 |
 | Pouvoirs actifs (3 slots, auto/manuel) | `abilities-gdd.md` | à écrire | P1 |
 | Mécaniques de boss (phases, interruption, adds, enrage) | `boss-mechanics-gdd.md` | à écrire | P1 |
-| Progression (niveau, stats auto, points gagnés) | `progression-gdd.md` | à écrire | P1 |
-| Talents (3 branches, respec gratuit) | `talents-gdd.md` | à écrire | P1 |
-| Sous-classes (R5, Berserker/Gardien/Destructeur/Sage) | `subclass-gdd.md` | à écrire | P1 |
-| Rebirth (infini, jalons /5, mur de niveau) | `rebirth-gdd.md` | à écrire · code partiel | P1 |
+| Progression (niveau, stats auto, points gagnés) | `progression-gdd.md` | **écrit** (v1.0, 2026-09-01) · renvoie à D1/D6 | P1 |
+| Talents (3 branches, respec gratuit) | `talents-gdd.md` | **écrit** (v1.0, 2026-09-01) | P1 |
+| Sous-classes (R5, Berserker/Gardien/Destructeur/Sage) | `subclass-gdd.md` | **écrit** (v1.0, 2026-09-01) · renvoie à D1 | P1 |
+| Rebirth (infini, jalons /5, mur de niveau) | `rebirth-gdd.md` | **écrit** (v1.0, 2026-09-01) · code partiel | P1 |
 | Mode Cauchemar (ladder par couche, infini) | `nightmare-gdd.md` | à écrire | P1 |
 | Équipement (6 slots, raretés, sets, fusion) | = `GAME_SPEC.md` §4-5 | figé | — |
 | Inventaire (100 slots, filtres, tri) | `inventory-gdd.md` | à écrire · code partiel | P1 |
