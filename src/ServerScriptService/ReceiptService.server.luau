@@ -100,6 +100,10 @@ local function applyEffect(profile, effect)
                 end
             end
         end
+    elseif kind == "revive" then
+        -- Consumed by CombatServer on the "claimRevive" message (or the next
+        -- game-over). A counter, so a purchase made while alive is not lost.
+        profile.pendingRevives = (profile.pendingRevives or 0) + 1
     elseif kind == "cosmeticChest" or kind == "supporterPack" then
         profile.unclaimedProducts = profile.unclaimedProducts or {}
         table.insert(profile.unclaimedProducts, {

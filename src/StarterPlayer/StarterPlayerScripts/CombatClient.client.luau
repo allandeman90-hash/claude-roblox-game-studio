@@ -9,6 +9,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local GuiService = game:GetService("GuiService")
+local MarketplaceService = game:GetService("MarketplaceService")
 
 -- Zone system data (decor palette + enemy roster per zone).
 local ZoneConfig = require(ReplicatedStorage:WaitForChild("ZoneConfig"))
@@ -16,6 +17,7 @@ local ZoneConfig = require(ReplicatedStorage:WaitForChild("ZoneConfig"))
 local AssetMap = require(ReplicatedStorage:WaitForChild("AssetMap"))
 local GameConfig = require(ReplicatedStorage:WaitForChild("GameConfig"))
 local StyleConstants = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("StyleConstants"))
+local ProductConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("ProductConfig"))
 
 local player = Players.LocalPlayer
 
@@ -1184,10 +1186,161 @@ if artifactTalentsButton then
     end)
 end
 
--- Game Over window references
-local gameOverWindow    = background:FindFirstChild("GameOverWindow")
-local gameOverDistText  = gameOverWindow and gameOverWindow:FindFirstChild("DistanceText")
-local restartButton     = gameOverWindow and gameOverWindow:FindFirstChild("RestartButton")
+--===== Game Over panel (code-built, same language as the FTUE modal card) =====
+-- The old RpgGui.GameOverWindow template (full-bleed black box, raw green/brown
+-- buttons, unwired "Reapparaitre 0 Robux") is retired - hidden below.
+-- Wrapped in `do` so its ~12 helper locals do not count against this script's
+-- 200-local budget; only these three escape.
+local showGameOver, hideGameOver, configureReviveBtn
+do
+    local SC = StyleConstants
+    local GO_Z = SC.ModalZ
+    local playerHandle = (player.Name ~= "" and player.Name) or "Aventurier"
+    -- Encouragement lines, roguelike tone (matches the FTUE "4 facons" briefing).
+    -- `%s` = the player's Roblox username.
+    local GAME_OVER_LINES = {
+        "Chaque mort te rend plus fort, %s.",
+        "Tu gardes tout ce que tu as gagne, %s. On y retourne ?",
+        "La Plaine t'a eu cette fois, %s. Pas la prochaine.",
+        "Releve-toi, %s : les Couches profondes n'attendent que toi.",
+        "Encore un essai, %s ?",
+        "%s, le record ne va pas se battre tout seul.",
+        "Ce n'est qu'un debut, %s.",
+    }
+
+    local oldTemplate = background:FindFirstChild("GameOverWindow")
+    if oldTemplate then oldTemplate.Visible = false end
+
+local goDim = Instance.new("Frame")
+goDim.Name = "GameOverDim"
+goDim.Size = UDim2.fromScale(1, 1)
+goDim.BackgroundColor3 = Color3.new(0, 0, 0)
+goDim.BackgroundTransparency = 0.5
+goDim.BorderSizePixel = 0
+goDim.ZIndex = GO_Z - 1
+goDim.Visible = false
+goDim.Parent = background
+
+local goPanel = Instance.new("Frame")
+goPanel.Name = "GameOverPanel"
+goPanel.AnchorPoint = Vector2.new(0.5, 0.5)
+goPanel.Position = UDim2.fromScale(0.5, 0.5)
+goPanel.Size = UDim2.fromOffset(460, 0)
+goPanel.AutomaticSize = Enum.AutomaticSize.Y
+goPanel.BackgroundColor3 = SC.BaseColors.Panel
+goPanel.BorderSizePixel = 0
+goPanel.ZIndex = GO_Z
+goPanel.Visible = false
+goPanel.Parent = background
+do
+    local stroke = SC.addStroke(goPanel, 2, SC.BaseColors.Border)
+    stroke.LineJoinMode = Enum.LineJoinMode.Miter
+    local pad = Instance.new("UIPadding")
+    pad.PaddingTop = UDim.new(0, 22) ; pad.PaddingBottom = UDim.new(0, 22)
+    pad.PaddingLeft = UDim.new(0, 24) ; pad.PaddingRight = UDim.new(0, 24)
+    pad.Parent = goPanel
+    local list = Instance.new("UIListLayout")
+    list.FillDirection = Enum.FillDirection.Vertical
+    list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    list.Padding = UDim.new(0, 12)
+    list.SortOrder = Enum.SortOrder.LayoutOrder
+    list.Parent = goPanel
+end
+
+local function goLabel(text: string, level: string, colour: Color3, order: number): TextLabel
+    local l = Instance.new("TextLabel")
+    l.BackgroundTransparency = 1
+    l.Size = UDim2.new(1, 0, 0, 0)
+    l.AutomaticSize = Enum.AutomaticSize.Y
+    l.Font = SC.Fonts.Body
+    l.RichText = true
+    l.Text = text
+    l.TextColor3 = colour
+    l.TextWrapped = true
+    l.TextXAlignment = Enum.TextXAlignment.Center
+    l.ZIndex = GO_Z
+    l.LayoutOrder = order
+    l.Parent = goPanel
+    SC.applyTypography(l, level)
+    return l
+end
+
+goLabel("GAME OVER", "Heading", SC.BaseColors.Alert, 1)
+local goMsg  = goLabel("", "Body", SC.BaseColors.TextPrimary, 2)
+local goDist = goLabel("", "Label", SC.BaseColors.TextSecondary, 3)
+
+local goRestartBtn = SC.makeButton("RECOMMENCER  (checkpoint)", "Body", "green")
+goRestartBtn.Size = UDim2.fromOffset(300, 46)
+goRestartBtn.LayoutOrder = 4
+goRestartBtn.ZIndex = GO_Z
+goRestartBtn.Parent = goPanel
+goRestartBtn.MouseButton1Click:Connect(function()
+    combatEvent:FireServer({ type = "restart" })
+end)
+
+-- Revive: reappear where you fell. Free for the dev list; one tap spends a
+-- reserve charge; otherwise a 9 R$ Developer Product (disabled until its id
+-- is set in ProductConfig).
+local goReviveBtn = SC.makeButton("REAPPARAITRE", "Body", "gold")
+goReviveBtn.Size = UDim2.fromOffset(300, 44)
+goReviveBtn.LayoutOrder = 5
+goReviveBtn.ZIndex = GO_Z
+goReviveBtn.Parent = goPanel
+
+local reviveMode = "none"   -- "dev" | "reserve" | "buy" | "none"
+function configureReviveBtn(isDev: boolean?, pendingRevives: number?)
+    local reviveId = ProductConfig.ids.reviveRun or 0
+    if isDev then
+        reviveMode = "dev"
+        goReviveBtn.Text = "REAPPARAITRE  \u{00B7}  gratuit (dev)"
+        goReviveBtn.Active = true
+        goReviveBtn.TextTransparency = 0
+    elseif (pendingRevives or 0) > 0 then
+        reviveMode = "reserve"
+        goReviveBtn.Text = string.format("REAPPARAITRE  \u{00B7}  reserve (%d)", pendingRevives)
+        goReviveBtn.Active = true
+        goReviveBtn.TextTransparency = 0
+    elseif reviveId ~= 0 then
+        reviveMode = "buy"
+        goReviveBtn.Text = "REAPPARAITRE  \u{00B7}  9 R$"
+        goReviveBtn.Active = true
+        goReviveBtn.TextTransparency = 0
+    else
+        reviveMode = "none"
+        goReviveBtn.Text = "REAPPARAITRE  \u{00B7}  bientot"
+        goReviveBtn.Active = false
+        goReviveBtn.TextTransparency = 0.5
+    end
+end
+
+goReviveBtn.MouseButton1Click:Connect(function()
+    if reviveMode == "dev" then
+        combatEvent:FireServer({ type = "devRevive" })
+    elseif reviveMode == "reserve" then
+        combatEvent:FireServer({ type = "claimRevive" })
+    elseif reviveMode == "buy" then
+        local reviveId = ProductConfig.ids.reviveRun or 0
+        if reviveId ~= 0 then
+            pcall(function()
+                MarketplaceService:PromptProductPurchase(player, reviveId)
+            end)
+        end
+    end
+end)
+
+function showGameOver(distanceKm: number?, isDev: boolean?, pendingRevives: number?)
+    goMsg.Text = string.format(GAME_OVER_LINES[math.random(#GAME_OVER_LINES)], playerHandle)
+    goDist.Text = string.format("Distance : %.1f km", distanceKm or 0)
+    configureReviveBtn(isDev, pendingRevives)
+    goDim.Visible = true
+    goPanel.Visible = true
+end
+
+function hideGameOver()
+    goDim.Visible = false
+    goPanel.Visible = false
+end
+end  -- Game Over panel block
 
 --===== Helpers =====
 local function formatNumber(n)
@@ -1389,16 +1542,13 @@ local function updateUI(data)
 
     -- Game Over state
     if data.gameOver then
-        if gameOverWindow then
-            gameOverWindow.Visible = true
-            if gameOverDistText then
-                gameOverDistText.Text = string.format("Distance: %.1f KM", data.distance or 0)
-            end
+        if not goPanel.Visible then
+            showGameOver(data.distance, data.isDev, data.pendingRevives)
+        else
+            configureReviveBtn(data.isDev, data.pendingRevives)  -- keep the reserve count fresh
         end
     else
-        if gameOverWindow then
-            gameOverWindow.Visible = false
-        end
+        hideGameOver()
     end
 end
 
@@ -1528,12 +1678,14 @@ combatEvent.OnClientEvent:Connect(function(data)
             statusText.TextColor3 = Color3.fromRGB(255, 120, 120)
         end
     elseif data.type == "gameOver" then
-        if gameOverWindow then
-            gameOverWindow.Visible = true
-            if gameOverDistText then
-                gameOverDistText.Text = string.format("Distance: %.1f KM", data.distance or 0)
-            end
+        showGameOver(data.distance, data.isDev, data.pendingRevives)
+    elseif data.type == "purchaseGranted" and data.product == "reviveRun" then
+        -- Revive charge credited: spend it now if the player is still down.
+        if goPanel.Visible then
+            combatEvent:FireServer({ type = "claimRevive" })
         end
+    elseif data.type == "reviveGranted" then
+        hideGameOver()
     end
 end)
 
@@ -1549,12 +1701,6 @@ if campfireStayBtn then
     end)
 end
 
---===== Game Over buttons =====
-if restartButton then
-    restartButton.MouseButton1Click:Connect(function()
-        combatEvent:FireServer({type = "restart"})
-    end)
-end
 
 --===== Rebirth button (GAME_SPEC.md 8.1) =====
 if rebirthButton then

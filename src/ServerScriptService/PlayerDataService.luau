@@ -155,6 +155,7 @@ function PlayerDataService.defaultProfile()
         fusionTokens = 0,
         renameCredits = 0,
         passTierCredits = 0,
+        pendingRevives = 0,        -- paid "reappear at death spot" charges (ReceiptService)
         unclaimedProducts = {},     -- queue: { { kind = "cosmeticChest", chests = 1 }, ... }
         processedReceipts = {},     -- [purchaseIdStr] = os.time()  (idempotency ledger, capped)
 

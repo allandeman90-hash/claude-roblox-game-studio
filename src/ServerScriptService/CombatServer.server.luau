@@ -247,6 +247,11 @@ local function sendUpdate(player, s)
         enemyExp        = s.enemyExp,
         enemyGold       = s.enemyGold,
         gameOver        = s.gameOver or false,
+        isDev           = GameConfig.isDev(player.UserId),
+        pendingRevives  = (function()
+            local p = PlayerDataService.getProfile(player)
+            return p and math.max(0, math.floor(p.pendingRevives or 0)) or 0
+        end)(),
         statPow         = s.effectiveStatPow or s.statPow,
         statInt         = s.effectiveStatInt or s.statInt,
         statVit         = s.effectiveStatVit or s.statVit,
@@ -820,6 +825,35 @@ function restartRun(player, st, startKm)
     st.enemyAtk = e.atk ; st.enemyExp = e.exp ; st.enemyGold = e.gold ; st.enemyHp = e.maxHp
 end
 
+-- Paid / dev revive: back on your feet where you fell (keeps distance, progress,
+-- checkpoints), full HP, the killing encounter cleared so you don't instantly
+-- re-die. Contrast with restart, which sends you back to the checkpoint.
+local function reviveInPlace(player, st)
+    if not st.gameOver then
+        return false
+    end
+    StatsService.recalc(player, st)
+    st.playerHp        = st.playerMaxHp
+    st.gameOver        = false
+    st.combatActive    = false
+    st.isMoving        = false
+    st.moveDir         = nil
+    st.isBoss          = false
+    st.milestone       = nil
+    st.enemyIsBigBoss  = nil
+    st.enemyDamageType = nil
+    st.enemyAtkSplit   = nil
+    if st.currentEncounterPos then
+        st.cleared[st.currentEncounterPos] = true
+        st.currentEncounterPos = nil
+    end
+    local e = EnemyService.rollEnemy(st.pos or 0)
+    st.enemyName = e.name ; st.enemyLevel = e.level ; st.enemyMaxHp = e.maxHp ; st.enemyId = e.id
+    st.enemyAtk = e.atk ; st.enemyExp = e.exp ; st.enemyGold = e.gold ; st.enemyHp = e.maxHp
+    markProfileDirty(player, st)
+    return true
+end
+
 --===== Client request handler (stat allocation, restart, rebirth) =====
 combatEvent.OnServerEvent:Connect(function(player, data)
     if type(data) ~= "table" then return end
@@ -885,6 +919,29 @@ combatEvent.OnServerEvent:Connect(function(player, data)
         -- Legacy: the player now just walks away from the campfire. No-op kept
         -- so old clients don't error.
         return
+
+    elseif data.type == "devRevive" then
+        -- Free revive for the dev list only (GameConfig.DevUserIds). Testing tool.
+        if not st.gameOver then return end
+        if not GameConfig.isDev(player.UserId) then return end
+        if reviveInPlace(player, st) then
+            combatEvent:FireClient(player, { type = "reviveGranted", free = true })
+            sendUpdate(player, st)
+        end
+
+    elseif data.type == "claimRevive" then
+        -- Spend one paid revive charge (ReceiptService credited profile.pendingRevives).
+        if not st.gameOver then return end
+        local profile = PlayerDataService.getProfile(player)
+        if not profile or (profile.pendingRevives or 0) <= 0 then
+            combatEvent:FireClient(player, { type = "reviveDenied" })
+            return
+        end
+        profile.pendingRevives = profile.pendingRevives - 1
+        if reviveInPlace(player, st) then
+            combatEvent:FireClient(player, { type = "reviveGranted", free = false })
+            sendUpdate(player, st)
+        end
 
     elseif data.type == "restart" then
         if not st.gameOver then return end

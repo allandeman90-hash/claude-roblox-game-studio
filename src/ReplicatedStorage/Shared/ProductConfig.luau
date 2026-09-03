@@ -16,7 +16,7 @@
 
 export type EffectKind =
     "gems" | "boost" | "fusionTokens" | "passTier" | "rename"
-    | "cosmeticChest" | "supporterPack"
+    | "cosmeticChest" | "supporterPack" | "revive"
 
 export type ProductEffect = {
     kind: EffectKind,
@@ -63,6 +63,11 @@ local catalogue: { [string]: CatalogueEntry } = {
         name = "Supporter Pack saisonnier",
         effect = { kind = "supporterPack", chests = 1, gems = 500 },
     },
+
+    -- Game Over: reappear where you fell instead of restarting at the checkpoint.
+    -- Priced at 9 R$ in the Creator Dashboard. Devs (GameConfig.DevUserIds)
+    -- get it for free via the "devRevive" path and never see the prompt.
+    reviveRun = { name = "Reapparaitre", effect = { kind = "revive" } },
 }
 
 -- key -> Roblox Developer Product id. Track I fills these from the dashboard.
@@ -74,6 +79,7 @@ local ids: { [string]: number } = {
     passTier1 = 0, passTier5 = 0,
     cosmeticChest1 = 0, cosmeticChest6 = 0,
     supporterPack = 0,
+    reviveRun = 0,   -- TODO: create a 9 R$ Developer Product and paste its id here
 }
 
 local ProductConfig = {}

@@ -19,6 +19,21 @@
 local GameConfig = {}
 
 --========================================================
+-- DEV / STAFF
+--========================================================
+-- Roblox UserIds that get dev conveniences (free revive, future test tools).
+-- Never grant gameplay advantage that a normal player can't earn - this is
+-- for testing only.
+GameConfig.DevUserIds = {
+    7860387011,   -- Allan (allancorp99)
+}
+
+function GameConfig.isDev(userId: number?): boolean
+    if type(userId) ~= "number" then return false end
+    return table.find(GameConfig.DevUserIds, userId) ~= nil
+end
+
+--========================================================
 -- LEVEL & XP
 --========================================================
 GameConfig.Level = {
