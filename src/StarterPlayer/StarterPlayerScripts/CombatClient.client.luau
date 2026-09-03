@@ -122,7 +122,7 @@ do
     local BG      = Color3.fromRGB(0, 0, 0)        -- screen ground (matches the overlays' pure black)
     local BAR_BG  = Color3.fromRGB(23, 24, 29)     -- top / bottom bars, bar tracks
     local CARD_BG = Color3.fromRGB(19, 20, 25)     -- stat cards
-    local LINE    = Color3.fromRGB(70, 71, 77)     -- thin dim borders (no bright white)
+    local LINE    = Color3.fromRGB(96, 96, 101)    -- thin borders (matches StyleConstants.Border / the overlays, so the cards read as cards, not one black block)
     local TEXT    = Color3.fromRGB(228, 224, 212)  -- values
     local LABEL   = Color3.fromRGB(120, 120, 125)  -- field labels
     local ACCENT  = Color3.fromRGB(201, 168, 120)  -- muted amber (no optical bloom)
@@ -133,7 +133,7 @@ do
     local ZH      = 3                               -- HUD draw layer (overlays sit at 20+)
 
     -- Layout bands (offset px, IgnoreGuiInset = true so the top bar is flush).
-    local TOP_H, PV_H, BOT_H, GAP = 46, 15, 30, 6
+    local TOP_H, PV_H, BOT_H, GAP = 46, 20, 30, 6
     local MID_TOP = TOP_H + GAP + PV_H + GAP
     local COL_W = 0.238
 
@@ -180,7 +180,7 @@ do
         item.RichText = true
         item.Text = opts.text or ""
         item.TextColor3 = opts.color or TEXT
-        item.TextSize = opts.size or 14
+        item.TextSize = opts.size or 16
         item.TextScaled = false
         item.TextWrapped = opts.wrap or false
         item.TextXAlignment = opts.align or Enum.TextXAlignment.Left
@@ -231,15 +231,15 @@ do
         lbl.Font = FONT
         lbl.Text = "PV"
         lbl.TextColor3 = LABEL
-        lbl.TextSize = 12
+        lbl.TextSize = 14
         lbl.TextXAlignment = Enum.TextXAlignment.Left
         lbl.ZIndex = ZH
         lbl.Parent = root
 
         local track = root:FindFirstChild("Track") or Instance.new("Frame")
         track.Name = "Track"
-        track.Position = UDim2.new(0, 30, 0.5, -5)
-        track.Size = UDim2.new(1, -84, 0, 10)
+        track.Position = UDim2.new(0, 30, 0.5, -7)
+        track.Size = UDim2.new(1, -96, 0, 14)
         track.BackgroundColor3 = BAR_BG
         track.BorderColor3 = LINE
         track.BorderSizePixel = 1
@@ -260,12 +260,12 @@ do
         val.Name = "Value"
         val.AnchorPoint = Vector2.new(1, 0)
         val.Position = UDim2.new(1, 0, 0, 0)
-        val.Size = UDim2.new(0, 50, 1, 0)
+        val.Size = UDim2.new(0, 62, 1, 0)
         val.BackgroundTransparency = 1
         val.Font = FONT
         val.Text = "0/0"
         val.TextColor3 = TEXT
-        val.TextSize = 12
+        val.TextSize = 14
         val.TextXAlignment = Enum.TextXAlignment.Right
         val.ZIndex = ZH
         val.Parent = root
@@ -412,14 +412,14 @@ do
         fill.Parent = root
         local value = parent:FindFirstChild("XpText") or Instance.new("TextLabel")
         value.Name = "XpText"
-        value.Position = UDim2.new(0, 0, y, 8)
-        value.Size = UDim2.new(1, 0, 0, 12)
+        value.Position = UDim2.new(0, 0, y, 9)
+        value.Size = UDim2.new(1, 0, 0, 14)
         value.BackgroundTransparency = 1
         value.BorderSizePixel = 0
         value.Font = FONT
         value.Text = "XP 0 / 0"
         value.TextColor3 = LABEL
-        value.TextSize = 11
+        value.TextSize = 13
         value.TextXAlignment = Enum.TextXAlignment.Left
         value.ZIndex = ZH
         value.Parent = parent
@@ -476,7 +476,7 @@ do
         artifactProgressText.Font = FONT
         artifactProgressText.Text = "Couche 1 \u{2014} Plaine de l'Aube  \u{00B7}  Etape 1/10  \u{00B7}  prochain : BOSS"
         artifactProgressText.TextColor3 = LABEL
-        artifactProgressText.TextSize = 12
+        artifactProgressText.TextSize = 13
         artifactProgressText.TextXAlignment = Enum.TextXAlignment.Left
         artifactProgressText.ZIndex = ZH
         artifactProgressText.Parent = zoneTrack
