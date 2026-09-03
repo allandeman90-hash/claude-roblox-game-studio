@@ -130,7 +130,7 @@ function AccessibilityScreen.mount(rpgGui: ScreenGui, deps: AccessibilityScreenD
 
     local function makeRow(labelText: string): (Frame, TextLabel)
         local row = Instance.new("Frame")
-        row.BackgroundColor3 = Color3.fromRGB(14, 14, 14)
+        row.BackgroundColor3 = StyleConstants.BaseColors.Slot
         row.BorderSizePixel = 0
         row.Size = UDim2.new(1, 0, 0, 44)
         row.ZIndex = ZS
