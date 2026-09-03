@@ -408,14 +408,26 @@ function InventoryScreen.mount(rpgGui: ScreenGui, combatEvent: RemoteEvent, deps
     equippedTitle.Size = UDim2.new(1, 0, 0, 18)
     equippedTitle.LayoutOrder = 0
     StyleConstants.applyTypography(equippedTitle, "Label")
-    local equippedRows: { [string]: TextLabel } = {}
+    -- Each row is a button: click a filled slot to unequip it back to the bag
+    -- (the only unequip path in the game - there is no hero-panel any more).
+    local equippedRows: { [string]: TextButton } = {}
+    local equippedHasItem: { [string]: boolean } = {}
     for i, slot in ipairs(EQUIP_SLOTS) do
-        local row = textLabel("Row_" .. slot, equippedBox, {
-            text = string.format('<font color="%s">%s</font>  \u{2014}', LABEL_HEX, SLOT_LABELS_FR[slot]),
-            color = COL.TextPrimary,
-        })
+        local row = Instance.new("TextButton")
+        row.Name = "Row_" .. slot
+        row.BackgroundTransparency = 1
+        row.AutoButtonColor = false
+        row.Font = StyleConstants.Fonts.Body
+        row.RichText = true
+        row.Text = string.format('<font color="%s">%s</font>  \u{2014}', LABEL_HEX, SLOT_LABELS_FR[slot])
+        row.TextColor3 = COL.TextPrimary
+        row.TextXAlignment = Enum.TextXAlignment.Left
+        row.TextYAlignment = Enum.TextYAlignment.Center
         row.Size = UDim2.new(1, 0, 0, 16)
         row.LayoutOrder = i
+        row.ZIndex = ZS
+        row.Active = false
+        row.Parent = equippedBox
         StyleConstants.applyTypography(row, "Label")
         equippedRows[slot] = row
     end
@@ -440,6 +452,9 @@ function InventoryScreen.mount(rpgGui: ScreenGui, combatEvent: RemoteEvent, deps
     local cardByKey: { [string]: Frame } = {}
     local typedLabels: { { label: TextLabel | TextButton, level: string } } = {}
     local lastRefreshRequestAt = 0
+    -- SUPPRIMER needs a confirming second click (destructive, irreversible).
+    local REMOVE_CONFIRM_SECONDS = 3
+    local removeArmed = false
 
     local function prefs(): UiPrefs
         local ok, p = pcall(deps.getUiPrefs)
@@ -490,6 +505,7 @@ function InventoryScreen.mount(rpgGui: ScreenGui, combatEvent: RemoteEvent, deps
     --== Selection -> right-hand detail panel ==--
     -- Kept the name `updateActionBar` so selectKey / init stay untouched.
     local function updateActionBar()
+        removeArmed = false  -- any selection change / refresh cancels a pending delete
         local item = selectedKey and bagItems[selectedKey]
         if not item then
             detailIconSym.Text = ""
@@ -502,6 +518,7 @@ function InventoryScreen.mount(rpgGui: ScreenGui, combatEvent: RemoteEvent, deps
                 b.Active = false
                 b.TextTransparency = 0.55
             end
+            removeBtn.Text = "SUPPRIMER"  -- drop any leftover "CONFIRMER ?"
             return
         end
         local rar = StyleConstants.rarityInfo(item.rarity)
@@ -528,21 +545,36 @@ function InventoryScreen.mount(rpgGui: ScreenGui, combatEvent: RemoteEvent, deps
             or (item.equippedSlot ~= nil and "ÉQUIPÉ" or "SUPPRIMER")
     end
 
-    --== Equipped summary (paper-doll stand-in) ==--
+    --== Equipped summary (paper-doll stand-in). Filled rows are clickable to unequip. ==--
     local function renderEquipped(equipped: { [string]: Types.ItemInstance }?)
         equipped = equipped or {}
         for _, slot in ipairs(EQUIP_SLOTS) do
             local row = equippedRows[slot]
             if row then
                 local inst = equipped[slot]
+                equippedHasItem[slot] = inst ~= nil
+                row.Active = inst ~= nil
                 if inst then
-                    row.Text = string.format('<font color="%s">%s</font>  <font color="%s">%s</font>',
-                        LABEL_HEX, SLOT_LABELS_FR[slot], hex(StyleConstants.rarityInfo(inst.rarity).color), displayName(inst))
+                    row.Text = string.format(
+                        '<font color="%s">%s</font>  <font color="%s">%s</font>  <font color="%s">\u{00B7} retirer</font>',
+                        LABEL_HEX, SLOT_LABELS_FR[slot],
+                        hex(StyleConstants.rarityInfo(inst.rarity).color), displayName(inst),
+                        LABEL_HEX)
                 else
                     row.Text = string.format('<font color="%s">%s</font>  \u{2014}', LABEL_HEX, SLOT_LABELS_FR[slot])
                 end
             end
         end
+    end
+
+    -- Click a filled ÉQUIPÉ row -> unequip that slot (item returns to the bag).
+    for slot, row in pairs(equippedRows) do
+        row.MouseButton1Click:Connect(function()
+            if not equippedHasItem[slot] then return end
+            combatEvent:FireServer({ type = "unequipItem", slot = slot })
+            combatEvent:FireServer({ type = "requestInventory" })
+            requestRefreshDebounced()
+        end)
     end
 
     local function selectKey(key: string?)
@@ -804,6 +836,19 @@ function InventoryScreen.mount(rpgGui: ScreenGui, combatEvent: RemoteEvent, deps
     end)
     removeBtn.MouseButton1Click:Connect(function()
         if not (selectedKey and removeBtn.Active) then return end
+        if not removeArmed then
+            removeArmed = true
+            removeBtn.Text = "CONFIRMER ?"
+            local armedFor = selectedKey
+            task.delay(REMOVE_CONFIRM_SECONDS, function()
+                if removeArmed and selectedKey == armedFor then
+                    removeArmed = false
+                    updateActionBar()  -- restores the "SUPPRIMER" label
+                end
+            end)
+            return
+        end
+        removeArmed = false
         combatEvent:FireServer({ type = "removeItem", itemKey = selectedKey })
         requestRefreshDebounced()
     end)

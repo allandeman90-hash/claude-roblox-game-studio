@@ -476,7 +476,7 @@ function InventoryService.unequipItem(player: Player, slot: string): (boolean, s
     if not isValidPlayer(player) then
         return false, "invalid_argument"
     end
-    if type(slot) ~= "string" or not EQUIP_SLOT_SET[slot] then
+    if type(slot) ~= "string" or (slot ~= "pet" and not EQUIP_SLOT_SET[slot]) then
         return false, "invalid_argument"
     end
 
@@ -485,11 +485,29 @@ function InventoryService.unequipItem(player: Player, slot: string): (boolean, s
         return false, "no_profile"
     end
 
+    local EquipmentService = getEquipmentService()
+
+    -- Pets live only in EquipmentService's `equipe.pet` (there is no `pet` key in
+    -- PlayerInventory.equipped - see EQUIP_SLOT_SET note). EquipmentService.unequip
+    -- already knows the "pet" slot and re-adds the instance to the bag.
+    if slot == "pet" then
+        local equipped = EquipmentService.getEquipped(player)
+        if not (equipped and equipped.pet) then
+            return true, nil -- no-op: no pet equipped
+        end
+        local ok, err = EquipmentService.unequip(player, "pet")
+        if not ok then
+            return false, err
+        end
+        PlayerDataService.markDirty(player, profile)
+        logAction(player, "unequipped pet")
+        return true, nil
+    end
+
     if inv.equipped[slot] == nil then
         return true, nil -- no-op: nothing equipped
     end
 
-    local EquipmentService = getEquipmentService()
     local ok, err = EquipmentService.unequip(player, slot)
     if not ok then
         return false, err
