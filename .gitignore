@@ -50,6 +50,10 @@ production/session-state/*.md
 # Reference material (not source)
 *.apk
 /Référence/
+/Réference/
+
+# Assets rejetés par la modération Roblox — gardés en local, jamais commités
+assets/images/_rejected-moderation/
 
 # assetgen pipeline — caches and raw renders (final PNGs in assets/images/ ARE committed)
 tools/assetgen/.cache/
