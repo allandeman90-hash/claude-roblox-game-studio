@@ -45,7 +45,6 @@ for _, s in ipairs(EquipmentConfig.SLOTS) do
     SLOT_SET[s] = true
 end
 
-local ROLE_LABELS = { dps = "DPS", tank = "Tank", heal = "Heal" }
 
 local function emptyLoadout()
     return {
@@ -297,11 +296,11 @@ function EquipmentService.getStatBonuses(player)
     return totals
 end
 
--- Etape 4.2 pet effect. Returns nil (no pet) or a PASSIVE effect table:
---   { role, dpsPct? , hpPct? , defFlat? , healPct? }
--- Magnitude = GameConfig.Pets base * zoneScaling^(zone-1) * rarityMult.
--- Consumed by StatsService.recalc (dps / tank) and CombatServer's campfire
--- regen loop (heal). Passive only - never spawns an attacker or a timer.
+-- Etape 4.2 pet effect. Returns nil (no pet) or a PASSIVE effect table
+-- (see GameConfig.Pets.effect): dps -> {dpsPct}, tank -> {hpPct, defFlat},
+-- heal -> {healRole, healTickSec, healPct, campfirePct, cleanse*, revives...}.
+-- Magnitude = base * GameConfig.Pets.effectMul(sourceLevel, petLevel) * rarityMult,
+-- then x0.5 for isStarter pets. Consumed by StatsService.recalc.
 function EquipmentService.getPetEffect(player)
     local t = track[player]
     if not t or not t.equipe.pet then
@@ -359,7 +358,7 @@ function EquipmentService.describeSlot(player, slot)
     local nom = (def and def.nom) or inst.id
     if slot == "pet" then
         local role = def and def.role
-        local roleLabel = ROLE_LABELS[role] or tostring(role)
+        local roleLabel = EquipmentConfig.RoleLabels[role] or tostring(role)
         return string.format("%s · %s · %s", nom, roleLabel, rarityLabel(inst.rarity))
     end
     return string.format("%s · %s", nom, rarityLabel(inst.rarity))

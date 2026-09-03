@@ -323,9 +323,10 @@ GameConfig.Pets = {
     tankHpPctBase = 1.5,    -- % of MaxHP at effLevel 1
     tankDefBase   = 3.0,    -- flat DEF at effLevel 1
 
-    petLevelStep    = 0.02, -- +2% effect per effective pet level
-    petLevelCap     = 40,   -- effectMul hard cap (x)
-    sourceFloorFrac = 0.25, -- a fresh drop starts at 25% of its source-level tier
+    petLevelStep       = 0.02, -- +2% effect per effective pet level
+    petLevelCap        = 40,   -- effectMul hard cap (x)
+    sourceFloorFrac    = 0.25, -- a fresh drop starts at 25% of its source-level tier
+    petLevelCatchUpFrac = 0.15, -- on a hero level-up the pet closes 15% of the level gap
 
     -- HEAL role. healPctByRarity is the % of MaxHP restored per tick at effLevel 1;
     -- it scales by effectMul like the other roles.
@@ -345,7 +346,7 @@ GameConfig.Pets.SCALABLE_KEYS = { dpsPct = true, hpPct = true, defFlat = true, h
 
 local function petEffLevel(sourceLevel, petLevel)
     local floor = math.floor(math.max(1, sourceLevel or 1) * GameConfig.Pets.sourceFloorFrac)
-    return math.max(1, math.max(math.floor(petLevel or 1), floor))
+    return math.max(1, math.floor(petLevel or 1), floor)
 end
 
 function GameConfig.Pets.effectMul(sourceLevel, petLevel)
@@ -360,7 +361,7 @@ end
 --   rarityId    : "commun" ... "mythique" ; rarityMult its power multiplier
 function GameConfig.Pets.effect(role, sourceLevel, petLevel, rarityId, rarityMult)
     local P = GameConfig.Pets
-    local mul = GameConfig.Pets.effectMul(sourceLevel, petLevel)
+    local mul = P.effectMul(sourceLevel, petLevel)
     local rar = rarityMult or 1
     if role == "dps" then
         return { dpsPct = P.dpsPctBase / 100 * mul * rar }
@@ -386,13 +387,14 @@ end
 -- FTUE  (onboarding-gdd.md)
 --========================================================
 -- Short tutorial: move -> first kill (grants the Épée en bois) -> equip it ->
--- "the game is hard" warning -> the starter pet (Fée). Coach-marks never block.
+-- choose one of three eggs -> the starter pet hatches -> "the game is hard"
+-- warning. Coach-marks never block. Starter pet id per role lives in
+-- EquipmentConfig.StarterPetByRole.
 GameConfig.Ftue = {
     schemaVersion               = 1,
     coachMarkAutoDismissSeconds = 8,    -- a coach-mark left alone auto-acks after this
     coachMarkMinDisplaySeconds  = 2,    -- ...but never before this
     suppressMonetizationUntilComplete = true,
-    starterPetId                = "fee",
 }
 
 --========================================================

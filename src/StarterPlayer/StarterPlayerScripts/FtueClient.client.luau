@@ -11,11 +11,12 @@
 -- one RemoteEvent is fine) and its OWN ScreenGui so it never depends on the
 -- hand-built RpgGui tree.
 --
--- Messages in:  { type="ftueState", ftue=... }
---               { type="ftueStep",  stepId="move"|"equip"|"warning" }
---               { type="ftueGift",  petId="fee" }
--- Messages out: { type="ftueAck",   stepId="move"|"warning" }
---               { type="requestInventory" }   (the "equip" step's CTA)
+-- Messages in:  { type="ftueState",  ftue=... }
+--               { type="ftueStep",   stepId="move"|"equip"|"warning" }
+--               { type="ftueGift" }                (weapon equipped -> show egg choice)
+-- Messages out: { type="ftueAck",    stepId="move"|"pet"|"warning" }
+--               { type="ftueChoosePet", role="dps"|"tank"|"heal" }
+--               { type="requestInventory" }        (the "equip" step's CTA)
 --==============================================================
 
 local Players = game:GetService("Players")
@@ -312,7 +313,7 @@ petImg.ZIndex = FTUE_Z + 1
 petImg.Parent = hatchStage
 
 local TS = TweenService
-local petHovering = false
+local hoverTween: Tween? = nil
 local function tw(inst, time, style, dir, goal)
     local t = TS:Create(inst, TweenInfo.new(time, style, dir), goal)
     t:Play()
@@ -386,22 +387,23 @@ local function playEggHatch(role, onDone)
         })
         task.wait(0.35)
         if onDone then onDone() end
-        -- 6. keep hovering under the card until the beat is dismissed
-        petHovering = true
-        task.spawn(function()
-            local up = true
-            while petHovering and petImg.ImageTransparency < 1 do
-                tw(petImg, 0.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut,
-                    { Position = UDim2.fromScale(0.5, up and 0.26 or 0.28) })
-                up = not up
-                task.wait(0.6)
-            end
-        end)
+        -- 6. keep hovering under the card until the beat is dismissed (one
+        --    self-reversing looped tween, not a new Tween every 0.6s)
+        petImg.Position = UDim2.fromScale(0.5, 0.28)
+        hoverTween = TS:Create(
+            petImg,
+            TweenInfo.new(0.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+            { Position = UDim2.fromScale(0.5, 0.26) }
+        )
+        hoverTween:Play()
     end)
 end
 
 local function hideHatchStage()
-    petHovering = false
+    if hoverTween then
+        hoverTween:Cancel()
+        hoverTween = nil
+    end
     hatchStage.Visible = false
     petImg.ImageTransparency = 1
 end

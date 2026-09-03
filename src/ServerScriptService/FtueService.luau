@@ -169,6 +169,17 @@ function FtueService.onEquip(player: Player)
     push(player, { type = "ftueGift" })
 end
 
+-- Grant the starter pet of `role` once. Returns true if the pet is (now) owned.
+local function grantPet(player: Player, ftue: any, role: string): boolean
+    if ftue.petGranted then
+        return true
+    end
+    local InventoryService = require(ServerScriptService:WaitForChild("InventoryService"))
+    local ok = pcall(InventoryService.grantStarterPet, player, role)
+    ftue.petGranted = ok == true
+    return ftue.petGranted
+end
+
 --[[
     C->S: the player picked one of the three FTUE eggs. Grants + equips a
     starter pet of that role. Idempotent, and only valid on the "pet" beat.
@@ -182,9 +193,7 @@ function FtueService.choosePet(player: Player, role: any)
         role = "dps"
     end
     if not ftue.petGranted then
-        local InventoryService = require(ServerScriptService:WaitForChild("InventoryService"))
-        local ok = pcall(InventoryService.grantStarterPet, player, role)
-        ftue.petGranted = ok == true
+        grantPet(player, ftue, role)
         ftue.chosenPetRole = role
         PlayerDataService.markDirty(player, profile)
     end
@@ -197,11 +206,7 @@ function FtueService._complete(player: Player, profile: any, ftue: any)
 
     -- Safety net: if the player somehow reached the end without picking an egg,
     -- grant the default (DPS) starter pet.
-    if not ftue.petGranted then
-        local InventoryService = require(ServerScriptService:WaitForChild("InventoryService"))
-        local ok = pcall(InventoryService.grantStarterPet, player, "dps")
-        ftue.petGranted = ok == true
-    end
+    grantPet(player, ftue, "dps")
 
     ftue.step = "done"
     ftue.completed = true

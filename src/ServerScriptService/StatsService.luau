@@ -100,11 +100,11 @@ function StatsService.recalc(player, st)
     st.playerRes      = bonus.armorRes
     st.playerCritRate = C.critRate(effLuk)
 
-    -- Etape 4.2: equipped pet - PASSIVE only. dps -> +% effective damage,
-    -- tank -> +% MaxHP and +flat DEF, heal -> campfire regen bonus (read by
-    -- CombatServer's campfire loop, not applied here).
+    -- Etape 4.2: equipped pet. dps -> +% effective damage, tank -> +% MaxHP and
+    -- +flat DEF (applied here); heal -> st.petHeal, consumed by CombatServer's
+    -- pet-heal tick loop.
     local pet = EquipmentService.getPetEffect(player)
-    st.campfireRegenBonusPct = 0
+    st.campfireRegenBonusPct = 0   -- reserved: extra campfire trickle, unused for now
     st.petHeal = nil   -- {tickSec, pct, campfirePct, cleanseDebuff, cleanseStun, revives, reviveHpPct}
     if pet then
         if pet.dpsPct then

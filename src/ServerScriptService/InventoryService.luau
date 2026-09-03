@@ -730,10 +730,10 @@ function InventoryService.grantStarterKit(player: Player, autoEquip: boolean?): 
 end
 
 --[[
-    FTUE end-of-tutorial gift: mints the "Fée" starter pet into the bag and
-    equips it (the buff is active immediately; the player re-picks the role at
-    the campfire later). Idempotent: no-op if the player already owns a "fee".
-    Called by FtueService when the tutorial completes.
+    FTUE egg pick: mints the starter pet for `role` (dps/tank/heal ->
+    EquipmentConfig.StarterPetByRole) into the bag and equips it, so the buff is
+    active immediately. Idempotent: no-op if the player already owns any starter
+    pet. Called by FtueService.choosePet (and its end-of-tutorial safety net).
 ]]
 function InventoryService.grantStarterPet(player: Player, role: string?): (boolean, string?)
     if not isValidPlayer(player) then
@@ -749,7 +749,8 @@ function InventoryService.grantStarterPet(player: Player, role: string?): (boole
 
     -- Idempotent: bail if the player already owns ANY starter pet (bag or equipped).
     for _, item in pairs(inv.items) do
-        if item.id == "fee" or item.id == "golem" or item.id == "lutin" then
+        local def, category = EquipmentConfig.getItem(item.id)
+        if category == "pet" and def and def.isStarter then
             return true, nil
         end
     end

@@ -8,7 +8,6 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
-local GuiService = game:GetService("GuiService")
 
 -- Zone system data (decor palette + enemy roster per zone).
 local ZoneConfig = require(ReplicatedStorage:WaitForChild("ZoneConfig"))
@@ -62,54 +61,35 @@ local background  = gui:FindFirstChild("Background")
 local combatZone  = background:FindFirstChild("CombatZone")
 local bottomPanel = background:FindFirstChild("BottomPanel")
 
+-- Legacy template nodes kept only so old wiring / step-4 node purge can still
+-- find them; the visible HUD is the artifact* cards built in the `do` block.
 local playerHpBar  = combatZone:FindFirstChild("PlayerHpBar")
-local playerHpFill = playerHpBar:FindFirstChild("HpFill")
-local playerHpText = playerHpBar:FindFirstChild("HpText")
-
 local enemyHpPanel = combatZone:FindFirstChild("EnemyHpPanel")
--- EnemyName now lives directly under CombatZone (above the [ENNEMI] visual).
-local enemyName     = combatZone:FindFirstChild("EnemyName")
-local enemyHpBar    = enemyHpPanel:FindFirstChild("EnemyHpBar")
-local enemyHpFill   = enemyHpBar:FindFirstChild("HpFill")
-local enemyHpText   = enemyHpPanel:FindFirstChild("EnemyHpText")
-
--- The floating combat HP bars are now sprite-sized; the numeric readout would
--- overflow, and current HP reads better from the bar fill during a fight.
-if playerHpText then playerHpText.Visible = false end
-if enemyHpText then enemyHpText.Visible = false end
+local enemyName    = combatZone:FindFirstChild("EnemyName")
 if playerHpBar then playerHpBar.Visible = false end
+-- Hide the template's numeric HP labels: they overflow the sprite-sized ground
+-- bars, and the new HUD shows current HP via the PV band instead.
+local enemyHpText = enemyHpPanel and enemyHpPanel:FindFirstChild("EnemyHpText")
+if enemyHpText then enemyHpText.Visible = false end
 
 local heroPanel   = bottomPanel:FindFirstChild("HeroPanel")
 local heroInfoBox = heroPanel:FindFirstChild("HeroInfoBox")
-local heroLevel   = heroInfoBox:FindFirstChild("HeroLevel")
 local heroWeapon  = heroInfoBox:FindFirstChild("HeroWeapon")
 local heroArmor   = heroInfoBox:FindFirstChild("HeroArmor")
 local heroPet     = heroInfoBox:FindFirstChild("HeroPet")
-local heroTimeBox = heroPanel:FindFirstChild("HeroTimeBox")
-local distValue   = heroTimeBox:FindFirstChild("DistValue")
 
 local menuPanel    = bottomPanel:FindFirstChild("MenuPanel")
 local rebirthButton = menuPanel and menuPanel:FindFirstChild("RebirthButton")
 
 local centerPanel  = bottomPanel:FindFirstChild("CenterPanel")
-local goldBox      = centerPanel:FindFirstChild("GoldBox")
-local goldText     = goldBox:FindFirstChild("GoldText")
-local enemyInfoBox = centerPanel:FindFirstChild("EnemyInfoBox")
-local infoName     = enemyInfoBox:FindFirstChild("InfoName")
-local infoLevel    = enemyInfoBox:FindFirstChild("InfoLevel")
-local infoMaxHp    = enemyInfoBox:FindFirstChild("InfoMaxHp")
-local infoExp      = enemyInfoBox:FindFirstChild("InfoExp")
--- Stale template label (never updated by code); the enemy has no meaningful SPD.
-local infoSpd      = enemyInfoBox:FindFirstChild("InfoSpd")
-if infoSpd then infoSpd.Visible = false end
 
 --===== "La Descente" landscape shell =====
-local artifactTopDeaths, artifactTopCenter, artifactTopEnemy
+local artifactTopCenter, artifactTopEnemy
 local artifactHeroHpText, artifactHeroHpFill
 local artifactHeroXpText, artifactHeroXpFill
 local artifactEnemyHpLabel, artifactEnemyHpText, artifactEnemyHpFill
 local artifactHeroLevelCard, artifactHeroWeaponCard, artifactHeroArmorCard, artifactHeroPetCard, artifactHeroStatsCard, artifactHeroGoldCard
-local artifactEnemyNameCard, artifactEnemyPvCard, artifactEnemyGoldCard, artifactEnemyAtkCard
+local artifactEnemyNameCard, artifactEnemyPvCard, artifactEnemyAtkCard
 local artifactProgressText, artifactProgressFill
 local artifactMenuButton
 local artifactTalentsButton
@@ -769,6 +749,7 @@ local petLungeUntil = 0
 local heroAttackUntil, enemyAttackUntil = 0, 0
 local activeEnemySlot = nil     -- the slot Frame of the enemy currently being fought
 local activeEnemyBaseX = 0      -- its resting X (RenderStepped adds a hit-flinch offset)
+local enemyFlinchDirty = false  -- true while the flinch offset is non-zero (so we reset once)
 local heroWalkAmt = 0           -- 0..1 smoothed "is the hero walking" (drives bob/lean)
 local petRole = nil   -- "dps"|"tank"|"heal"|nil ; mirrors data.petRole for the RenderStepped follow
 
@@ -910,10 +891,11 @@ local function updateScene(data)
         local tag = slot and ensureNameTag(slot)
         if slot and enc then
             local frac = enc.rel or ENC_FRAC[i] or (i == 1 and 0.5 or 0.95)
+            local sx = stepXtoScreen(frac)
             slot.Visible = not enc.cleared
-            slot.Position = UDim2.new(stepXtoScreen(frac), 0, SCENE_Y, 0)
+            slot.Position = UDim2.new(sx, 0, SCENE_Y, 0)
             if enc.active then
-                activeFrac = frac ; activeEnemySlot = slot ; activeEnemyBaseX = stepXtoScreen(frac)
+                activeFrac = frac ; activeEnemySlot = slot ; activeEnemyBaseX = sx
             else
                 slot.Rotation = 0
             end
@@ -1197,6 +1179,11 @@ local function formatNumber(n)
     else return tostring(n) end
 end
 
+-- grey field label + light value on one RichText line (hero cards)
+local function fld(label, value)
+    return string.format('<font color="#78787d">%s</font>  %s', label, value)
+end
+
 --===== UI update from server data =====
 local function updateUI(data)
     -- Player HP: the visible bar is artifactHeroHpFill in DescenteLeft.
@@ -1221,10 +1208,7 @@ local function updateUI(data)
     if artifactEnemyHpText then artifactEnemyHpText.Text = string.format("%d/%d", data.enemyHp, data.enemyMaxHp) end
     if artifactEnemyHpFill then artifactEnemyHpFill.Size = UDim2.new(enemyRatio, 0, 1, 0) end
 
-    -- Hero cards (DescenteLeft): grey field label + light value, one line each.
-    local function fld(label, value)
-        return string.format('<font color="#78787d">%s</font>  %s', label, value)
-    end
+    -- Hero cards (DescenteLeft): grey field label + light value, one line each (see fld).
     local rbTag = (data.rebirths and data.rebirths > 0) and string.format("  \u{00B7}  R%d", data.rebirths) or ""
     if artifactHeroLevelCard then
         artifactHeroLevelCard.Text = fld("LV", tostring(data.playerLevel or 1) .. rbTag)
@@ -1912,6 +1896,7 @@ end
 pinBackdrop(farLayer) ; pinBackdrop(midLayer) ; pinBackdrop(nearLayer)
 
 RunService.RenderStepped:Connect(function()
+    local now = tick()
     local faceSign = (sceneFacing == "left") and -1 or 1   -- +1 = enemy is to the hero's right
     -- Hero slides toward its target x; the walk bob/lean is driven by ACTUAL
     -- translation (not the server's isMoving), so it stops the instant he
@@ -1924,9 +1909,9 @@ RunService.RenderStepped:Connect(function()
         -- walk amount eases in/out so the bob never snaps on/off (no twitch)
         local target = (not activeEnemySlot) and math.abs(gap) > 0.003 and 1 or 0
         heroWalkAmt = heroWalkAmt + (target - heroWalkAmt) * 0.15
-        local bob = heroWalkAmt * math.sin(tick() * 11) * 0.008
+        local bob = heroWalkAmt * math.sin(now * 11) * 0.008
         -- Attack = a weapon SWING: lean in + squash/stretch, no forward charge.
-        local attackT = math.max(0, heroAttackUntil - tick())
+        local attackT = math.max(0, heroAttackUntil - now)
         local swing = 0
         if attackT > 0 then
             local arc = math.sin((0.24 - attackT) / 0.24 * math.pi)
@@ -1948,17 +1933,24 @@ RunService.RenderStepped:Connect(function()
     -- Enemy hit-flinch: the struck enemy recoils away from the hero + a quick
     -- rock, then settles. This carries the "impact" so the hero doesn't have to.
     if activeEnemySlot then
-        local hitT = math.max(0, heroAttackUntil - tick())
-        local arc = hitT > 0 and math.sin((0.24 - hitT) / 0.24 * math.pi) or 0
-        activeEnemySlot.Position = UDim2.new(activeEnemyBaseX + faceSign * arc * 0.018, 0, SCENE_Y, 0)
-        activeEnemySlot.Rotation = -faceSign * arc * 7
+        local hitT = math.max(0, heroAttackUntil - now)
+        if hitT > 0 then
+            local arc = math.sin((0.24 - hitT) / 0.24 * math.pi)
+            activeEnemySlot.Position = UDim2.new(activeEnemyBaseX + faceSign * arc * 0.018, 0, SCENE_Y, 0)
+            activeEnemySlot.Rotation = -faceSign * arc * 7
+            enemyFlinchDirty = true
+        elseif enemyFlinchDirty then
+            activeEnemySlot.Position = UDim2.new(activeEnemyBaseX, 0, SCENE_Y, 0)
+            activeEnemySlot.Rotation = 0
+            enemyFlinchDirty = false
+        end
     end
 
     -- Enemy HP bar rides on the ground under the enemy being fought.
     if enemyHpPanel and enemyHpPanel.Visible then
         enemyHpPanel.AnchorPoint = Vector2.new(0.5, 0)
         enemyHpPanel.Size = UDim2.new(HPBAR_W, 0, HPBAR_H, 0)
-        local attackT = math.max(0, enemyAttackUntil - tick())
+        local attackT = math.max(0, enemyAttackUntil - now)
         local attackOffset = attackT > 0 and math.sin((0.24 - attackT) / 0.24 * math.pi) * 0.045 or 0
         enemyHpPanel.Position = UDim2.new(enemyHpTargetX - faceSign * attackOffset, 0, GROUND_Y + 0.02, 0)
     end
@@ -1967,7 +1959,7 @@ RunService.RenderStepped:Connect(function()
     if lowHpVignette then
         if lowHpActive then
             lowHpVignette.Visible = true
-            lowHpVignette.BackgroundTransparency = 0.58 + math.abs(math.sin(tick() * 7)) * 0.30
+            lowHpVignette.BackgroundTransparency = 0.58 + math.abs(math.sin(now * 7)) * 0.30
         elseif lowHpVignette.Visible then
             lowHpVignette.Visible = false
         end
@@ -1978,8 +1970,8 @@ RunService.RenderStepped:Connect(function()
     if petSprite and petSprite.Visible and heroSlot then
         local hx = heroSlot.Position.X.Scale
         local sideSign = (petRole == "tank") and 1 or -1        -- +1 = front (toward enemy), -1 = behind
-        local lunge = (tick() < petLungeUntil) and 0.05 or 0
-        local bob = isMovingState and (math.sin(tick() * 13) * 0.010) or 0
+        local lunge = (now < petLungeUntil) and 0.05 or 0
+        local bob = isMovingState and (math.sin(now * 13) * 0.010) or 0
         -- hero<->pet separation halved (0.09 -> 0.045) so the fairy hugs the hero.
         local px = math.clamp(hx + faceSign * (sideSign * 0.045 + lunge), 0.04, 0.92)
         -- the fairy hovers a little above the ground line the hero stands on

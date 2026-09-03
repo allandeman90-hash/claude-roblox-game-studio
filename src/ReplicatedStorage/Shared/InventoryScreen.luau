@@ -113,7 +113,7 @@ local function itemStatLines(item: Types.ItemInstance): { string }
     local out = {}
     if item.itemType == "pet" then
         local def = EquipmentConfig.getItem(item.id)
-        local roleFr = ({ dps = "DPS", tank = "Tank", heal = "Soin" })[def and def.role or ""] or "?"
+        local roleFr = EquipmentConfig.RoleLabels[def and def.role or ""] or "?"
         out[#out + 1] = "Rôle       " .. roleFr
         out[#out + 1] = "Niveau     " .. tostring(item.petLevel or 1)
         out[#out + 1] = "Palier     " .. tostring(item.sourceLevel or 1) .. "  (source)"
@@ -154,6 +154,7 @@ function InventoryScreen.mount(rpgGui: ScreenGui, combatEvent: RemoteEvent, deps
 
     --== Root window (two-panel: item grid | selected-item detail) ==============
     local COL = StyleConstants.BaseColors
+    local LABEL_HEX = "#7a7a7e" -- dim grey for RichText <font> field labels
     local root = Instance.new("Frame")
     root.Name = "InventoryScreen"
     root.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -406,7 +407,7 @@ function InventoryScreen.mount(rpgGui: ScreenGui, combatEvent: RemoteEvent, deps
     local equippedRows: { [string]: TextLabel } = {}
     for i, slot in ipairs(EQUIP_SLOTS) do
         local row = textLabel("Row_" .. slot, equippedBox, {
-            text = string.format('<font color="#7a7a7e">%s</font>  \u{2014}', SLOT_LABELS_FR[slot]),
+            text = string.format('<font color="%s">%s</font>  \u{2014}', LABEL_HEX, SLOT_LABELS_FR[slot]),
             color = COL.TextPrimary,
         })
         row.Size = UDim2.new(1, 0, 0, 16)
@@ -460,7 +461,6 @@ function InventoryScreen.mount(rpgGui: ScreenGui, combatEvent: RemoteEvent, deps
     }) do
         trackLabel(entry[1], entry[2])
     end
-    local equippedState: { [string]: Types.ItemInstance } = {}
     local sortMode = "rarity"
 
     local function requestRefreshDebounced()
@@ -532,10 +532,10 @@ function InventoryScreen.mount(rpgGui: ScreenGui, combatEvent: RemoteEvent, deps
             if row then
                 local inst = equipped[slot]
                 if inst then
-                    row.Text = string.format('<font color="#7a7a7e">%s</font>  <font color="%s">%s</font>',
-                        SLOT_LABELS_FR[slot], hex(StyleConstants.rarityInfo(inst.rarity).color), displayName(inst))
+                    row.Text = string.format('<font color="%s">%s</font>  <font color="%s">%s</font>',
+                        LABEL_HEX, SLOT_LABELS_FR[slot], hex(StyleConstants.rarityInfo(inst.rarity).color), displayName(inst))
                 else
-                    row.Text = string.format('<font color="#7a7a7e">%s</font>  \u{2014}', SLOT_LABELS_FR[slot])
+                    row.Text = string.format('<font color="%s">%s</font>  \u{2014}', LABEL_HEX, SLOT_LABELS_FR[slot])
                 end
             end
         end
@@ -872,8 +872,7 @@ function InventoryScreen.mount(rpgGui: ScreenGui, combatEvent: RemoteEvent, deps
     end
 
     local function setEquipped(equipped: { [string]: Types.ItemInstance }?)
-        equippedState = equipped or {}
-        renderEquipped(equippedState)
+        renderEquipped(equipped)
     end
 
     local function setFilters(filters: { rareteMin: string?, guerrier: boolean?, mage: boolean? })
@@ -931,7 +930,7 @@ function InventoryScreen.mount(rpgGui: ScreenGui, combatEvent: RemoteEvent, deps
 
     updateColumns()
     updateActionBar() -- initialize the detail panel to its "nothing selected" state
-    renderEquipped(equippedState)
+    renderEquipped(nil)
 
     return {
         open = open,

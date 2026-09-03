@@ -443,8 +443,10 @@ function resolvePlayerHit(player, st)
             if petInst then
                 local cur = petInst.petLevel or 1
                 if cur < st.playerLevel then
-                    local catchUp = math.max(levelsGained, math.floor((st.playerLevel - cur) * 0.15))
+                    local gapClose = math.floor((st.playerLevel - cur) * GameConfig.Pets.petLevelCatchUpFrac)
+                    local catchUp = math.max(levelsGained, gapClose)
                     petInst.petLevel = math.min(st.playerLevel, cur + catchUp)
+                    markProfileDirty(player, st)
                 end
             end
         end)
@@ -609,6 +611,38 @@ local function startCombat(player)
         end
     end)
 
+    -- Heal-pet tick (etape 4.2 revised). Fires every st.petHeal.tickSec and restores
+    -- a % of MaxHP - in combat AND exploration. At a campfire the tick also adds
+    -- st.petHeal.campfirePct. Cleanse hooks fire here too (the debuff / stun system
+    -- does not exist yet - the calls are no-ops until it lands). Runs on the
+    -- enemy-attack loop's tick so it does not need a coroutine of its own.
+    local function tickHealPet(st)
+        local ph = st.petHeal
+        if not (ph and not st.gameOver and (st.playerHp or 0) > 0) then
+            st.petHealCharge = 0
+            return
+        end
+        st.petHealCharge = (st.petHealCharge or 0) + MOB_TICK
+        if st.petHealCharge < ph.tickSec then
+            return
+        end
+        st.petHealCharge = st.petHealCharge - ph.tickSec
+        local resting = st.atCampfire ~= nil and st.moveDir == nil and not st.combatActive
+        local pct = ph.pct + (resting and ph.campfirePct or 0)
+        if st.playerHp < st.playerMaxHp and pct > 0 then
+            local before = st.playerHp
+            st.playerHp = math.min(st.playerMaxHp, st.playerHp + st.playerMaxHp * pct)
+            local healed = math.floor(st.playerHp - before + 0.5)
+            if healed > 0 then
+                sendDamage(player, "heal", healed, false)
+            end
+        end
+        -- cleanse hooks (debuff / stun system TBD)
+        if ph.cleanseDebuff and st.clearOneDebuff then st.clearOneDebuff(st) end
+        if ph.cleanseStun and st.clearStun then st.clearStun(st) end
+        sendUpdate(player, st)
+    end
+
     -- Enemy attack loop. Charge-based + reset by startEncounter, so its first swing
     -- lands ENEMY_INTERVAL after the fight begins (never before the hero's opener).
     task.spawn(function()
@@ -616,6 +650,7 @@ local function startCombat(player)
             task.wait(MOB_TICK)
             local st = states[player]
             if not st then break end
+            tickHealPet(st)
             if not (st.combatActive and st.enemyHp > 0 and st.playerHp > 0) then
                 st.enemyCharge = 0
             else
@@ -650,41 +685,6 @@ local function startCombat(player)
                         sendUpdate(player, st)
                     end
                 end
-            end
-        end
-    end)
-
-    -- Heal-pet tick loop (etape 4.2 revised). Fires every st.petHeal.tickSec and
-    -- restores a % of MaxHP - in combat AND exploration. At a campfire the tick
-    -- also adds st.petHeal.campfirePct. Cleanse hooks fire here too (the debuff /
-    -- stun system does not exist yet - the calls are no-ops until it lands).
-    task.spawn(function()
-        while states[player] do
-            task.wait(MOB_TICK)
-            local st = states[player]
-            if not st then break end
-            local ph = st.petHeal
-            if ph and not st.gameOver and (st.playerHp or 0) > 0 then
-                st.petHealCharge = (st.petHealCharge or 0) + MOB_TICK
-                if st.petHealCharge >= ph.tickSec then
-                    st.petHealCharge = st.petHealCharge - ph.tickSec
-                    local resting = st.atCampfire ~= nil and st.moveDir == nil and not st.combatActive
-                    local pct = ph.pct + (resting and ph.campfirePct or 0)
-                    if st.playerHp < st.playerMaxHp and pct > 0 then
-                        local before = st.playerHp
-                        st.playerHp = math.min(st.playerMaxHp, st.playerHp + st.playerMaxHp * pct)
-                        local healed = math.floor(st.playerHp - before + 0.5)
-                        if healed > 0 then
-                            sendDamage(player, "heal", healed, false)
-                        end
-                    end
-                    -- cleanse hooks (debuff / stun system TBD)
-                    if ph.cleanseDebuff and st.clearOneDebuff then st.clearOneDebuff(st) end
-                    if ph.cleanseStun and st.clearStun then st.clearStun(st) end
-                    sendUpdate(player, st)
-                end
-            else
-                st.petHealCharge = 0
             end
         end
     end)

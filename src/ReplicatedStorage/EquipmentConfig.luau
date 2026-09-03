@@ -314,6 +314,9 @@ end
 -- FTUE egg -> starter pet id, by chosen role.
 EquipmentConfig.StarterPetByRole = { dps = "fee", tank = "golem", heal = "lutin" }
 
+-- Player-facing role names (single source for HUD + inventory + equip summary).
+EquipmentConfig.RoleLabels = { dps = "DPS", tank = "Tank", heal = "Soin" }
+
 --===== Unified lookup =====
 -- Returns (definition, category) where category is "weapon" | "armor" | "pet".
 function EquipmentConfig.getItem(id)
