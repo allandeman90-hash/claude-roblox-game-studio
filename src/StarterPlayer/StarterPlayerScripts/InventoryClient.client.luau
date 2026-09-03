@@ -217,14 +217,35 @@ local function closeLegacyOverlays()
     end
 end
 
+local function openInventory()
+    if inventoryScreen.isOpen() then return end
+    if accessibilityScreen then accessibilityScreen.close() end
+    closeLegacyOverlays()
+    inventoryScreen.open()
+end
+
 invHudBtn.MouseButton1Click:Connect(function()
     if inventoryScreen.isOpen() then
         inventoryScreen.close()
         return
     end
-    if accessibilityScreen then accessibilityScreen.close() end
-    closeLegacyOverlays()
-    inventoryScreen.open()
+    openInventory()
+end)
+
+-- Client-side UI bus: other local scripts (e.g. FtueClient's "ouvre ton
+-- inventaire" coach-mark) ask us to open the bag without knowing our internals.
+local uiBus = ReplicatedStorage:FindFirstChild("UiBus")
+if not uiBus then
+    uiBus = Instance.new("BindableEvent")
+    uiBus.Name = "UiBus"
+    uiBus.Parent = ReplicatedStorage
+end
+uiBus.Event:Connect(function(cmd)
+    if cmd == "openInventory" then
+        openInventory()
+    elseif cmd == "closeInventory" then
+        if inventoryScreen.isOpen() then inventoryScreen.close() end
+    end
 end)
 
 --===== Tab key toggles the inventory screen (deliverable: "Tab key") =====
@@ -254,6 +275,9 @@ combatEvent.OnClientEvent:Connect(function(data)
             bagItems = data.items
             bagCapacity = data.capacity or bagCapacity
             inventoryScreen.setInventoryData(bagItems, bagCapacity)
+        end
+        if type(data.equipped) == "table" then
+            inventoryScreen.setEquipped(data.equipped)
         end
         if type(data.filters) == "table" then
             inventoryScreen.setFilters(data.filters)

@@ -62,14 +62,16 @@ StyleConstants.BaseColors = {
     Background    = Color3.fromRGB(14, 15, 19),
     Panel         = Color3.fromRGB(18, 19, 24),
     Slot          = Color3.fromRGB(21, 22, 27),
-    SlotBorder    = Color3.fromRGB(198, 196, 188),
-    Border        = Color3.fromRGB(198, 196, 188),
-    BorderDark    = Color3.fromRGB(88, 88, 92),
+    -- Thin dim borders (the old near-white 2px strokes read as a glow).
+    SlotBorder    = Color3.fromRGB(96, 96, 101),
+    Border        = Color3.fromRGB(96, 96, 101),
+    BorderDark    = Color3.fromRGB(70, 70, 74),
     TextPrimary   = Color3.fromRGB(248, 246, 238),
     TextSecondary = Color3.fromRGB(162, 154, 132),
     Positive      = Color3.fromRGB(83, 190, 96),
     Alert         = Color3.fromRGB(224, 78, 70),
-    Accent        = Color3.fromRGB(255, 220, 70),
+    -- Muted amber. The old (255,220,70) bloomed optically on the near-black HUD.
+    Accent        = Color3.fromRGB(201, 168, 120),
 }
 
 -- Rarity id (EquipmentConfig.Rarities id, French: commun/rare/epique/
@@ -150,8 +152,9 @@ StyleConstants.ModalTweenSeconds = GameConfig.Ui.modalTweenSeconds
 --========================================================
 function StyleConstants.addStroke(parent: GuiObject, thickness: number?, color: Color3?): UIStroke
     local s = Instance.new("UIStroke")
-    s.Thickness = thickness or 2
+    s.Thickness = thickness or 1
     s.Color = color or StyleConstants.BaseColors.Border
+    s.Transparency = 0.15
     s.Parent = parent
     return s
 end
@@ -196,8 +199,8 @@ local BUTTON_VARIANTS: { [string]: { fill: Color3, highlight: Color3, shadow: Co
         fill      = Color3.fromRGB(11, 12, 16),
         highlight = Color3.fromRGB(11, 12, 16),
         shadow    = Color3.fromRGB(11, 12, 16),
-        border    = Color3.fromRGB(255, 220, 70),
-        text      = Color3.fromRGB(255, 220, 70),
+        border    = Color3.fromRGB(201, 168, 120),
+        text      = Color3.fromRGB(201, 168, 120),
     },
 }
 StyleConstants.ButtonVariants = BUTTON_VARIANTS
@@ -214,7 +217,7 @@ function StyleConstants.makeButton(text: string, level: string?, variant: string
     btn.TextColor3 = palette.text
 
     StyleConstants.addCorner(btn, 0)
-    local stroke = StyleConstants.addStroke(btn, 2, palette.border)
+    local stroke = StyleConstants.addStroke(btn, 1, palette.border)
     stroke.LineJoinMode = Enum.LineJoinMode.Miter
 
     StyleConstants.applyTypography(btn, level or "Body")

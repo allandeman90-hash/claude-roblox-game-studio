@@ -208,6 +208,8 @@ function LootService.rollPetDrop(player, context)
         rarete = rarete,
         zone   = dropZone,
         isBoss = isBoss,
+        -- level-based scaling: the enemy level this pet dropped from
+        sourceLevel = math.max(1, math.floor((context and context.enemyLevel) or 1)),
     }
 end
 

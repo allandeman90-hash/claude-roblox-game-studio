@@ -52,9 +52,9 @@ end
 -- Values unchanged from GAME_SPEC.md 6.3 / 4.3. LootService reads these.
 EquipmentConfig.DropRates = {
     normalGear    = 0.05,    -- equipment drop chance on a normal kill
-    normalPet     = 0.015,   -- pet drop chance on a normal kill
-    bossPet       = 0.15,    -- pet drop chance on a couche boss
-    bigBossPet    = 0.50,    -- pet drop chance on a big boss (an event)
+    normalPet     = 0.01,    -- pet drop chance on a normal kill (1%)
+    bossPet       = 0.001,   -- pet drop chance on a couche boss (0.1% - bosses drop guaranteed gear)
+    bigBossPet    = 0.02,    -- pet drop chance on a big boss (an event, 2%)
     -- rarity draw weights; bosses use the SAME table (no upward bias, GAME_SPEC 6.3).
     rarityWeights = { commun = 60, rare = 25, epique = 10, legendaire = 4, mythique = 1 },
 }
@@ -304,10 +304,15 @@ do
     for _, p in ipairs(PET_DEFS) do
         EquipmentConfig.Pets[p.id] = { nom = p.nom, role = p.role }
     end
-    -- FTUE creation gift: the same generic pet for every new player. DPS role,
-    -- half the power of a looted zone-1 pet (isStarter -> StarterPetPowerMult).
-    EquipmentConfig.Pets.fee = { nom = "Fée", role = "dps", isStarter = true }
+    -- FTUE creation gift: the player picks ONE of three eggs at the end of the
+    -- tutorial. All half the power of a looted zone-1 pet (isStarter -> mult).
+    EquipmentConfig.Pets.fee     = { nom = "Fée",       role = "dps",  isStarter = true }
+    EquipmentConfig.Pets.golem   = { nom = "Golem",     role = "tank", isStarter = true }
+    EquipmentConfig.Pets.lutin   = { nom = "Lutin",     role = "heal", isStarter = true }
 end
+
+-- FTUE egg -> starter pet id, by chosen role.
+EquipmentConfig.StarterPetByRole = { dps = "fee", tank = "golem", heal = "lutin" }
 
 --===== Unified lookup =====
 -- Returns (definition, category) where category is "weapon" | "armor" | "pet".

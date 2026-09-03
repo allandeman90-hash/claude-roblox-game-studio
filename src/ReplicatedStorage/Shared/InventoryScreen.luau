@@ -59,6 +59,7 @@ export type InventoryScreenApi = {
     toggle: () -> (),
     isOpen: () -> boolean,
     setInventoryData: (items: { [string]: Types.ItemInstance }, capacity: number) -> (),
+    setEquipped: (equipped: { [string]: Types.ItemInstance }?) -> (),
     setFilters: (filters: { rareteMin: string?, guerrier: boolean?, mage: boolean? }) -> (),
     applyUiPrefs: (prefs: UiPrefs) -> (),
     destroy: () -> (),
@@ -101,66 +102,143 @@ local function displayName(item: Types.ItemInstance): string
     return item.id
 end
 
+local SLOT_LABELS_FR: { [string]: string } = {
+    arme = "Arme", casque = "Casque", plastron = "Plastron",
+    jambieres = "Jambières", bottes = "Bottes", gants = "Gants", pet = "Familier",
+}
+local EQUIP_SLOTS = { "arme", "casque", "plastron", "jambieres", "bottes", "gants", "pet" }
+
+-- Human-readable stat lines for the detail panel (adapts to what an item carries).
+local function itemStatLines(item: Types.ItemInstance): { string }
+    local out = {}
+    if item.itemType == "pet" then
+        local def = EquipmentConfig.getItem(item.id)
+        local roleFr = ({ dps = "DPS", tank = "Tank", heal = "Soin" })[def and def.role or ""] or "?"
+        out[#out + 1] = "Rôle       " .. roleFr
+        out[#out + 1] = "Niveau     " .. tostring(item.petLevel or 1)
+        out[#out + 1] = "Palier     " .. tostring(item.sourceLevel or 1) .. "  (source)"
+        return out
+    end
+    local bs = item.baseStats or {}
+    local function pct(v) return string.format("%d%%", math.floor((v or 0) * 100 + 0.5)) end
+    if bs.weaponPct then out[#out + 1] = "Attaque   +" .. pct(bs.weaponPct) end
+    if bs.def then out[#out + 1] = "Défense   +" .. tostring(math.floor(bs.def + 0.5)) end
+    if bs.res then out[#out + 1] = "Résist.   +" .. tostring(math.floor(bs.res + 0.5)) end
+    if bs.hp then out[#out + 1] = "PV        +" .. tostring(math.floor(bs.hp + 0.5)) end
+    if (item.forgeLevel or 0) > 0 then out[#out + 1] = "Forge     +" .. tostring(item.forgeLevel) end
+    out[#out + 1] = "Couche    " .. tostring(item.droppedAtKm or 1)
+    if item.voie then
+        out[#out + 1] = "Voie      " .. (item.voie == "mage" and "Mage" or "Guerrier")
+    end
+    return out
+end
+
+local function itemDescription(item: Types.ItemInstance): string
+    local def = EquipmentConfig.getItem(item.id)
+    if def and type(def.description) == "string" then return def.description end
+    local rar = StyleConstants.rarityInfo(item.rarity)
+    local kind = SLOT_LABELS_FR[EquipmentConfig.getItem(item.id) and EquipmentConfig.getItem(item.id).slot or ""] or "Objet"
+    return string.format("%s de rareté %s, trouvé Couche %d.", kind, string.lower(rar.label), item.droppedAtKm or 1)
+end
+
 function InventoryScreen.mount(rpgGui: ScreenGui, combatEvent: RemoteEvent, deps: InventoryScreenDeps): InventoryScreenApi
     local ZS = StyleConstants.ScreenZ.Inventory
     local background = rpgGui:FindFirstChild("Background") :: Instance?
     local parent: Instance = (background and background :: Instance) or (rpgGui :: Instance)
 
-    --== Root window (matches the existing EquipOverlay/ShopOverlay/ChateauOverlay convention) ==--
+    --== Root window (two-panel: item grid | selected-item detail) ==============
+    local COL = StyleConstants.BaseColors
     local root = Instance.new("Frame")
     root.Name = "InventoryScreen"
-    root.Position = UDim2.fromScale(0.05, 0.05)
-    root.Size = UDim2.fromScale(0.9, 0.9)
-    root.BackgroundColor3 = StyleConstants.BaseColors.Background
+    root.AnchorPoint = Vector2.new(0.5, 0.5)
+    root.Position = UDim2.fromScale(0.5, 0.5)
+    root.Size = UDim2.fromScale(0.88, 0.86)
+    root.BackgroundColor3 = COL.Background
     root.BorderSizePixel = 0
     root.ZIndex = ZS
     root.Visible = false
     root.Parent = parent
-    -- Strong outer frame matching the La Descente HUD style.
-    StyleConstants.addStroke(root, 6)
+    StyleConstants.addStroke(root, 1, COL.Border)
+    do
+        local pad = Instance.new("UIPadding")
+        pad.PaddingTop = UDim.new(0, 12) ; pad.PaddingBottom = UDim.new(0, 12)
+        pad.PaddingLeft = UDim.new(0, 14) ; pad.PaddingRight = UDim.new(0, 14)
+        pad.Parent = root
+    end
 
-    local title = Instance.new("TextLabel")
-    title.Name = "Title"
-    title.BackgroundTransparency = 1
-    title.Position = UDim2.new(0, 12, 0, 6)
-    title.Size = UDim2.new(1, -60, 0, 34)
+    -- small local builders in the current flat palette --------------------------
+    local function panel(name, parentFrame)
+        local f = Instance.new("Frame")
+        f.Name = name
+        f.BackgroundColor3 = COL.Panel
+        f.BorderSizePixel = 0
+        f.ZIndex = ZS
+        f.Parent = parentFrame
+        StyleConstants.addStroke(f, 1, COL.Border)
+        return f
+    end
+    local function textLabel(name, parentFrame, opts)
+        opts = opts or {}
+        local l = Instance.new("TextLabel")
+        l.Name = name
+        l.BackgroundTransparency = 1
+        l.Font = StyleConstants.Fonts.Body
+        l.RichText = true
+        l.Text = opts.text or ""
+        l.TextColor3 = opts.color or COL.TextPrimary
+        l.TextXAlignment = opts.align or Enum.TextXAlignment.Left
+        l.TextYAlignment = opts.yalign or Enum.TextYAlignment.Center
+        l.TextWrapped = opts.wrap or false
+        l.TextTruncate = opts.truncate or Enum.TextTruncate.None
+        l.ZIndex = ZS
+        l.Parent = parentFrame
+        return l
+    end
+
+    --== Header ==--
+    local title = textLabel("Title", root, { text = "INVENTAIRE", color = COL.Accent })
     title.Font = StyleConstants.Fonts.Heading
-    title.Text = "INVENTAIRE"
-    title.TextColor3 = StyleConstants.BaseColors.Accent
-    title.TextXAlignment = Enum.TextXAlignment.Left
-    title.ZIndex = ZS
-    title.Parent = root
+    title.Position = UDim2.new(0, 0, 0, 0)
+    title.Size = UDim2.new(1, -50, 0, 26)
     StyleConstants.applyTypography(title, "Heading")
 
-    local closeBtn = StyleConstants.makeButton("[X]", "Body", "red")
+    local closeBtn = StyleConstants.makeButton("X", "Body")
     closeBtn.Name = "CloseBtn"
     closeBtn.AnchorPoint = Vector2.new(1, 0)
-    closeBtn.Position = UDim2.new(1, -8, 0, 8)
-    closeBtn.Size = UDim2.new(0, 44, 0, 32)
+    closeBtn.Position = UDim2.new(1, 0, 0, 0)
+    closeBtn.Size = UDim2.fromOffset(30, 26)
+    closeBtn.TextColor3 = COL.TextSecondary
     closeBtn.ZIndex = ZS
     closeBtn.Parent = root
 
-    --== Slot tabs (client-local filter; see header comment) ==--
+    --== Left panel : tabs + filters + grid ==--
+    local leftPanel = Instance.new("Frame")
+    leftPanel.Name = "LeftPanel"
+    leftPanel.BackgroundTransparency = 1
+    leftPanel.Position = UDim2.new(0, 0, 0, 36)
+    leftPanel.Size = UDim2.new(0.62, -8, 1, -36)
+    leftPanel.ZIndex = ZS
+    leftPanel.Parent = root
+
     local tabsRow = Instance.new("Frame")
     tabsRow.Name = "SlotTabs"
     tabsRow.BackgroundTransparency = 1
-    tabsRow.Position = UDim2.new(0, 12, 0, 44)
-    tabsRow.Size = UDim2.new(1, -24, 0, 28)
+    tabsRow.Position = UDim2.new(0, 0, 0, 0)
+    tabsRow.Size = UDim2.new(1, 0, 0, 24)
     tabsRow.ZIndex = ZS
-    tabsRow.Parent = root
+    tabsRow.Parent = leftPanel
     local tabsLayout = Instance.new("UIListLayout")
     tabsLayout.FillDirection = Enum.FillDirection.Horizontal
-    tabsLayout.Padding = UDim.new(0, 4)
+    tabsLayout.Padding = UDim.new(0, 3)
     tabsLayout.Parent = tabsRow
 
-    --== Filter row (rarity + voie, synced to server via setFilters) ==--
     local filterRow = Instance.new("Frame")
     filterRow.Name = "FilterRow"
     filterRow.BackgroundTransparency = 1
-    filterRow.Position = UDim2.new(0, 12, 0, 76)
-    filterRow.Size = UDim2.new(1, -24, 0, 26)
+    filterRow.Position = UDim2.new(0, 0, 0, 30)
+    filterRow.Size = UDim2.new(1, 0, 0, 22)
     filterRow.ZIndex = ZS
-    filterRow.Parent = root
+    filterRow.Parent = leftPanel
     local filterLayout = Instance.new("UIListLayout")
     filterLayout.FillDirection = Enum.FillDirection.Horizontal
     filterLayout.Padding = UDim.new(0, 6)
@@ -168,113 +246,176 @@ function InventoryScreen.mount(rpgGui: ScreenGui, combatEvent: RemoteEvent, deps
 
     local rarityBtn = StyleConstants.makeButton("RAR: TOUT", "Label")
     rarityBtn.Size = UDim2.new(0, 150, 1, 0)
-    rarityBtn.TextColor3 = StyleConstants.BaseColors.Accent
+    rarityBtn.TextColor3 = COL.Accent
     rarityBtn.ZIndex = ZS
     rarityBtn.Parent = filterRow
 
     local voieBtn = StyleConstants.makeButton("VOIE: TOUS", "Label")
     voieBtn.Size = UDim2.new(0, 150, 1, 0)
-    voieBtn.TextColor3 = StyleConstants.BaseColors.Accent
+    voieBtn.TextColor3 = COL.Accent
     voieBtn.ZIndex = ZS
     voieBtn.Parent = filterRow
 
-    --== Grid ==--
+    local sortBtn = StyleConstants.makeButton("TRIER: RARETÉ", "Label")
+    sortBtn.Name = "SortBtn"
+    sortBtn.Size = UDim2.new(0, 170, 1, 0)
+    sortBtn.TextColor3 = COL.TextSecondary
+    sortBtn.ZIndex = ZS
+    sortBtn.Parent = filterRow
+
     local grid = Instance.new("ScrollingFrame")
     grid.Name = "Grid"
-    grid.Position = UDim2.new(0, 12, 0, 110)
-    grid.Size = UDim2.new(1, -24, 1, -172)
-    grid.BackgroundTransparency = 1
+    grid.Position = UDim2.new(0, 0, 0, 60)
+    grid.Size = UDim2.new(1, 0, 1, -60)
+    grid.BackgroundColor3 = COL.Slot
+    grid.BackgroundTransparency = 0.35
     grid.BorderSizePixel = 0
-    grid.ScrollBarThickness = 6
-    grid.ScrollBarImageColor3 = StyleConstants.BaseColors.Border
+    grid.ScrollBarThickness = 5
+    grid.ScrollBarImageColor3 = COL.Border
     grid.CanvasSize = UDim2.new(0, 0, 0, 0)
     grid.AutomaticCanvasSize = Enum.AutomaticSize.Y
     grid.ZIndex = ZS
-    grid.Parent = root
+    grid.Parent = leftPanel
+    do
+        local gp = Instance.new("UIPadding")
+        gp.PaddingTop = UDim.new(0, 6) ; gp.PaddingBottom = UDim.new(0, 6)
+        gp.PaddingLeft = UDim.new(0, 6) ; gp.PaddingRight = UDim.new(0, 6)
+        gp.Parent = grid
+    end
     local gridLayout = Instance.new("UIGridLayout")
     gridLayout.CellPadding = UDim2.new(0, 6, 0, 6)
-    gridLayout.CellSize = UDim2.new(1 / GameConfig.Ui.gridColumnsStandard, -6, 0, 92)
+    gridLayout.CellSize = UDim2.new(1 / GameConfig.Ui.gridColumnsStandard, -6, 0, 88)
     gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
     gridLayout.Parent = grid
 
-    local emptyLabel = Instance.new("TextLabel")
-    emptyLabel.Name = "EmptyLabel"
-    emptyLabel.BackgroundTransparency = 1
-    emptyLabel.Size = UDim2.new(1, 0, 0, 40)
-    emptyLabel.Font = StyleConstants.Fonts.Body
-    emptyLabel.Text = "(Aucun objet)"
-    emptyLabel.TextColor3 = StyleConstants.BaseColors.TextSecondary
+    local emptyLabel = textLabel("EmptyLabel", grid, {
+        text = "(aucun objet)", color = COL.TextSecondary, align = Enum.TextXAlignment.Center,
+    })
+    emptyLabel.Size = UDim2.new(1, 0, 0, 36)
     emptyLabel.Visible = false
-    emptyLabel.ZIndex = ZS
-    emptyLabel.Parent = grid
     StyleConstants.applyTypography(emptyLabel, "Body")
 
-    --== Selection action bar ==--
+    --== Right panel : selected-item detail + equipped summary ==--
+    local rightPanel = Instance.new("Frame")
+    rightPanel.Name = "RightPanel"
+    rightPanel.BackgroundTransparency = 1
+    rightPanel.Position = UDim2.new(0.62, 8, 0, 36)
+    rightPanel.Size = UDim2.new(0.38, -8, 1, -36)
+    rightPanel.ZIndex = ZS
+    rightPanel.Parent = root
+
+    -- detail box
+    local detailBox = panel("DetailBox", rightPanel)
+    detailBox.Position = UDim2.new(0, 0, 0, 0)
+    detailBox.Size = UDim2.new(1, 0, 0, 232)
+    do
+        local dp = Instance.new("UIPadding")
+        dp.PaddingTop = UDim.new(0, 10) ; dp.PaddingBottom = UDim.new(0, 10)
+        dp.PaddingLeft = UDim.new(0, 12) ; dp.PaddingRight = UDim.new(0, 12)
+        dp.Parent = detailBox
+    end
+
+    -- icon placeholder (no art yet - a rarity-tinted box + symbol)
+    local detailIcon = Instance.new("Frame")
+    detailIcon.Name = "Icon"
+    detailIcon.Position = UDim2.new(0, 0, 0, 0)
+    detailIcon.Size = UDim2.fromOffset(56, 56)
+    detailIcon.BackgroundColor3 = COL.Slot
+    detailIcon.BorderSizePixel = 0
+    detailIcon.ZIndex = ZS
+    detailIcon.Parent = detailBox
+    StyleConstants.addStroke(detailIcon, 1, COL.Border)
+    local detailIconSym = textLabel("Sym", detailIcon, { align = Enum.TextXAlignment.Center })
+    detailIconSym.Size = UDim2.fromScale(1, 1)
+    detailIconSym.Font = StyleConstants.Fonts.Heading
+    StyleConstants.applyTypography(detailIconSym, "Heading")
+
+    -- the item name doubles as the "nothing selected" hint (selectionLabel var
+    -- kept so the rest of the module's selection logic is untouched)
+    local selectionLabel = textLabel("Name", detailBox, {
+        text = "Sélectionne un objet", color = COL.TextSecondary, wrap = true,
+        yalign = Enum.TextYAlignment.Top,
+    })
+    selectionLabel.Position = UDim2.new(0, 68, 0, 2)
+    selectionLabel.Size = UDim2.new(1, -68, 0, 52)
+    StyleConstants.applyTypography(selectionLabel, "Body")
+
+    local detailStats = textLabel("Stats", detailBox, {
+        color = COL.TextPrimary, wrap = true, yalign = Enum.TextYAlignment.Top,
+    })
+    detailStats.Position = UDim2.new(0, 0, 0, 66)
+    detailStats.Size = UDim2.new(1, 0, 0, 96)
+    StyleConstants.applyTypography(detailStats, "Label")
+
+    local detailDesc = textLabel("Desc", detailBox, {
+        color = COL.TextSecondary, wrap = true, yalign = Enum.TextYAlignment.Top,
+    })
+    detailDesc.Position = UDim2.new(0, 0, 0, 164)
+    detailDesc.Size = UDim2.new(1, 0, 1, -164)
+    StyleConstants.applyTypography(detailDesc, "Label")
+
+    -- action buttons (stacked)
     local actionBar = Instance.new("Frame")
-    actionBar.Name = "ActionBar"
-    actionBar.BackgroundColor3 = StyleConstants.BaseColors.Panel
-    actionBar.Position = UDim2.new(0, 12, 1, -60)
-    actionBar.Size = UDim2.new(1, -24, 0, 34)
-    actionBar.BorderSizePixel = 0
+    actionBar.Name = "Actions"
+    actionBar.BackgroundTransparency = 1
+    actionBar.Position = UDim2.new(0, 0, 0, 242)
+    actionBar.Size = UDim2.new(1, 0, 0, 108)
     actionBar.ZIndex = ZS
-    actionBar.Parent = root
-    StyleConstants.addStroke(actionBar, 2)
-
-    local selectionLabel = Instance.new("TextLabel")
-    selectionLabel.Name = "SelectionLabel"
-    selectionLabel.BackgroundTransparency = 1
-    selectionLabel.Position = UDim2.new(0, 8, 0, 0)
-    selectionLabel.Size = UDim2.new(0.36, -8, 1, 0)
-    selectionLabel.Font = StyleConstants.Fonts.Body
-    selectionLabel.Text = "Sélectionnez un objet"
-    selectionLabel.TextColor3 = StyleConstants.BaseColors.TextSecondary
-    selectionLabel.TextXAlignment = Enum.TextXAlignment.Left
-    selectionLabel.TextTruncate = Enum.TextTruncate.AtEnd
-    selectionLabel.ZIndex = ZS
-    selectionLabel.Parent = actionBar
-    StyleConstants.applyTypography(selectionLabel, "Label")
-
-    local actionButtonsFrame = Instance.new("Frame")
-    actionButtonsFrame.Name = "Buttons"
-    actionButtonsFrame.BackgroundTransparency = 1
-    actionButtonsFrame.Position = UDim2.new(0.36, 0, 0, 0)
-    actionButtonsFrame.Size = UDim2.new(0.64, -8, 1, 0)
-    actionButtonsFrame.ZIndex = ZS
-    actionButtonsFrame.Parent = actionBar
+    actionBar.Parent = rightPanel
     local actionLayout = Instance.new("UIListLayout")
-    actionLayout.FillDirection = Enum.FillDirection.Horizontal
-    actionLayout.Padding = UDim.new(0, 4)
-    actionLayout.Parent = actionButtonsFrame
+    actionLayout.FillDirection = Enum.FillDirection.Vertical
+    actionLayout.Padding = UDim.new(0, 6)
+    actionLayout.Parent = actionBar
 
-    -- Retro button colors per Reference/ui.jpg's action row (gold = primary
-    -- equip action, gray = neutral toggle, red = destructive).
-    local equipBtn = StyleConstants.makeButton("[ ÉQUIPER ]", "Label", "gold")
-    equipBtn.Size = UDim2.new(0.34, 0, 1, 0)
+    local equipBtn = StyleConstants.makeButton("ÉQUIPER", "Label", "gold")
+    equipBtn.Size = UDim2.new(1, 0, 0, 30)
     equipBtn.ZIndex = ZS
-    equipBtn.Parent = actionButtonsFrame
-
-    local lockBtn = StyleConstants.makeButton("[ VERROUILLER ]", "Label", "gray")
-    lockBtn.Size = UDim2.new(0.34, 0, 1, 0)
+    equipBtn.Parent = actionBar
+    local lockBtn = StyleConstants.makeButton("VERROUILLER", "Label", "gray")
+    lockBtn.Size = UDim2.new(1, 0, 0, 30)
     lockBtn.ZIndex = ZS
-    lockBtn.Parent = actionButtonsFrame
-
-    local removeBtn = StyleConstants.makeButton("[ SUPPRIMER ]", "Label", "red")
-    removeBtn.Size = UDim2.new(0.32, 0, 1, 0)
+    lockBtn.Parent = actionBar
+    local removeBtn = StyleConstants.makeButton("SUPPRIMER", "Label", "red")
+    removeBtn.Size = UDim2.new(1, 0, 0, 30)
     removeBtn.ZIndex = ZS
-    removeBtn.Parent = actionButtonsFrame
+    removeBtn.Parent = actionBar
+
+    -- equipped summary (paper-doll stand-in: slot -> item name)
+    local equippedBox = panel("EquippedBox", rightPanel)
+    equippedBox.Position = UDim2.new(0, 0, 0, 360)
+    equippedBox.Size = UDim2.new(1, 0, 1, -390)
+    do
+        local ep = Instance.new("UIPadding")
+        ep.PaddingTop = UDim.new(0, 8) ; ep.PaddingBottom = UDim.new(0, 8)
+        ep.PaddingLeft = UDim.new(0, 12) ; ep.PaddingRight = UDim.new(0, 12)
+        ep.Parent = equippedBox
+        local el = Instance.new("UIListLayout")
+        el.Padding = UDim.new(0, 3)
+        el.Parent = equippedBox
+    end
+    local equippedTitle = textLabel("Head", equippedBox, { text = "ÉQUIPÉ", color = COL.Accent })
+    equippedTitle.Size = UDim2.new(1, 0, 0, 18)
+    equippedTitle.LayoutOrder = 0
+    StyleConstants.applyTypography(equippedTitle, "Label")
+    local equippedRows: { [string]: TextLabel } = {}
+    for i, slot in ipairs(EQUIP_SLOTS) do
+        local row = textLabel("Row_" .. slot, equippedBox, {
+            text = string.format('<font color="#7a7a7e">%s</font>  \u{2014}', SLOT_LABELS_FR[slot]),
+            color = COL.TextPrimary,
+        })
+        row.Size = UDim2.new(1, 0, 0, 16)
+        row.LayoutOrder = i
+        StyleConstants.applyTypography(row, "Label")
+        equippedRows[slot] = row
+    end
 
     --== Footer capacity readout ==--
-    local footer = Instance.new("TextLabel")
-    footer.Name = "CapacityFooter"
-    footer.BackgroundTransparency = 1
-    footer.Position = UDim2.new(0, 12, 1, -22)
-    footer.Size = UDim2.new(1, -24, 0, 18)
-    footer.Font = StyleConstants.Fonts.Body
-    footer.Text = "Inventaire : 0/100"
-    footer.TextColor3 = StyleConstants.BaseColors.TextPrimary
-    footer.TextXAlignment = Enum.TextXAlignment.Right
-    footer.ZIndex = ZS
-    footer.Parent = root
+    local footer = textLabel("CapacityFooter", rightPanel, {
+        text = "Inventaire : 0/100", color = COL.TextPrimary, align = Enum.TextXAlignment.Right,
+    })
+    footer.AnchorPoint = Vector2.new(0, 1)
+    footer.Position = UDim2.new(0, 0, 1, 0)
+    footer.Size = UDim2.new(1, 0, 0, 18)
     StyleConstants.applyTypography(footer, "Label")
 
     --== State ==--
@@ -307,12 +448,14 @@ function InventoryScreen.mount(rpgGui: ScreenGui, combatEvent: RemoteEvent, deps
     end
 
     for _, entry in ipairs({
-        { title, "Heading" }, { closeBtn, "Body" }, { rarityBtn, "Label" }, { voieBtn, "Label" },
-        { emptyLabel, "Body" }, { selectionLabel, "Label" }, { equipBtn, "Label" },
-        { lockBtn, "Label" }, { removeBtn, "Label" }, { footer, "Label" },
+        { closeBtn, "Body" }, { rarityBtn, "Label" }, { voieBtn, "Label" }, { sortBtn, "Label" },
+        { equipBtn, "Label" }, { lockBtn, "Label" }, { removeBtn, "Label" },
+        { detailStats, "Label" }, { detailDesc, "Label" },
     }) do
         trackLabel(entry[1], entry[2])
     end
+    local equippedState: { [string]: Types.ItemInstance } = {}
+    local sortMode = "rarity"
 
     local function requestRefreshDebounced()
         local now = os.clock()
@@ -322,44 +465,79 @@ function InventoryScreen.mount(rpgGui: ScreenGui, combatEvent: RemoteEvent, deps
         if not ok then warn("[InventoryScreen] requestRefresh callback failed") end
     end
 
-    --== Responsive columns (ui-ux-gdd 7.1: 7 -> 5 columns on a narrow screen) ==--
-    local NARROW_BREAKPOINT_PX = 640
+    --== Responsive columns (grid lives in the left panel now) ==--
+    local NARROW_BREAKPOINT_PX = 560
     local function updateColumns()
-        local width = root.AbsoluteSize.X
+        local width = grid.AbsoluteSize.X
         local columns = (width > 0 and width < NARROW_BREAKPOINT_PX)
             and GameConfig.Ui.gridColumnsMinNarrow
             or GameConfig.Ui.gridColumnsStandard
-        gridLayout.CellSize = UDim2.new(1 / columns, -6, 0, 92)
+        columns = math.max(3, math.min(6, columns))
+        gridLayout.CellSize = UDim2.new(1 / columns, -6, 0, 88)
     end
-    root:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateColumns)
+    grid:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateColumns)
 
-    --== Selection ==--
+    --== Selection -> right-hand detail panel ==--
+    -- Kept the name `updateActionBar` so selectKey / init stay untouched.
     local function updateActionBar()
         local item = selectedKey and bagItems[selectedKey]
         if not item then
-            selectionLabel.Text = "Sélectionnez un objet"
+            detailIconSym.Text = ""
+            detailIcon.BackgroundColor3 = StyleConstants.BaseColors.Slot
+            selectionLabel.Text = "Sélectionne un objet dans la grille"
             selectionLabel.TextColor3 = StyleConstants.BaseColors.TextSecondary
+            detailStats.Text = ""
+            detailDesc.Text = ""
             for _, b in ipairs({ equipBtn, lockBtn, removeBtn }) do
                 b.Active = false
                 b.TextTransparency = 0.55
             end
             return
         end
-        selectionLabel.Text = displayName(item)
-        selectionLabel.TextColor3 = StyleConstants.rarityInfo(item.rarity).color
+        local rar = StyleConstants.rarityInfo(item.rarity)
+        detailIcon.BackgroundColor3 = rar.color
+        detailIcon.BackgroundTransparency = 0.72
+        detailIconSym.Text = rar.symbol ~= "" and rar.symbol or "\u{25A0}"
+        detailIconSym.TextColor3 = rar.color
+        selectionLabel.Text = string.format('%s\n<font color="%s">%s</font>',
+            displayName(item), string.format("#%02X%02X%02X",
+                math.floor(rar.color.R * 255), math.floor(rar.color.G * 255), math.floor(rar.color.B * 255)),
+            rar.label)
+        selectionLabel.TextColor3 = StyleConstants.BaseColors.TextPrimary
+        detailStats.Text = table.concat(itemStatLines(item), "\n")
+        detailDesc.Text = itemDescription(item)
+
         equipBtn.Active = true
         equipBtn.TextTransparency = 0
+        equipBtn.Text = "ÉQUIPER"
         lockBtn.Active = true
         lockBtn.TextTransparency = 0
-        lockBtn.Text = item.locked and "[ DÉVERROUILLER ]" or "[ VERROUILLER ]"
-        -- Removal is refused server-side for locked OR equipped items
-        -- (InventoryService.removeItem) - grey it out proactively so the
-        -- player isn't sent on a guaranteed-fail round trip.
+        lockBtn.Text = item.locked and "DÉVERROUILLER" or "VERROUILLER"
         local canRemove = not item.locked and item.equippedSlot == nil
         removeBtn.Active = canRemove
         removeBtn.TextTransparency = canRemove and 0 or 0.55
-        removeBtn.Text = item.locked and "[ VERROUILLÉ ]"
-            or (item.equippedSlot ~= nil and "[ ÉQUIPÉ ]" or "[ SUPPRIMER ]")
+        removeBtn.Text = item.locked and "VERROUILLÉ"
+            or (item.equippedSlot ~= nil and "ÉQUIPÉ" or "SUPPRIMER")
+    end
+
+    --== Equipped summary (paper-doll stand-in) ==--
+    local function renderEquipped(equipped: { [string]: Types.ItemInstance }?)
+        equipped = equipped or {}
+        for _, slot in ipairs(EQUIP_SLOTS) do
+            local row = equippedRows[slot]
+            if row then
+                local inst = equipped[slot]
+                if inst then
+                    local rar = StyleConstants.rarityInfo(inst.rarity)
+                    row.Text = string.format('<font color="#7a7a7e">%s</font>  <font color="#%02X%02X%02X">%s</font>',
+                        SLOT_LABELS_FR[slot],
+                        math.floor(rar.color.R * 255), math.floor(rar.color.G * 255), math.floor(rar.color.B * 255),
+                        displayName(inst))
+                else
+                    row.Text = string.format('<font color="#7a7a7e">%s</font>  \u{2014}', SLOT_LABELS_FR[slot])
+                end
+            end
+        end
     end
 
     local function selectKey(key: string?)
@@ -513,6 +691,13 @@ function InventoryScreen.mount(rpgGui: ScreenGui, combatEvent: RemoteEvent, deps
         end
         table.sort(keys, function(a, b)
             local ia, ib = bagItems[a], bagItems[b]
+            if sortMode == "recent" then
+                return (ia.droppedAtTime or 0) > (ib.droppedAtTime or 0)
+            elseif sortMode == "couche" then
+                if (ia.droppedAtKm or 0) ~= (ib.droppedAtKm or 0) then
+                    return (ia.droppedAtKm or 0) > (ib.droppedAtKm or 0)
+                end
+            end
             local ra, rb = rarityRank(ia.rarity), rarityRank(ib.rarity)
             if ra ~= rb then return ra > rb end
             return (ia.droppedAtTime or 0) > (ib.droppedAtTime or 0)
@@ -560,6 +745,16 @@ function InventoryScreen.mount(rpgGui: ScreenGui, combatEvent: RemoteEvent, deps
         end)
     end
     tabButtons.all.TextColor3 = StyleConstants.BaseColors.Accent
+
+    --== Sort toggle (client-side; server has no sort remote yet) ==--
+    local SORT_CYCLE = { "rarity", "recent", "couche" }
+    local SORT_LABEL: { [string]: string } = { rarity = "RARETÉ", recent = "RÉCENT", couche = "COUCHE" }
+    sortBtn.MouseButton1Click:Connect(function()
+        local idx = (table.find(SORT_CYCLE, sortMode) or 1) % #SORT_CYCLE + 1
+        sortMode = SORT_CYCLE[idx]
+        sortBtn.Text = "TRIER: " .. SORT_LABEL[sortMode]
+        render()
+    end)
 
     --== Server-synced filters ==--
     -- InventoryService.setFilters(player, rarity, voie) takes BOTH params in
@@ -675,6 +870,11 @@ function InventoryScreen.mount(rpgGui: ScreenGui, combatEvent: RemoteEvent, deps
         render()
     end
 
+    local function setEquipped(equipped: { [string]: Types.ItemInstance }?)
+        equippedState = equipped or {}
+        renderEquipped(equippedState)
+    end
+
     local function setFilters(filters: { rareteMin: string?, guerrier: boolean?, mage: boolean? })
         if filters.rareteMin ~= nil then serverFilters.rareteMin = filters.rareteMin end
         -- The server never echoes `voie` directly (CombatServer's setFilters
@@ -729,7 +929,8 @@ function InventoryScreen.mount(rpgGui: ScreenGui, combatEvent: RemoteEvent, deps
     end
 
     updateColumns()
-    updateActionBar() -- initialize the action bar to its "nothing selected" disabled state
+    updateActionBar() -- initialize the detail panel to its "nothing selected" state
+    renderEquipped(equippedState)
 
     return {
         open = open,
@@ -737,6 +938,7 @@ function InventoryScreen.mount(rpgGui: ScreenGui, combatEvent: RemoteEvent, deps
         toggle = toggle,
         isOpen = isOpen,
         setInventoryData = setInventoryData,
+        setEquipped = setEquipped,
         setFilters = setFilters,
         applyUiPrefs = applyUiPrefs,
         destroy = destroy,

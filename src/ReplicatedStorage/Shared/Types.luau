@@ -34,6 +34,8 @@ export type ItemInstance = {
     setId: string?,         -- e.g. "roi_gobelin", nil for non-set items
     locked: boolean,        -- default false; blocks quick-sell, never blocks Forge
     equippedSlot: string?,  -- nil, or "arme"|"casque"|"plastron"|"gants"|"jambieres"|"bottes" when equipped
+    sourceLevel: number?,   -- pets only: enemy level it dropped from (fixed base tier)
+    petLevel: number?,      -- pets only: current level (>=1), climbs toward player level while equipped
 }
 
 export type PlayerInventory = {

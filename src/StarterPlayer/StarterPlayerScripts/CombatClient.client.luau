@@ -112,19 +112,29 @@ local artifactHeroLevelCard, artifactHeroWeaponCard, artifactHeroArmorCard, arti
 local artifactEnemyNameCard, artifactEnemyPvCard, artifactEnemyGoldCard, artifactEnemyAtkCard
 local artifactProgressText, artifactProgressFill
 local artifactMenuButton
+local artifactTalentsButton
 
 -- The old prototype panels are not part of the final visual language. Keep
 -- their objects alive for legacy overlay wiring, but render a brand-new HUD.
 do
-    local BG = Color3.fromRGB(14, 15, 19)
-    local PANEL = Color3.fromRGB(18, 19, 24)
-    local BORDER = Color3.fromRGB(198, 196, 188)
-    local TEXT = Color3.fromRGB(242, 239, 226)
-    local MUTED = Color3.fromRGB(154, 149, 132)
-    local ACCENT = Color3.fromRGB(255, 220, 70)
-    local XP = Color3.fromRGB(170, 105, 235)
-    local GREEN = Color3.fromRGB(83, 190, 96)
-    local RED = Color3.fromRGB(224, 78, 70)
+    -- ==== palette (matches Reference/mon ui final.png) =========================
+    local BG      = Color3.fromRGB(14, 15, 19)     -- screen ground
+    local BAR_BG  = Color3.fromRGB(23, 24, 29)     -- top / bottom bars, bar tracks
+    local CARD_BG = Color3.fromRGB(19, 20, 25)     -- stat cards
+    local LINE    = Color3.fromRGB(70, 71, 77)     -- thin dim borders (no bright white)
+    local TEXT    = Color3.fromRGB(228, 224, 212)  -- values
+    local LABEL   = Color3.fromRGB(120, 120, 125)  -- field labels
+    local ACCENT  = Color3.fromRGB(201, 168, 120)  -- muted amber (no optical bloom)
+    local XP      = Color3.fromRGB(150, 120, 214)
+    local GREEN   = Color3.fromRGB(96, 176, 96)
+    local RED     = Color3.fromRGB(198, 88, 78)
+    local FONT    = Enum.Font.Code                  -- the reference HUD is monospace
+    local ZH      = 3                               -- HUD draw layer (overlays sit at 20+)
+
+    -- Layout bands (offset px, IgnoreGuiInset = true so the top bar is flush).
+    local TOP_H, PV_H, BOT_H, GAP = 46, 15, 30, 6
+    local MID_TOP = TOP_H + GAP + PV_H + GAP
+    local COL_W = 0.238
 
     heroPanel.Visible = false
     centerPanel.Visible = false
@@ -136,9 +146,7 @@ do
     end
     background.BackgroundColor3 = BG
     background.BackgroundTransparency = 0
-    background.BorderSizePixel = 1
-    background.BorderColor3 = BORDER
-    local topInset = GuiService:GetGuiInset().Y
+    background.BorderSizePixel = 0
     local function fitBackgroundToViewport()
         background.Position = UDim2.fromOffset(0, 0)
         background.Size = UDim2.fromScale(1, 1)
@@ -149,362 +157,367 @@ do
         camera:GetPropertyChangedSignal("ViewportSize"):Connect(fitBackgroundToViewport)
     end
 
-    local topSection = background:FindFirstChild("TopSection")
-    if topSection and topSection:IsA("GuiObject") then
-        topSection.Position = UDim2.new(0, 4, 0, topInset + 4)
-        topSection.Size = UDim2.new(1, -8, 0, 72)
-        topSection.BackgroundColor3 = BG
-        topSection.BackgroundTransparency = 0
-        topSection.BorderColor3 = BORDER
-        topSection.BorderSizePixel = 1
-        for _, child in ipairs(topSection:GetChildren()) do
-            if child:IsA("GuiObject") then child.Visible = false end
-        end
-
-        artifactTopDeaths = topSection:FindFirstChild("ArtifactDeaths") :: TextLabel?
-        if not artifactTopDeaths then
-            artifactTopDeaths = Instance.new("TextLabel")
-            artifactTopDeaths.Name = "ArtifactDeaths"
-            artifactTopDeaths.Parent = topSection
-        end
-        artifactTopDeaths.Position = UDim2.new(0, 0, 0, 0)
-        artifactTopDeaths.Size = UDim2.new(0.15, 0, 1, 0)
-        artifactTopDeaths.BackgroundTransparency = 1
-        artifactTopDeaths.BorderSizePixel = 0
-        artifactTopDeaths.Font = Enum.Font.Code
-        artifactTopDeaths.Text = ""
-        artifactTopDeaths.TextColor3 = MUTED
-        artifactTopDeaths.TextSize = 13
-        artifactTopDeaths.TextScaled = false
-        artifactTopDeaths.TextXAlignment = Enum.TextXAlignment.Center
-        artifactTopDeaths.TextYAlignment = Enum.TextYAlignment.Center
-        artifactTopDeaths.TextWrapped = true
-        artifactTopDeaths.Visible = true
-        artifactTopDeaths.ZIndex = 20
-
-        artifactTopCenter = topSection:FindFirstChild("ArtifactCenter") :: TextLabel?
-        if not artifactTopCenter then
-            artifactTopCenter = Instance.new("TextLabel")
-            artifactTopCenter.Name = "ArtifactCenter"
-            artifactTopCenter.Parent = topSection
-        end
-        artifactTopCenter.Position = UDim2.new(0.15, 0, 0, 0)
-        artifactTopCenter.Size = UDim2.new(0.62, 0, 1, 0)
-        artifactTopCenter.BackgroundTransparency = 1
-        artifactTopCenter.BorderSizePixel = 0
-        artifactTopCenter.Font = Enum.Font.Code
-        artifactTopCenter.Text = "☠  0  ·  COUCHE 1  ·  0.0 KM"
-        artifactTopCenter.TextColor3 = TEXT
-        artifactTopCenter.TextSize = 20
-        artifactTopCenter.TextScaled = false
-        artifactTopCenter.TextXAlignment = Enum.TextXAlignment.Center
-        artifactTopCenter.Visible = true
-        artifactTopCenter.ZIndex = 20
-
-        artifactTopEnemy = topSection:FindFirstChild("ArtifactEnemy") :: TextLabel?
-        if not artifactTopEnemy then
-            artifactTopEnemy = Instance.new("TextLabel")
-            artifactTopEnemy.Name = "ArtifactEnemy"
-            artifactTopEnemy.Parent = topSection
-        end
-        artifactTopEnemy.Position = UDim2.new(0.77, 0, 0, 0)
-        artifactTopEnemy.Size = UDim2.new(0.23, 0, 1, 0)
-        artifactTopEnemy.BackgroundTransparency = 1
-        artifactTopEnemy.BorderSizePixel = 0
-        artifactTopEnemy.Font = Enum.Font.Code
-        artifactTopEnemy.Text = "EXPLORATION"
-        artifactTopEnemy.TextColor3 = ACCENT
-        artifactTopEnemy.TextSize = 18
-        artifactTopEnemy.TextScaled = false
-        artifactTopEnemy.TextXAlignment = Enum.TextXAlignment.Center
-        artifactTopEnemy.Visible = true
-        artifactTopEnemy.ZIndex = 20
-
-        for i, x in ipairs({ 0.15, 0.77 }) do
-            local divider = topSection:FindFirstChild("ReferenceDivider" .. i) or Instance.new("Frame")
-            divider.Name = "ReferenceDivider" .. i
-            divider.Position = UDim2.new(x, 0, 0, 0)
-            divider.Size = UDim2.new(0, 1, 1, 0)
-            divider.BackgroundColor3 = BORDER
-            divider.BackgroundTransparency = 0.15
-            divider.BorderSizePixel = 0
-            divider.Visible = true
-            divider.ZIndex = 19
-            divider.Parent = topSection
+    -- ---- small builders -----------------------------------------------------
+    local function strip(inst) -- kill stray UIStroke / UICorner left by old builds
+        for _, d in ipairs(inst:GetDescendants()) do
+            if d:IsA("UIStroke") or d:IsA("UICorner") then d:Destroy() end
         end
     end
 
-    bottomPanel.Position = UDim2.new(0, 4, 0, topInset + 78)
-    bottomPanel.Size = UDim2.new(1, -8, 1, -(topInset + 122))
-    bottomPanel.BackgroundColor3 = BG
-    bottomPanel.BackgroundTransparency = 0
-    bottomPanel.BorderColor3 = BORDER
-    bottomPanel.BorderSizePixel = 1
-
-    local function panel(name, position, size)
-        local frame = bottomPanel:FindFirstChild(name) or Instance.new("Frame")
-        frame.Name = name
-        frame.Position = position
-        frame.Size = size
-        frame.BackgroundTransparency = 1
-        frame.BorderSizePixel = 0
-        frame.ClipsDescendants = false
-        frame.Visible = true
-        frame.Parent = bottomPanel
-        return frame
-    end
-
-    local function card(parent, name, text, y, height, color)
+    -- A framed value card. Uses RichText so a grey label + light value share one line.
+    local function card(parent, name, y, h, opts)
+        opts = opts or {}
         local item = parent:FindFirstChild(name) or Instance.new("TextLabel")
         item.Name = name
-        item.Position = UDim2.new(0.04, 0, y, 0)
-        item.Size = UDim2.new(0.92, 0, height, 0)
-        item.BackgroundColor3 = PANEL
-        item.BackgroundTransparency = 0
-        item.BorderColor3 = BORDER
-        item.BorderSizePixel = 1
-        item.Font = Enum.Font.Code
-        item.Text = text
-        item.TextColor3 = color or TEXT
-        item.TextSize = 16
+        item.Position = UDim2.new(0, 0, y, 0)
+        item.Size = UDim2.new(1, 0, h, 0)
+        item.BackgroundColor3 = opts.bare and BG or CARD_BG
+        item.BackgroundTransparency = opts.bare and 1 or 0
+        item.BorderColor3 = LINE
+        item.BorderSizePixel = opts.bare and 0 or 1
+        item.Font = FONT
+        item.RichText = true
+        item.Text = opts.text or ""
+        item.TextColor3 = opts.color or TEXT
+        item.TextSize = opts.size or 14
         item.TextScaled = false
-        item.TextXAlignment = Enum.TextXAlignment.Left
+        item.TextWrapped = opts.wrap or false
+        item.TextXAlignment = opts.align or Enum.TextXAlignment.Left
         item.TextYAlignment = Enum.TextYAlignment.Center
-        item.ZIndex = 20
         item.TextTruncate = Enum.TextTruncate.AtEnd
+        item.ZIndex = ZH
         item.Visible = true
         item.Parent = parent
+        strip(item)
+        local pad = item:FindFirstChildOfClass("UIPadding") or Instance.new("UIPadding")
+        pad.PaddingLeft = UDim.new(0, opts.align == Enum.TextXAlignment.Center and 0 or 12)
+        pad.PaddingRight = UDim.new(0, opts.align == Enum.TextXAlignment.Center and 0 or 10)
+        pad.Parent = item
         return item
     end
 
-    local function freshHp(parent, color)
-        local title = card(parent, "HpText", "PV", 0.015, 0.07)
-        title.BackgroundTransparency = 1
-        title.BorderSizePixel = 0
-        title.ZIndex = 24
-        title.TextSize = 16
-        title.Size = UDim2.new(0.09, 0, 0.07, 0)
-        local bar = parent:FindFirstChild("HpBar") or Instance.new("Frame")
-        bar.Name = "HpBar"
-        bar.Position = UDim2.new(0.095, 0, 0.044, 0)
-        bar.Size = UDim2.new(0.65, 0, 0.026, 0)
-        bar.BackgroundColor3 = Color3.fromRGB(20, 21, 24)
-        bar.BorderColor3 = BORDER
-        bar.BorderSizePixel = 1
-        bar.ZIndex = 21
-        bar.Parent = parent
-        local fill = bar:FindFirstChild("Fill") or Instance.new("Frame")
+    -- "TALENTS" / "MENU" style footer button (amber outline, transparent hit area).
+    local function footerButton(parent, name, text, y, h)
+        local b = card(parent, name, y, h, { text = text, color = ACCENT, size = 14,
+            align = Enum.TextXAlignment.Center })
+        b.BorderColor3 = ACCENT
+        local hit = b:FindFirstChild("Click") or Instance.new("TextButton")
+        hit.Name = "Click"
+        hit.Size = UDim2.fromScale(1, 1)
+        hit.BackgroundTransparency = 1
+        hit.Text = ""
+        hit.Active = true
+        hit.AutoButtonColor = false
+        hit.ZIndex = ZH + 1
+        hit.Parent = b
+        return b, hit
+    end
+
+    -- Labelled HP bar for the PV band: [PV] [====== track ======] [cur/max]
+    local function hpBar(parent, name, color)
+        local root = parent:FindFirstChild(name) or Instance.new("Frame")
+        root.Name = name
+        root.BackgroundTransparency = 1
+        root.BorderSizePixel = 0
+        root.ZIndex = ZH
+        root.Parent = parent
+
+        local lbl = root:FindFirstChild("Label") or Instance.new("TextLabel")
+        lbl.Name = "Label"
+        lbl.Position = UDim2.new(0, 0, 0, 0)
+        lbl.Size = UDim2.new(0, 26, 1, 0)
+        lbl.BackgroundTransparency = 1
+        lbl.Font = FONT
+        lbl.Text = "PV"
+        lbl.TextColor3 = LABEL
+        lbl.TextSize = 12
+        lbl.TextXAlignment = Enum.TextXAlignment.Left
+        lbl.ZIndex = ZH
+        lbl.Parent = root
+
+        local track = root:FindFirstChild("Track") or Instance.new("Frame")
+        track.Name = "Track"
+        track.Position = UDim2.new(0, 30, 0.5, -5)
+        track.Size = UDim2.new(1, -84, 0, 10)
+        track.BackgroundColor3 = BAR_BG
+        track.BorderColor3 = LINE
+        track.BorderSizePixel = 1
+        track.ClipsDescendants = true
+        track.ZIndex = ZH
+        track.Parent = root
+
+        local fill = track:FindFirstChild("Fill") or Instance.new("Frame")
         fill.Name = "Fill"
+        fill.Position = UDim2.new(0, 0, 0, 0)
         fill.Size = UDim2.fromScale(1, 1)
         fill.BackgroundColor3 = color
         fill.BorderSizePixel = 0
-        fill.ZIndex = 22
-        fill.Parent = bar
-        local value = parent:FindFirstChild("HpValue") or Instance.new("TextLabel")
-        value.Name = "HpValue"
-        value.Position = UDim2.new(0.765, 0, 0.015, 0)
-        value.Size = UDim2.new(0.20, 0, 0.07, 0)
-        value.BackgroundTransparency = 1
-        value.BorderSizePixel = 0
-        value.Font = Enum.Font.Code
-        value.Text = "0/0"
-        value.TextColor3 = TEXT
-        value.TextSize = 16
-        value.TextScaled = false
-        value.TextXAlignment = Enum.TextXAlignment.Left
-        value.ZIndex = 24
-        value.Visible = true
-        value.Parent = parent
-        return title, value, fill
+        fill.ZIndex = ZH + 1
+        fill.Parent = track
+
+        local val = root:FindFirstChild("Value") or Instance.new("TextLabel")
+        val.Name = "Value"
+        val.AnchorPoint = Vector2.new(1, 0)
+        val.Position = UDim2.new(1, 0, 0, 0)
+        val.Size = UDim2.new(0, 50, 1, 0)
+        val.BackgroundTransparency = 1
+        val.Font = FONT
+        val.Text = "0/0"
+        val.TextColor3 = TEXT
+        val.TextSize = 12
+        val.TextXAlignment = Enum.TextXAlignment.Right
+        val.ZIndex = ZH
+        val.Parent = root
+        strip(root)
+        return lbl, val, fill
     end
 
-    local function xpBar(parent)
+    -- ---- top bar ----------------------------------------------------------------
+    local topSection = background:FindFirstChild("TopSection")
+    if topSection and topSection:IsA("GuiObject") then
+        topSection.Position = UDim2.new(0, 0, 0, 0)
+        topSection.Size = UDim2.new(1, 0, 0, TOP_H)
+        topSection.BackgroundColor3 = BAR_BG
+        topSection.BackgroundTransparency = 0
+        topSection.BorderColor3 = LINE
+        topSection.BorderSizePixel = 1
+        topSection.ZIndex = ZH
+        for _, child in ipairs(topSection:GetChildren()) do
+            if child:IsA("GuiObject") then child.Visible = false end
+        end
+        strip(topSection)
+
+        local function topLabel(fieldName, x, w, align, colour, size)
+            local l = topSection:FindFirstChild(fieldName) or Instance.new("TextLabel")
+            l.Name = fieldName
+            l.Position = UDim2.new(x, align == Enum.TextXAlignment.Left and 14 or 0, 0, 0)
+            l.Size = UDim2.new(w, align == Enum.TextXAlignment.Left and -14 or (align == Enum.TextXAlignment.Right and -14 or 0), 1, 0)
+            l.BackgroundTransparency = 1
+            l.BorderSizePixel = 0
+            l.Font = FONT
+            l.TextColor3 = colour
+            l.TextSize = size
+            l.TextXAlignment = align
+            l.TextYAlignment = Enum.TextYAlignment.Center
+            l.ZIndex = ZH
+            l.Visible = true
+            l.Parent = topSection
+            return l
+        end
+
+        local function topDivider(x)
+            local d = topSection:FindFirstChild("Div" .. tostring(x)) or Instance.new("Frame")
+            d.Name = "Div" .. tostring(x)
+            d.Position = UDim2.new(x, 0, 0.2, 0)
+            d.Size = UDim2.new(0, 1, 0.6, 0)
+            d.BackgroundColor3 = LINE
+            d.BorderSizePixel = 0
+            d.ZIndex = ZH
+            d.Visible = true
+            d.Parent = topSection
+        end
+
+        local oldMenu = topSection:FindFirstChild("ArtifactMenu")
+        if oldMenu then oldMenu:Destroy() end
+        local oldDiv = topSection:FindFirstChild("Div0.16")
+        if oldDiv then oldDiv:Destroy() end
+
+        artifactTopCenter = topLabel("ArtifactCenter", 0, 0.78, Enum.TextXAlignment.Center, TEXT, 17)
+        artifactTopCenter.Text = "\u{1F480} 0   \u{00B7}   Couche 1   \u{00B7}   0.0 km"
+        topDivider(0.78)
+        artifactTopEnemy = topLabel("ArtifactEnemy", 0.78, 0.22, Enum.TextXAlignment.Right, ACCENT, 14)
+        artifactTopEnemy.Text = "EXPLORATION"
+    end
+
+    -- ---- PV band (two bars, aligned over their columns) -----------------------
+    local pvBand = background:FindFirstChild("PvBand") or Instance.new("Frame")
+    pvBand.Name = "PvBand"
+    pvBand.Position = UDim2.new(0, 0, 0, TOP_H + GAP)
+    pvBand.Size = UDim2.new(1, 0, 0, PV_H)
+    pvBand.BackgroundTransparency = 1
+    pvBand.BorderSizePixel = 0
+    pvBand.ZIndex = ZH
+    pvBand.Parent = background
+
+    local _, heroHpVal, heroHpFill = hpBar(pvBand, "HeroHp", GREEN)
+    local hh = pvBand:FindFirstChild("HeroHp")
+    hh.Position = UDim2.new(0, 6, 0, 0)
+    hh.Size = UDim2.new(COL_W, 0, 1, 0)
+    artifactHeroHpText, artifactHeroHpFill = heroHpVal, heroHpFill
+
+    local enemyHpLbl, enemyHpVal, enemyHpFill = hpBar(pvBand, "EnemyHp", RED)
+    local eh = pvBand:FindFirstChild("EnemyHp")
+    eh.Position = UDim2.new(1 - COL_W - 0.004, 0, 0, 0)
+    eh.Size = UDim2.new(COL_W, 0, 1, 0)
+    artifactEnemyHpLabel, artifactEnemyHpText, artifactEnemyHpFill = enemyHpLbl, enemyHpVal, enemyHpFill
+    eh.Visible = false
+
+    -- ---- middle area: left column | scene | right column ---------------------
+    bottomPanel.Position = UDim2.new(0, 0, 0, MID_TOP)
+    bottomPanel.Size = UDim2.new(1, 0, 1, -(MID_TOP + BOT_H + GAP))
+    bottomPanel.BackgroundColor3 = BG
+    bottomPanel.BackgroundTransparency = 0
+    bottomPanel.BorderSizePixel = 0
+    strip(bottomPanel)
+
+    local function column(name, x)
+        local frame = bottomPanel:FindFirstChild(name) or Instance.new("Frame")
+        frame.Name = name
+        frame.Position = UDim2.new(x, x < 0.5 and 6 or 0, 0, 0)
+        frame.Size = UDim2.new(COL_W, 0, 1, 0)
+        frame.BackgroundTransparency = 1
+        frame.BorderSizePixel = 0
+        frame.ClipsDescendants = false
+        frame.ZIndex = ZH
+        frame.Visible = true
+        frame.Parent = bottomPanel
+        strip(frame)
+        return frame
+    end
+    local left = column("DescenteLeft", 0)
+    local right = column("DescenteRight", 1 - COL_W - 0.004)
+
+    combatZone.Parent = bottomPanel
+    combatZone.Position = UDim2.new(COL_W + 0.012, 0, 0, 0)
+    combatZone.Size = UDim2.new(1 - 2 * (COL_W + 0.012), 0, 1, 0)
+    combatZone.BackgroundColor3 = Color3.fromRGB(9, 10, 13)
+    combatZone.BackgroundTransparency = 0
+    combatZone.BorderSizePixel = 0
+    combatZone.ClipsDescendants = true
+    combatZone.ZIndex = ZH
+    -- the template CombatZone was reparented AFTER strip(bottomPanel); kill its
+    -- own leftover UIStroke (the "white border" around the scene) here.
+    strip(combatZone)
+
+    -- slim XP bar tucked under the level card
+    local function xpBar(parent, y)
         local root = parent:FindFirstChild("XpBar") or Instance.new("Frame")
         root.Name = "XpBar"
-        root.Position = UDim2.new(0.04, 0, 0.175, 0)
-        root.Size = UDim2.new(0.92, 0, 0.052, 0)
-        root.BackgroundColor3 = Color3.fromRGB(20, 21, 24)
-        root.BackgroundTransparency = 0
-        root.BorderColor3 = BORDER
+        root.Position = UDim2.new(0, 0, y, 0)
+        root.Size = UDim2.new(1, 0, 0, 5)
+        root.BackgroundColor3 = BAR_BG
+        root.BorderColor3 = LINE
         root.BorderSizePixel = 1
         root.ClipsDescendants = true
-        root.ZIndex = 20
+        root.ZIndex = ZH
         root.Visible = true
         root.Parent = parent
-
         local fill = root:FindFirstChild("Fill") or Instance.new("Frame")
         fill.Name = "Fill"
         fill.Size = UDim2.fromScale(0, 1)
         fill.BackgroundColor3 = XP
         fill.BorderSizePixel = 0
-        fill.ZIndex = 21
+        fill.ZIndex = ZH + 1
         fill.Parent = root
-
-        local value = root:FindFirstChild("Value") or Instance.new("TextLabel")
-        value.Name = "Value"
-        value.Size = UDim2.fromScale(1, 1)
+        local value = parent:FindFirstChild("XpText") or Instance.new("TextLabel")
+        value.Name = "XpText"
+        value.Position = UDim2.new(0, 0, y, 8)
+        value.Size = UDim2.new(1, 0, 0, 12)
         value.BackgroundTransparency = 1
         value.BorderSizePixel = 0
-        value.Font = Enum.Font.Code
-        value.Text = "XP 0 / 0  -  0.0%"
-        value.TextColor3 = TEXT
-        value.TextStrokeColor3 = Color3.fromRGB(25, 18, 38)
-        value.TextStrokeTransparency = 0.55
-        value.TextScaled = true
-        value.TextXAlignment = Enum.TextXAlignment.Center
-        value.ZIndex = 22
-        value.Parent = root
-        local textConstraint = value:FindFirstChildOfClass("UITextSizeConstraint") or Instance.new("UITextSizeConstraint")
-        textConstraint.MinTextSize = 9
-        textConstraint.MaxTextSize = 13
-        textConstraint.Parent = value
+        value.Font = FONT
+        value.Text = "XP 0 / 0"
+        value.TextColor3 = LABEL
+        value.TextSize = 11
+        value.TextXAlignment = Enum.TextXAlignment.Left
+        value.ZIndex = ZH
+        value.Parent = parent
+        local pad = value:FindFirstChildOfClass("UIPadding") or Instance.new("UIPadding")
+        pad.PaddingLeft = UDim.new(0, 12)
+        pad.Parent = value
+        strip(root)
         return value, fill
     end
 
-    local left = panel("DescenteLeft", UDim2.new(0.018, 0, 0.02, 0), UDim2.new(0.225, 0, 0.90, 0))
-    local right = panel("DescenteRight", UDim2.new(0.757, 0, 0.02, 0), UDim2.new(0.225, 0, 0.90, 0))
+    -- left column: LV / XP / Arme / Armr / Pets / stat block ... TALENTS (footer)
+    artifactHeroLevelCard = card(left, "LevelCard", 0.00, 0.072, { text = "LV 1" })
+    artifactHeroXpText, artifactHeroXpFill = xpBar(left, 0.078)
+    artifactHeroWeaponCard = card(left, "WeaponCard", 0.135, 0.072, { text = "Arme  \u{2014}" })
+    artifactHeroArmorCard = card(left, "ArmorCard", 0.218, 0.072, { text = "Armr  \u{2014}" })
+    artifactHeroPetCard = card(left, "PetCard", 0.301, 0.072, { text = "Pets  \u{2014}" })
+    artifactHeroStatsCard = card(left, "StatsCard", 0.384, 0.12,
+        { text = "ATK 0 \u{00B7} DEF 0\nRES 0 \u{00B7} CRIT 0%", wrap = true })
+    _, artifactTalentsButton = footerButton(left, "Talents", "TALENTS", 0.905, 0.08)
 
-    combatZone.Parent = bottomPanel
-    combatZone.Position = UDim2.new(0.255, 0, 0.11, 0)
-    combatZone.Size = UDim2.new(0.49, 0, 0.775, 0)
-    combatZone.BackgroundColor3 = BG
-    combatZone.BackgroundTransparency = 0
-    combatZone.BorderColor3 = BORDER
-    combatZone.BorderSizePixel = 1
-    combatZone.ClipsDescendants = true
-
-    local _, heroHpText, heroHpFill = freshHp(left, GREEN)
-    artifactHeroHpText, artifactHeroHpFill = heroHpText, heroHpFill
-    artifactHeroLevelCard = card(left, "LevelCard", "LV 1", 0.108, 0.068)
-    artifactHeroXpText, artifactHeroXpFill = xpBar(left)
-    artifactHeroWeaponCard = card(left, "WeaponCard", "Arme  -", 0.255, 0.068)
-    artifactHeroArmorCard = card(left, "ArmorCard", "Armr  -", 0.335, 0.068)
-    artifactHeroPetCard = card(left, "PetCard", "Pets  -", 0.415, 0.068)
-    artifactHeroStatsCard = card(left, "StatsCard", "ATK 0  ·  DEF 0\nRES 0  ·  CRIT 0%", 0.50, 0.105)
-    artifactHeroStatsCard.TextWrapped = true
-    artifactHeroGoldCard = card(left, "GoldCard", "OR  0", 0.625, 0.068, ACCENT)
-
-    local talents = card(left, "Talents", "T A L E N T S", 0.875, 0.09, ACCENT)
-    talents.TextXAlignment = Enum.TextXAlignment.Center
-    talents.BorderColor3 = ACCENT
-
-    artifactEnemyHpLabel, artifactEnemyHpText, artifactEnemyHpFill = freshHp(right, RED)
-    artifactEnemyNameCard = card(right, "EnemyCard", "Exploration", 0.108, 0.068, ACCENT)
-    artifactEnemyPvCard = card(right, "EnemyPvCard", "PV  -", 0.188, 0.068)
-    artifactEnemyGoldCard = card(right, "GoldCard", "OR  0", 0.268, 0.068, ACCENT)
-    artifactEnemyAtkCard = card(right, "AtkCard", "ATK 100%  ·  PHYS.", 0.348, 0.068)
-    if artifactEnemyHpLabel then artifactEnemyHpLabel.Visible = false end
-    if artifactEnemyHpText then artifactEnemyHpText.Visible = false end
-    if artifactEnemyHpFill and artifactEnemyHpFill.Parent then artifactEnemyHpFill.Parent.Visible = false end
-    artifactEnemyNameCard.Visible = false
+    -- right column: enemy name / enemy PV / your OR / enemy ATK ... INVENTAIRE + MENU
+    artifactEnemyNameCard = card(right, "EnemyCard", 0.00, 0.072, { text = "\u{2014}", color = LABEL })
+    artifactEnemyPvCard = card(right, "EnemyPvCard", 0.083, 0.072, { text = "PV  \u{2014}" })
+    artifactHeroGoldCard = card(right, "GoldCard", 0.166, 0.072, { text = "OR  0" })
+    artifactEnemyAtkCard = card(right, "AtkCard", 0.249, 0.072, { text = "ATK \u{2014}" })
+    footerButton(right, "Inventory", "INVENTAIRE", 0.815, 0.08)   -- InventoryClient wires .Click
+    _, artifactMenuButton = footerButton(right, "Menu", "MENU", 0.905, 0.08)
     artifactEnemyPvCard.Visible = false
-    artifactEnemyGoldCard.Visible = false
     artifactEnemyAtkCard.Visible = false
 
-    local inventory = card(right, "Inventory", "INVENTAIRE", 0.765, 0.09, ACCENT)
-    inventory.TextXAlignment = Enum.TextXAlignment.Center
-    inventory.BorderColor3 = ACCENT
-
-    local menu = card(right, "Menu", "MENU", 0.875, 0.09, ACCENT)
-    menu.TextXAlignment = Enum.TextXAlignment.Center
-    menu.BorderColor3 = ACCENT
-    artifactMenuButton = Instance.new("TextButton")
-    artifactMenuButton.Name = "Click"
-    artifactMenuButton.Size = UDim2.fromScale(1, 1)
-    artifactMenuButton.BackgroundTransparency = 1
-    artifactMenuButton.Text = ""
-    artifactMenuButton.Active = true
-    artifactMenuButton.AutoButtonColor = false
-    artifactMenuButton.ZIndex = 21
-    artifactMenuButton.Parent = menu
-
     local abilityBar = bottomPanel:FindFirstChild("ArtifactAbilities")
-    if abilityBar and abilityBar:IsA("GuiObject") then
-        abilityBar.Visible = false
-    end
+    if abilityBar and abilityBar:IsA("GuiObject") then abilityBar.Visible = false end
 
+    -- ---- bottom bar (zone progress) ----------------------------------------
     local zoneTrack = background:FindFirstChild("ZoneTrack")
     if zoneTrack then
-        zoneTrack.Position = UDim2.new(0, 4, 1, -42)
-        zoneTrack.Size = UDim2.new(1, -8, 0, 38)
-        zoneTrack.BackgroundColor3 = BG
+        zoneTrack.Position = UDim2.new(0, 0, 1, -BOT_H)
+        zoneTrack.Size = UDim2.new(1, 0, 0, BOT_H)
+        zoneTrack.BackgroundColor3 = BAR_BG
         zoneTrack.BackgroundTransparency = 0
-        zoneTrack.BorderColor3 = BORDER
+        zoneTrack.BorderColor3 = LINE
         zoneTrack.BorderSizePixel = 1
+        zoneTrack.ZIndex = ZH
         for _, child in ipairs(zoneTrack:GetChildren()) do
             if child:IsA("GuiObject") then child.Visible = false end
         end
-        artifactProgressText = card(zoneTrack, "DescenteText", "COUCHE 1 - PLAINE DE L'AUBE  ·  ETAPE 1/10  ·  PROCHAIN : BOSS",
-            0.05, 0.90)
-        artifactProgressText.Position = UDim2.new(0.02, 0, 0.05, 0)
-        artifactProgressText.Size = UDim2.new(0.44, 0, 0.90, 0)
+        strip(zoneTrack)
+
+        artifactProgressText = Instance.new("TextLabel")
+        artifactProgressText.Name = "DescenteText"
+        artifactProgressText.Position = UDim2.new(0, 14, 0, 0)
+        artifactProgressText.Size = UDim2.new(0.52, 0, 1, 0)
         artifactProgressText.BackgroundTransparency = 1
-        artifactProgressText.BorderSizePixel = 0
-        artifactProgressText.TextSize = 13
+        artifactProgressText.Font = FONT
+        artifactProgressText.Text = "Couche 1 \u{2014} Plaine de l'Aube  \u{00B7}  Etape 1/10  \u{00B7}  prochain : BOSS"
+        artifactProgressText.TextColor3 = LABEL
+        artifactProgressText.TextSize = 12
+        artifactProgressText.TextXAlignment = Enum.TextXAlignment.Left
+        artifactProgressText.ZIndex = ZH
+        artifactProgressText.Parent = zoneTrack
+
         local rail = Instance.new("Frame")
         rail.Name = "DescenteRail"
-        rail.Position = UDim2.new(0.48, 0, 0.35, 0)
-        rail.Size = UDim2.new(0.36, 0, 0.30, 0)
-        rail.BackgroundColor3 = Color3.fromRGB(20, 21, 24)
-        rail.BorderColor3 = BORDER
+        rail.AnchorPoint = Vector2.new(1, 0.5)
+        rail.Position = UDim2.new(1, -14, 0.5, 0)
+        rail.Size = UDim2.new(0.34, 0, 0, 8)
+        rail.BackgroundColor3 = Color3.fromRGB(18, 19, 24)
+        rail.BorderColor3 = LINE
         rail.BorderSizePixel = 1
-        rail.ZIndex = 20
+        rail.ClipsDescendants = true
+        rail.ZIndex = ZH
         rail.Parent = zoneTrack
         artifactProgressFill = Instance.new("Frame")
         artifactProgressFill.Name = "Fill"
         artifactProgressFill.Size = UDim2.fromScale(0, 1)
         artifactProgressFill.BackgroundColor3 = XP
         artifactProgressFill.BorderSizePixel = 0
-        artifactProgressFill.ZIndex = 21
+        artifactProgressFill.ZIndex = ZH + 1
         artifactProgressFill.Parent = rail
-        local boss = card(zoneTrack, "Boss", "BOSS", 0.05, 0.90, ACCENT)
-        boss.Position = UDim2.new(0.855, 0, 0.05, 0)
-        boss.Size = UDim2.new(0.08, 0, 0.90, 0)
-        boss.BackgroundTransparency = 1
-        boss.BorderSizePixel = 0
-        boss.TextXAlignment = Enum.TextXAlignment.Right
     end
 end
 
--- Artifact cards: LV, weapon, armor, pets. HP has its dedicated bar above.
-local heroPvLine = heroInfoBox:FindFirstChild("HeroTitle")
-do
-    if heroPvLine then heroPvLine.Visible = false end
-    local rows = { heroLevel, heroWeapon, heroArmor, heroPet }
-    for i, lbl in ipairs(rows) do
-        if lbl then
-            lbl.Position = UDim2.new(0, 10, 0.02 + (i - 1) * 0.245, 0)
-            lbl.Size = UDim2.new(1, -20, 0.22, 0)
-            lbl.TextScaled = false
-            lbl.TextSize = 14
-            lbl.TextXAlignment = Enum.TextXAlignment.Left
-            lbl.TextTruncate = Enum.TextTruncate.AtEnd
-            lbl.BackgroundTransparency = 0
-            lbl.BackgroundColor3 = Color3.fromRGB(13, 14, 18)
-            lbl.BorderColor3 = Color3.fromRGB(185, 185, 185)
-        end
-    end
-end
-
--- Combat HP bars keep the same sharp, flat language as the reference HUD.
-do
-    local function styleBar(bar)
-        if not bar then return end
-        local st = bar:FindFirstChildWhichIsA("UIStroke")
-        if st then st:Destroy() end
-        local function removeCorner(o)
-            if o:IsA("GuiObject") then
-                local corner = o:FindFirstChildWhichIsA("UICorner")
-                if corner then corner:Destroy() end
+-- The HUD now draws on layer 3-4; every full-screen overlay must sit above it.
+-- (Global ZIndexBehavior means these compete with the HUD regardless of parent.)
+-- Bump each overlay subtree by a fixed offset so its internal order is preserved.
+for name, base in pairs({
+    GameOverWindow = 90, EquipOverlay = 22, ShopOverlay = 26, ChateauOverlay = 24,
+    BagFullPrompt = 93, AccessibilityScreen = 28,
+}) do
+    local ov = background:FindFirstChild(name)
+    if ov and ov:IsA("GuiObject") then
+        local offset = base - ov.ZIndex
+        if offset > 0 then
+            ov.ZIndex += offset
+            for _, d in ipairs(ov:GetDescendants()) do
+                if d:IsA("GuiObject") then d.ZIndex += offset end
             end
         end
-        removeCorner(bar)
-        for _, d in ipairs(bar:GetDescendants()) do
-            if d:IsA("Frame") then removeCorner(d) end
-        end
     end
-    styleBar(playerHpBar)
-    styleBar(enemyHpPanel)
 end
 
 -- Scroll background references
@@ -538,6 +551,9 @@ local zoneLabel   = combatZone:FindFirstChild("ZoneLabel")
 local statusText  = combatZone:FindFirstChild("StatusText")
 local heroSlot    = combatZone:FindFirstChild("HeroSlot")
 local enemySlot   = combatZone:FindFirstChild("EnemySlot")
+-- squash/stretch scale for the hero's attack swing (no forward charge)
+local heroScale = heroSlot and (heroSlot:FindFirstChildOfClass("UIScale") or Instance.new("UIScale"))
+if heroScale then heroScale.Parent = heroSlot end
 local distLabelCZ = combatZone:FindFirstChild("DistanceLabel")
 if zoneLabel then zoneLabel.Visible = false end
 if distLabelCZ then distLabelCZ.Visible = false end
@@ -615,60 +631,6 @@ local function applyZoneDecor(zoneId)
     paintLayer(nearLayer, d.ground, d, hasArt)
 end
 
--- HeroTimeBox: ZONE / DIST + all-time record + this-session XP/min & gold/min.
-local timeLabel   = heroTimeBox:FindFirstChild("TimeLabel")
-local timeValue   = heroTimeBox:FindFirstChild("TimeValue")
-local distLabel   = heroTimeBox:FindFirstChild("DistLabel")
-do
-    -- B6b: the HeroTimeBox in RpgGui fits ~2 lines; 4 crammed rows were illegible.
-    -- Drop the ZONE row (zone is already on the zone track + top HUD) -> 3 rows:
-    -- DIST / RECORD / /MIN.
-    local function mkRow(name, labelText)
-        local lbl = heroTimeBox:FindFirstChild(name .. "Label")
-        local val = heroTimeBox:FindFirstChild(name .. "Value")
-        if not lbl then
-            lbl = timeLabel:Clone() ; lbl.Name = name .. "Label" ; lbl.Parent = heroTimeBox
-        end
-        lbl.Text = labelText
-        if not val then
-            val = timeValue:Clone() ; val.Name = name .. "Value" ; val.Text = "" ; val.Parent = heroTimeBox
-        end
-        return { lbl, val }
-    end
-
-    if distLabel then distLabel.Text = "DIST" end
-    local rows = {
-        { distLabel, distValue },
-        mkRow("Record", "RECORD"),
-        mkRow("Rate", "/MIN"),
-    }
-
-    -- ZONE row is retired from this box.
-    if timeLabel then timeLabel.Visible = false end
-    if timeValue then timeValue.Visible = false end
-
-    for i, pair in ipairs(rows) do
-        local y = 0.08 + (i - 1) * 0.30
-        if pair[1] then
-            pair[1].Position = UDim2.new(0, 14, y, 0)
-            pair[1].Size = UDim2.new(0.30, 0, 0.26, 0)
-            pair[1].TextSize = 13
-        end
-        if pair[2] then
-            pair[2].Position = UDim2.new(0.32, 0, y, 0)
-            pair[2].Size = UDim2.new(0.66, -14, 0.26, 0)
-            pair[2].TextSize = 14
-        end
-    end
-end
-local recordValue = heroTimeBox:FindFirstChild("RecordValue")
-local rateValue   = heroTimeBox:FindFirstChild("RateValue")
-
--- This-session income rates (reset on rejoin). Track gross gains only so
--- shop / rebirth spending doesn't drag the gold rate negative.
-local sessionT0, lastXp, lastGold = os.clock(), nil, nil
-local xpGained, goldGained = 0, 0
-
 --===== Scene (world traversal) =====
 -- Static backdrop; the HERO moves. ONE linear layout, NO mirror: the same
 -- km->screen function places the hero AND both mobs, so nothing can ever dash.
@@ -677,15 +639,18 @@ local xpGained, goldGained = 0, 0
 local enemyStep1 = combatZone:FindFirstChild("EnemyStep1")
 local enemyStep2 = combatZone:FindFirstChild("EnemyStep2")
 local ENC_FRAC    = { 0.5, 0.95 }     -- fallback ; the server sends enc.rel per mob
-local WALK_LO, WALK_HI = 0.15, 0.88   -- hero's walkable band (portals sit just outside it)
+local WALK_LO, WALK_HI = 0.15, 0.88   -- enemy slot placement band (stepXtoScreen range)
+local HERO_EXPLORE_X = 0.30           -- the hero holds here while exploring (no per-step traversal)
 local PORTAL_L, PORTAL_R = 0.05, 0.95 -- blue (go back) / red (go forward)
 local WALL_LEAN   = 0.10              -- lean a touch further against the km-0 boundary
-local SCENE_Y     = 0.62              -- vertical centre of the slot Frames
+local SCENE_Y     = 0.70              -- vertical centre of the slot Frames
 local SLOT_H      = 0.40              -- slot Frame height (CombatZone fraction; matches RpgGui)
-local GROUND_Y    = 0.86              -- CombatZone Y where a combatant's feet rest (top of the drawn ground)
+-- The combatant art has ~12% transparent canvas below the feet; GROUND_Y is the
+-- ImageLabel's bottom edge, tuned so the DRAWN feet land on the dirt path.
+local GROUND_Y    = 0.99
 local SPRITE_FEET_R = (GROUND_Y - (SCENE_Y - SLOT_H / 2)) / SLOT_H  -- GROUND_Y as a slot-relative Y
-local FIGHT_NUDGE = 0.06              -- hero stops just short of the enemy block
-local heroTargetX    = WALK_LO
+local FIGHT_NUDGE = 0.06              -- hero fights just off the enemy (opening hit lands here)
+local heroTargetX    = HERO_EXPLORE_X
 local enemyHpTargetX = WALK_HI
 local sceneLastStepKey = nil          -- floor(km) of the step the hero is currently in
 local sceneFacing    = "right"        -- set ONLY when crossing into a new step
@@ -730,7 +695,7 @@ end
 --   forward (hero on the LEFT)  -> hero faces right, enemy faces left
 --   back    (hero on the RIGHT) -> hero faces left,  enemy faces right
 -- Sprite size as a fraction of its (roughly square, in px) slot Frame.
-local BASE_SPRITE_W, BASE_SPRITE_H = 1.15, 1.15   -- prominent combatants, matching the reference scene
+local BASE_SPRITE_W, BASE_SPRITE_H = 0.95, 0.95   -- combatants sized so they never overlap when fighting
 local BOSS_SPRITE_MUL = 1.45
 local HPBAR_W, HPBAR_H = 0.077, 0.026             -- floating HP bar, matched to a sprite's width
 
@@ -803,6 +768,9 @@ if not petSprite then
 end
 local petLungeUntil = 0
 local heroAttackUntil, enemyAttackUntil = 0, 0
+local activeEnemySlot = nil     -- the slot Frame of the enemy currently being fought
+local activeEnemyBaseX = 0      -- its resting X (RenderStepped adds a hit-flinch offset)
+local heroWalkAmt = 0           -- 0..1 smoothed "is the hero walking" (drives bob/lean)
 local petRole = nil   -- "dps"|"tank"|"heal"|nil ; mirrors data.petRole for the RenderStepped follow
 
 --===== Step crossing transition =====
@@ -851,19 +819,17 @@ if not stepTransition then
     stepTransition.Visible = false
     stepTransition.Parent = combatZone
 end
--- Brief, soft crossing wipe - a gentle light veil, NOT an alarm flash. A cool
--- tint going back, a warm tint going forward; barely-there peak opacity.
+-- Crossing wipe. Snaps to a soft cover INSTANTLY (so the hero's reset to the
+-- left edge of the next step is never seen mid-slide), then fades out.
 local function playStepTransition(goingBack)
-    stepTransition.BackgroundColor3 = goingBack and Color3.fromRGB(205, 225, 255) or Color3.fromRGB(255, 240, 220)
+    stepTransition.BackgroundColor3 = goingBack and Color3.fromRGB(18, 22, 32) or Color3.fromRGB(24, 20, 14)
     stepTransition.Visible = true
-    stepTransition.BackgroundTransparency = 1
-    local tin = TweenService:Create(stepTransition, TweenInfo.new(0.10, Enum.EasingStyle.Quad), { BackgroundTransparency = 0.80 })
-    tin.Completed:Connect(function()
-        local tout = TweenService:Create(stepTransition, TweenInfo.new(0.30, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 1 })
-        tout.Completed:Connect(function() stepTransition.Visible = false end)
-        tout:Play()
-    end)
-    tin:Play()
+    stepTransition.BackgroundTransparency = 0.2   -- instant partial cover, no fade-in
+    local tout = TweenService:Create(stepTransition,
+        TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        { BackgroundTransparency = 1 })
+    tout.Completed:Connect(function() stepTransition.Visible = false end)
+    tout:Play()
 end
 
 -- Low-HP screen flash: the ONLY red screen effect. A UNIFORM full-screen red
@@ -939,6 +905,7 @@ local function updateScene(data)
 
     local activeIndex, activeFrac
     for i, e in ipairs(encs) do if e and e.active then activeIndex = i end end
+    activeEnemySlot = nil
     for i, slot in ipairs(slots) do
         local enc = encs[i]
         local tag = slot and ensureNameTag(slot)
@@ -946,7 +913,11 @@ local function updateScene(data)
             local frac = enc.rel or ENC_FRAC[i] or (i == 1 and 0.5 or 0.95)
             slot.Visible = not enc.cleared
             slot.Position = UDim2.new(stepXtoScreen(frac), 0, SCENE_Y, 0)
-            if enc.active then activeFrac = frac end
+            if enc.active then
+                activeFrac = frac ; activeEnemySlot = slot ; activeEnemyBaseX = stepXtoScreen(frac)
+            else
+                slot.Rotation = 0
+            end
             local lbl = slot:FindFirstChild("EnemyLabel")
             if lbl then
                 lbl.Text = (enc.kind == "boss") and "[ BOSS ]" or "[ ENNEMI ]"
@@ -979,8 +950,9 @@ local function updateScene(data)
     if enemyName then enemyName.Visible = false end
     if enemyHpPanel then enemyHpPanel.Visible = false end
 
-    -- Hero X = his real step progress on the SAME scale as the mobs -> he is
-    -- already where the fight is when it starts. Never a dash.
+    -- Hero X follows his real km progress on the SAME scale the mobs are placed
+    -- on, so he arrives ON the enemy exactly as the fight starts (the server
+    -- only engages within encounterRangeKm = ~0.06). No cap, no pre-stop.
     local p = math.clamp(data.posRelStep or 0, 0, 1)
     heroTargetX = stepXtoScreen(p)
     if activeIndex then
@@ -988,55 +960,22 @@ local function updateScene(data)
         enemyHpTargetX = ex
         heroTargetX = ex + (back and FIGHT_NUDGE or -FIGHT_NUDGE)
     elseif data.moveDir == "left" and (data.pos or 0) <= 0.02 then
-        heroTargetX = WALL_LEAN   -- grinding the km-0 wall: lean a touch further left
+        heroTargetX = WALL_LEAN
     end
     if crossed and heroSlot then
-        heroSlot.Position = UDim2.new(heroTargetX, 0, SCENE_Y, 0)
+        heroSlot.Position = UDim2.new(heroTargetX, 0, SCENE_Y, 0)   -- snap, hidden by the wipe
     end
 end
 
 --===== Zone track (compact progress line to the end of the zone) =====
 local zoneTrack   = background:FindFirstChild("ZoneTrack") or combatZone:FindFirstChild("ZoneTrack")
-local ztLabel     = zoneTrack and zoneTrack:FindFirstChild("Label")
-local ztRail      = zoneTrack and zoneTrack:FindFirstChild("Rail")
-local ztDot       = ztRail and ztRail:FindFirstChild("Dot")
-local ztTicks     = {}
-if ztRail then
-    for i = 1, 10 do
-        local tick = ztRail:FindFirstChild("Tick" .. i)
-        ztTicks[i] = tick
-        if tick then
-            -- B6c: evenly space the 10 ticks by code (the hand-placed 9/10 gap
-            -- was wrong). Set once, not per frame; keep Size / AnchorPoint.
-            tick.Position = UDim2.new((i - 1) / 10, 0, 0.5, 0)
-        end
-    end
-end
 
 local function updateZoneTrack(data)
     if not zoneTrack then return end
-    if ztLabel then
-        local z = ZoneConfig.getZone(data.zone or 1)
-        ztLabel.Text = string.format("COUCHE %d - %s  \u{00B7}  ETAPE %d/%d",
-            data.zone or 1, (z and z.name) or "?", data.stepIndex or 1, data.stepsPerZone or 10)
-    end
-    if ztDot then
-        ztDot.Position = UDim2.new(math.clamp(data.posRelZone or 0, 0, 1), 0, 0.5, 0)
-        ztDot.BackgroundColor3 = data.isMoving and Color3.fromRGB(120, 255, 120) or Color3.fromRGB(120, 200, 120)
-    end
-    local step = data.stepIndex or 1
-    for i, tick in ipairs(ztTicks) do
-        if tick then
-            tick.BackgroundColor3 =
-                (i < step) and Color3.fromRGB(70, 120, 70)      -- passed
-                or (i == step) and Color3.fromRGB(120, 255, 120) -- current
-                or Color3.fromRGB(110, 110, 110)                 -- ahead
-        end
-    end
     if artifactProgressText then
         local z = ZoneConfig.getZone(data.zone or 1)
-        artifactProgressText.Text = string.format("COUCHE %d - %s  ·  ETAPE %d/%d  ·  PROCHAIN : BOSS",
-            data.zone or 1, (z and string.upper(z.name)) or "?", data.stepIndex or 1, data.stepsPerZone or 10)
+        artifactProgressText.Text = string.format("Couche %d \u{2014} %s  \u{00B7}  Etape %d/%d  \u{00B7}  prochain : BOSS",
+            data.zone or 1, (z and z.name) or "?", data.stepIndex or 1, data.stepsPerZone or 10)
     end
     if artifactProgressFill then
         artifactProgressFill.Size = UDim2.new(math.clamp(data.posRelZone or 0, 0, 1), 0, 1, 0)
@@ -1045,17 +984,10 @@ end
 
 --===== Top HUD (deaths / zone progress / distance+speed) =====
 local topSection = background:FindFirstChild("TopSection")
-local topDeath = topSection and topSection:FindFirstChild("DeathBox") and topSection.DeathBox:FindFirstChild("Label")
-local topRight = topSection and topSection:FindFirstChild("RightBox") and topSection.RightBox:FindFirstChild("Label")
 
 local function updateTopHud(data)
-    if topDeath then topDeath.Text = string.format("\u{1F480} %d", data.deaths or 0) end
-    if topRight then topRight.Text = string.format("%.1f KM", data.pos or 0) end
-    if artifactTopDeaths then
-        artifactTopDeaths.Text = ""
-    end
     if artifactTopCenter then
-        artifactTopCenter.Text = string.format("☠  %d   \u{00B7}   COUCHE %d   \u{00B7}   %.1f KM",
+        artifactTopCenter.Text = string.format("\u{1F480} %d   \u{00B7}   Couche %d   \u{00B7}   %.1f km",
             data.deaths or 0, data.zone or 1, data.pos or 0)
     end
     if artifactTopEnemy then
@@ -1064,8 +996,11 @@ local function updateTopHud(data)
             if e and e.active then inFight = true break end
         end
         artifactTopEnemy.Text = (inFight and data.enemyName)
-            and string.format("%s  \u{00B7}  NIV.%d", data.enemyName, data.enemyLevel or 1)
-            or ""
+            and string.format("%s  \u{00B7}  Niv.%d", data.enemyName, data.enemyLevel or 1)
+            or (data.milestone == "campfire" and "FEU DE CAMP")
+            or "EXPLORATION"
+        artifactTopEnemy.TextColor3 = (inFight and data.enemyName)
+            and Color3.fromRGB(206, 120, 108) or Color3.fromRGB(201, 168, 120)
     end
 end
 
@@ -1078,19 +1013,174 @@ local stepInZone     = 0
 local stepsPerZone   = 50
 local SCROLL_SCALE   = 0.02  -- near layer scroll speed per step
 
--- Stat panel references
-local heroStatsBox       = heroPanel:FindFirstChild("HeroStatsBox")
-local availablePointsLabel = heroStatsBox and heroStatsBox:FindFirstChild("AvailablePoints")
+--===== Talents / stat allocation panel =====
+-- Opened from the DescenteLeft "TALENTS" footer button. Replaces the old
+-- HeroStatsBox (which lived on a permanently-hidden panel). Reads the stat
+-- fields already present on every "update" payload; writes go through the
+-- unchanged server "allocateStat" handler.
+local TALENT_BG     = Color3.fromRGB(16, 17, 21)
+local TALENT_BORDER = Color3.fromRGB(150, 150, 155)
+local TALENT_ACCENT = Color3.fromRGB(224, 196, 128)
+local TALENT_TEXT   = Color3.fromRGB(242, 239, 226)
+local TALENT_MUTED  = Color3.fromRGB(150, 150, 155)
+local STAT_ORDER = { "POW", "INT", "VIT", "SPD", "LUK" }
+local STAT_DESC = {
+    POW = "Puissance \u{2014} d\u{00E9}g\u{00E2}ts physiques",
+    INT = "Intellect \u{2014} d\u{00E9}g\u{00E2}ts magiques",
+    VIT = "Vitalit\u{00E9} \u{2014} points de vie",
+    SPD = "Vitesse \u{2014} cadence d'attaque",
+    LUK = "Chance \u{2014} taux de critique",
+}
 
--- Stat allocation buttons. Wired HERE (early) so the first click after joining
--- isn't lost while the rest of this long script is still executing.
-for _, statName in ipairs({ "POW", "INT", "VIT", "SPD", "LUK" }) do
-    local btn = heroStatsBox and heroStatsBox:FindFirstChild("Btn" .. statName)
-    if btn then
+local talentsPointsLabel
+local talentsRows = {}   -- statName -> { value = TextLabel, btn = TextButton }
+
+do
+    local panel = Instance.new("Frame")
+    panel.Name = "TalentsPanel"
+    panel.AnchorPoint = Vector2.new(0.5, 0.5)
+    panel.Position = UDim2.fromScale(0.5, 0.5)
+    panel.Size = UDim2.fromOffset(360, 360)
+    panel.BackgroundColor3 = TALENT_BG
+    panel.BorderColor3 = TALENT_BORDER
+    panel.BorderSizePixel = 1
+    panel.Visible = false
+    panel.ZIndex = 60
+    panel.Parent = background
+
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Position = UDim2.fromOffset(16, 12)
+    title.Size = UDim2.new(1, -32, 0, 24)
+    title.BackgroundTransparency = 1
+    title.Font = Enum.Font.GothamMedium
+    title.Text = "TALENTS"
+    title.TextColor3 = TALENT_ACCENT
+    title.TextSize = 16
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.ZIndex = 61
+    title.Parent = panel
+
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Name = "CloseBtn"
+    closeBtn.Position = UDim2.new(1, -40, 0, 8)
+    closeBtn.Size = UDim2.fromOffset(32, 28)
+    closeBtn.BackgroundTransparency = 1
+    closeBtn.Font = Enum.Font.GothamMedium
+    closeBtn.Text = "X"
+    closeBtn.TextColor3 = TALENT_MUTED
+    closeBtn.TextSize = 16
+    closeBtn.ZIndex = 61
+    closeBtn.Parent = panel
+    closeBtn.MouseButton1Click:Connect(function() panel.Visible = false end)
+
+    talentsPointsLabel = Instance.new("TextLabel")
+    talentsPointsLabel.Name = "Points"
+    talentsPointsLabel.Position = UDim2.fromOffset(16, 40)
+    talentsPointsLabel.Size = UDim2.new(1, -32, 0, 20)
+    talentsPointsLabel.BackgroundTransparency = 1
+    talentsPointsLabel.Font = Enum.Font.Gotham
+    talentsPointsLabel.Text = "Points \u{00E0} r\u{00E9}partir : 0"
+    talentsPointsLabel.TextColor3 = TALENT_TEXT
+    talentsPointsLabel.TextSize = 13
+    talentsPointsLabel.TextXAlignment = Enum.TextXAlignment.Left
+    talentsPointsLabel.ZIndex = 61
+    talentsPointsLabel.Parent = panel
+
+    for i, statName in ipairs(STAT_ORDER) do
+        local y = 70 + (i - 1) * 52
+        local row = Instance.new("Frame")
+        row.Name = "Row" .. statName
+        row.Position = UDim2.fromOffset(16, y)
+        row.Size = UDim2.new(1, -32, 0, 46)
+        row.BackgroundColor3 = Color3.fromRGB(21, 22, 27)
+        row.BorderColor3 = TALENT_BORDER
+        row.BorderSizePixel = 1
+        row.ZIndex = 61
+        row.Parent = panel
+
+        local value = Instance.new("TextLabel")
+        value.Name = "Value"
+        value.Position = UDim2.fromOffset(10, 0)
+        value.Size = UDim2.new(1, -80, 1, 0)
+        value.BackgroundTransparency = 1
+        value.Font = Enum.Font.Gotham
+        value.Text = string.format("%s  0", statName)
+        value.TextColor3 = TALENT_TEXT
+        value.TextSize = 13
+        value.TextXAlignment = Enum.TextXAlignment.Left
+        value.TextWrapped = true
+        value.ZIndex = 62
+        value.Parent = row
+
+        local btn = Instance.new("TextButton")
+        btn.Name = "Add"
+        btn.AnchorPoint = Vector2.new(1, 0.5)
+        btn.Position = UDim2.new(1, -8, 0.5, 0)
+        btn.Size = UDim2.fromOffset(52, 30)
+        btn.BackgroundColor3 = Color3.fromRGB(11, 12, 16)
+        btn.BorderColor3 = TALENT_ACCENT
+        btn.BorderSizePixel = 1
+        btn.AutoButtonColor = false
+        btn.Font = Enum.Font.GothamMedium
+        btn.Text = "+"
+        btn.TextColor3 = TALENT_ACCENT
+        btn.TextSize = 15
+        btn.ZIndex = 62
+        btn.Parent = row
         btn.MouseButton1Click:Connect(function()
             combatEvent:FireServer({ type = "allocateStat", stat = statName })
         end)
+
+        talentsRows[statName] = { value = value, btn = btn }
     end
+end
+
+local function updateTalentsPanel(data)
+    if talentsPointsLabel then
+        local def, res = math.floor(data.playerDef or 0), math.floor(data.playerRes or 0)
+        local arm = (def > 0 or res > 0) and string.format("      armure : DEF %d \u{00B7} RES %d", def, res) or ""
+        talentsPointsLabel.Text = string.format("Points \u{00E0} r\u{00E9}partir : %d%s", data.statPoints or 0, arm)
+    end
+    local statFields = {
+        POW = data.statPow or 0, INT = data.statInt or 0, VIT = data.statVit or 0,
+        SPD = data.statSpd or 0, LUK = data.statLuk or 0,
+    }
+    local points = data.statPoints or 0
+    for _, statName in ipairs(STAT_ORDER) do
+        local row = talentsRows[statName]
+        if row then
+            local base = statFields[statName]
+            local gear = 0
+            if statName == "VIT" then gear = data.gearHpPoints or 0
+            elseif statName == "POW" and not data.gearIsMagic then gear = data.gearAtkPoints or 0
+            elseif statName == "INT" and data.gearIsMagic then gear = data.gearAtkPoints or 0 end
+            local head = (gear > 0)
+                and string.format("%s  %d  (+%d \u{00E9}quip.)", statName, base, gear)
+                or  string.format("%s  %d", statName, base)
+            if statName == "SPD" and data.spdAtMax then head = string.format("%s  %d  (MAX)", statName, base) end
+            row.value.Text = head .. "\n" .. (STAT_DESC[statName] or "")
+
+            if statName == "SPD" and data.spdAtMax then
+                row.btn.Text = "MAX"
+                row.btn.TextColor3 = TALENT_MUTED
+                row.btn.BorderColor3 = TALENT_BORDER
+            else
+                local cost = (statName == "SPD") and (data.spdNextCost or 1) or 1
+                row.btn.Text = (cost > 1) and ("+" .. cost) or "+"
+                local affordable = points >= cost
+                row.btn.TextColor3 = affordable and TALENT_ACCENT or TALENT_MUTED
+                row.btn.BorderColor3 = affordable and TALENT_ACCENT or TALENT_BORDER
+            end
+        end
+    end
+end
+
+if artifactTalentsButton then
+    artifactTalentsButton.MouseButton1Click:Connect(function()
+        local p = background:FindFirstChild("TalentsPanel")
+        if p then p.Visible = not p.Visible end
+    end)
 end
 
 -- Game Over window references
@@ -1110,16 +1200,16 @@ end
 
 --===== UI update from server data =====
 local function updateUI(data)
-    -- Player HP bar: fill + colour (green > 50%, yellow > 20%, red below).
+    -- Player HP: the visible bar is artifactHeroHpFill in DescenteLeft.
     local playerRatio = math.clamp(data.playerHp / math.max(1, data.playerMaxHp), 0, 1)
-    playerHpFill.Size = UDim2.new(playerRatio, -4, 1, -4)
-    playerHpFill.BackgroundColor3 =
-        (playerRatio <= 0.20) and Color3.fromRGB(220, 60, 60)
-        or (playerRatio <= 0.50) and Color3.fromRGB(230, 200, 60)
-        or Color3.fromRGB(80, 210, 90)
-    playerHpText.Text = string.format("%d/%d", data.playerHp, data.playerMaxHp)
     if artifactHeroHpText then artifactHeroHpText.Text = string.format("%d/%d", data.playerHp, data.playerMaxHp) end
-    if artifactHeroHpFill then artifactHeroHpFill.Size = UDim2.new(playerRatio, 0, 1, 0) end
+    if artifactHeroHpFill then
+        artifactHeroHpFill.Size = UDim2.new(playerRatio, 0, 1, 0)
+        artifactHeroHpFill.BackgroundColor3 =
+            (playerRatio <= 0.20) and Color3.fromRGB(220, 60, 60)
+            or (playerRatio <= 0.50) and Color3.fromRGB(230, 200, 60)
+            or Color3.fromRGB(80, 210, 90)
+    end
     lowHpActive = (data.playerHp or 0) > 0 and playerRatio <= 0.20 and not (data.gameOver == true)
 
     local inFight = false
@@ -1127,99 +1217,45 @@ local function updateUI(data)
         if e and e.active then inFight = true break end
     end
 
-    -- Enemy HP bar + name
+    -- Enemy HP: the visible bar is artifactEnemyHpFill in DescenteRight.
     local enemyRatio = math.clamp(data.enemyHp / math.max(1, data.enemyMaxHp), 0, 1)
-    enemyHpFill.Size = UDim2.new(enemyRatio, 0, 1, 0)
-    enemyHpText.Text = string.format("%d/%d", data.enemyHp, data.enemyMaxHp)
-    enemyName.Text = string.format("%s Lv.%d", data.enemyName, data.enemyLevel)
     if artifactEnemyHpText then artifactEnemyHpText.Text = string.format("%d/%d", data.enemyHp, data.enemyMaxHp) end
     if artifactEnemyHpFill then artifactEnemyHpFill.Size = UDim2.new(enemyRatio, 0, 1, 0) end
 
-    -- Hero panel: LV (+ Rebirth count) + XP, then HP, then the 3 equipment lines.
-    local rbTag = (data.rebirths and data.rebirths > 0) and string.format("  R%d", data.rebirths) or ""
-    heroLevel.Text  = string.format("LV: %d%s   XP: %d/%d", data.playerLevel, rbTag, data.playerExp or 0, data.playerExpToNext or 0)
-    if heroPvLine then
-        heroPvLine.Text = string.format("PV: %d / %d", data.playerHp or 0, data.playerMaxHp or 0)
+    -- Hero cards (DescenteLeft): grey field label + light value, one line each.
+    local function fld(label, value)
+        return string.format('<font color="#78787d">%s</font>  %s', label, value)
     end
-    heroWeapon.Text = string.format("Arme: %s", data.equipWeapon or "—")
-    heroArmor.Text  = string.format("Armr: %s", data.equipArmor or "—")
-    if heroPet then
-        heroPet.Text = string.format("Pet: %s", data.equipPet or "—")
-    end
+    local rbTag = (data.rebirths and data.rebirths > 0) and string.format("  \u{00B7}  R%d", data.rebirths) or ""
     if artifactHeroLevelCard then
-        artifactHeroLevelCard.Text = string.format("  LV %d%s", data.playerLevel or 1, rbTag)
+        artifactHeroLevelCard.Text = fld("LV", tostring(data.playerLevel or 1) .. rbTag)
     end
     if artifactHeroXpText and artifactHeroXpFill then
         local currentXp = math.max(0, data.playerExp or 0)
         local neededXp = math.max(1, data.playerExpToNext or 1)
         local xpRatio = math.clamp(currentXp / neededXp, 0, 1)
         artifactHeroXpFill.Size = UDim2.new(xpRatio, 0, 1, 0)
-        artifactHeroXpText.Text = string.format("XP %s / %s  -  %.1f%%",
-            formatNumber(currentXp), formatNumber(neededXp), xpRatio * 100)
+        artifactHeroXpText.Text = string.format("XP %s / %s", formatNumber(currentXp), formatNumber(neededXp))
     end
-    if artifactHeroWeaponCard then artifactHeroWeaponCard.Text = string.format("  Arme  %s", data.equipWeapon or "—") end
-    if artifactHeroArmorCard then artifactHeroArmorCard.Text = string.format("  Armr  %s", data.equipArmor or "—") end
-    if artifactHeroPetCard then artifactHeroPetCard.Text = string.format("  Pets  %s", data.equipPet or "—") end
+    if artifactHeroWeaponCard then artifactHeroWeaponCard.Text = fld("Arme", data.equipWeapon or "\u{2014}") end
+    if artifactHeroArmorCard then artifactHeroArmorCard.Text = fld("Armr", data.equipArmor or "\u{2014}") end
+    if artifactHeroPetCard then artifactHeroPetCard.Text = fld("Pets", data.equipPet or "\u{2014}") end
     if artifactHeroStatsCard then
-        artifactHeroStatsCard.Text = string.format("  ATK %s  ·  DEF %s\n  RES %s  ·  CRIT %.1f%%",
+        artifactHeroStatsCard.Text = string.format(
+            '<font color="#78787d">ATK</font> %s  <font color="#78787d">DEF</font> %s\n<font color="#78787d">RES</font> %s  <font color="#78787d">CRIT</font> %.1f%%',
             formatNumber(data.playerAtk or 0), formatNumber(data.playerDef or 0), formatNumber(data.playerRes or 0),
             math.min(100, (data.statLuk or 0) / 25))
     end
 
     -- Pet sprite is painted just below, beside the hero (needs the fresh facing).
 
-    -- Stats display in HeroStatsBox
-    if availablePointsLabel then
-        local def, res = math.floor(data.playerDef or 0), math.floor(data.playerRes or 0)
-        local arm = (def > 0 or res > 0) and string.format("   ARM  DEF %d \u{00B7} RES %d", def, res) or ""
-        availablePointsLabel.Text = string.format("PTS: %d%s", data.statPoints or 0, arm)
-    end
-    if heroStatsBox then
-        local statFields = {
-            POW = data.statPow or 0,
-            INT = data.statInt or 0,
-            VIT = data.statVit or 0,
-            SPD = data.statSpd or 0,
-            LUK = data.statLuk or 0,
-        }
-        for statName, value in pairs(statFields) do
-            local label = heroStatsBox:FindFirstChild("Stat" .. statName)
-            if label then
-                -- "(+n)" = equipment contribution converted to points of that stat.
-                local gear = 0
-                if statName == "VIT" then gear = data.gearHpPoints or 0
-                elseif statName == "POW" and not data.gearIsMagic then gear = data.gearAtkPoints or 0
-                elseif statName == "INT" and data.gearIsMagic then gear = data.gearAtkPoints or 0 end
-                label.Text = (gear > 0)
-                    and string.format("%s: %d (+%d)", statName, value, gear)
-                    or  string.format("%s: %d", statName, value)
-            end
-        end
-        -- SPD is capped (spdMax) and each 10th point costs 2x: reflect on its row + button.
-        local spdLabel = heroStatsBox:FindFirstChild("StatSPD")
-        local spdBtn   = heroStatsBox:FindFirstChild("BtnSPD")
-        if spdLabel then
-            spdLabel.Text = data.spdAtMax
-                and string.format("SPD: %d (MAX)", data.statSpd or 0)
-                or  string.format("SPD: %d", data.statSpd or 0)
-        end
-        if spdBtn then
-            if data.spdAtMax then
-                spdBtn.Text = "MAX"
-                spdBtn.TextColor3 = Color3.fromRGB(120, 120, 120)
-            else
-                local c = data.spdNextCost or 1
-                spdBtn.Text = (c > 1) and string.format("[+%d]", c) or "[+]"
-                spdBtn.TextColor3 = ((data.statPoints or 0) >= c)
-                    and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(150, 150, 150)
-            end
-        end
-    end
+    -- Talents panel (stat allocation) - refreshed whether open or not so it's
+    -- current the instant the player opens it.
+    updateTalentsPanel(data)
 
-    -- Gold
-    goldText.Text = string.format("G  %s", formatNumber(data.gold))
+    -- Gold (sits in the right column, matching the reference)
     if artifactHeroGoldCard then
-        artifactHeroGoldCard.Text = string.format("OR  %s", formatNumber(data.gold or 0))
+        artifactHeroGoldCard.Text = fld("OR", formatNumber(data.gold or 0))
     end
 
     -- Rebirth button: icone seule (assets/images/rebirthicon, fond detoure),
@@ -1229,71 +1265,35 @@ local function updateUI(data)
         if ic then ic.ImageTransparency = data.canRebirth and 0 or 0.5 end
     end
 
-    -- Enemy info panel: only populated during an actual fight (no default mob).
-    local infoAtk  = enemyInfoBox:FindFirstChild("InfoAtk")
-    local infoInt  = enemyInfoBox:FindFirstChild("InfoInt")
-    local infoType = enemyInfoBox:FindFirstChild("InfoType")
+    -- Enemy readout (DescenteRight cards): only populated during an actual fight.
+    local enemyHpRoot = artifactEnemyHpLabel and artifactEnemyHpLabel.Parent
     if not inFight then
-        infoName.Text  = data.isMoving and "Exploration..." or "\u{2014}"
-        infoName.TextColor3 = Color3.fromRGB(180, 180, 185)
-        infoLevel.Text = ""
-        infoMaxHp.Text = ""
-        infoExp.Text   = ""
-        if infoAtk  then infoAtk.Text  = "" end
-        if infoInt  then infoInt.Text  = "" end
-        if infoType then infoType.Text = "" end
-        if artifactEnemyHpLabel then artifactEnemyHpLabel.Visible = false end
-        if artifactEnemyHpText then artifactEnemyHpText.Visible = false end
-        if artifactEnemyHpFill and artifactEnemyHpFill.Parent then artifactEnemyHpFill.Parent.Visible = false end
-        if artifactEnemyNameCard then artifactEnemyNameCard.Visible = false end
-        if artifactEnemyPvCard then artifactEnemyPvCard.Visible = false end
-        if artifactEnemyAtkCard then artifactEnemyAtkCard.Visible = false end
-        if artifactEnemyGoldCard then artifactEnemyGoldCard.Visible = false end
-    else
-        local diffCol = difficultyColour(data, data.enemyMaxHp, data.enemyAtk, data.enemyDamageType == "magic")
-        infoName.Text  = data.enemyName or "?"
-        infoName.TextColor3 = diffCol
-        infoLevel.Text = string.format("Lv %d", data.enemyLevel or 0)
-        infoLevel.TextColor3 = diffCol
-        infoMaxHp.Text = string.format("PV:  %d / %d", data.enemyHp or 0, data.enemyMaxHp or 0)
-        infoExp.Text   = string.format("EXP: %d", data.enemyExp or 0)
-        if artifactEnemyHpLabel then artifactEnemyHpLabel.Visible = true end
-        if artifactEnemyHpText then artifactEnemyHpText.Visible = true end
-        if artifactEnemyHpFill and artifactEnemyHpFill.Parent then artifactEnemyHpFill.Parent.Visible = true end
+        if enemyHpRoot then enemyHpRoot.Visible = false end
         if artifactEnemyNameCard then
             artifactEnemyNameCard.Visible = true
-            artifactEnemyNameCard.Text = string.format("  %s  N%d", data.enemyName or "?", data.enemyLevel or 1)
+            artifactEnemyNameCard.Text = data.isMoving and "exploration\u{2026}" or "aucun ennemi"
+            artifactEnemyNameCard.TextColor3 = Color3.fromRGB(120, 120, 125)
+        end
+        if artifactEnemyPvCard then artifactEnemyPvCard.Visible = false end
+        if artifactEnemyAtkCard then artifactEnemyAtkCard.Visible = false end
+    else
+        if enemyHpRoot then enemyHpRoot.Visible = true end
+        if artifactEnemyNameCard then
+            artifactEnemyNameCard.Visible = true
+            artifactEnemyNameCard.Text = string.format("%s  N%d", data.enemyName or "?", data.enemyLevel or 1)
+            artifactEnemyNameCard.TextColor3 = difficultyColour(data, data.enemyMaxHp, data.enemyAtk, data.enemyDamageType == "magic")
         end
         if artifactEnemyPvCard then
             artifactEnemyPvCard.Visible = true
-            artifactEnemyPvCard.Text = string.format("  PV  %d / %d", data.enemyHp or 0, data.enemyMaxHp or 0)
+            artifactEnemyPvCard.Text = fld("PV", string.format("%d / %d", data.enemyHp or 0, data.enemyMaxHp or 0))
         end
         if artifactEnemyAtkCard then
             artifactEnemyAtkCard.Visible = true
-            artifactEnemyAtkCard.Text = string.format("  ATK 100%%  ·  %s",
-                (data.enemyDamageType == "magic") and "MAG." or "PHYS.")
+            local atkPct = (data.enemyIsBoss and data.enemyAtkSplit)
+                and math.floor(data.enemyAtkSplit * 100 + 0.5) or 100
+            artifactEnemyAtkCard.Text = fld("ATK", string.format("%d%%  \u{00B7}  %s", atkPct,
+                (data.enemyDamageType == "magic") and "mag." or "phys."))
         end
-        if artifactEnemyGoldCard then
-            artifactEnemyGoldCard.Visible = true
-            artifactEnemyGoldCard.Text = string.format("  XP +%s  ·  OR +%s",
-                formatNumber(data.enemyExp or 0), formatNumber(data.enemyGold or 0))
-        end
-        if data.enemyIsBoss and data.enemyAtkSplit then
-            local atkPct = math.floor(data.enemyAtkSplit * 100 + 0.5)
-            if infoAtk then infoAtk.Text = string.format("ATK %d%%  ·  %s", atkPct,
-                (data.enemyDamageType == "magic") and "MAG." or "PHYS.") end
-            if infoInt then infoInt.Text = string.format("INT: %d%%", 100 - atkPct) end
-            if infoType then infoType.Text = (data.enemyDamageType == "magic") and "TYPE: MAGIQUE" or "TYPE: PHYSIQUE" end
-        else
-            if infoAtk then infoAtk.Text = "ATK 100%  ·  PHYS." end
-            if infoInt then infoInt.Text = "INT: --" end
-            if infoType then infoType.Text = "TYPE: PHYSIQUE" end
-        end
-    end
-
-    -- Zone & progress info
-    if zoneLabel then
-        zoneLabel.Text = string.format("Zone %d", data.zone)
     end
 
     -- Swap decor when the zone changes.
@@ -1367,30 +1367,6 @@ local function updateUI(data)
     -- Enemy visuals are driven by updateScene (2 enemies per step, positioned).
     if enemySlot then enemySlot.Visible = false end
 
-    -- HeroTimeBox: distance / all-time record / this-session rates (B6b: no ZONE row).
-    if distValue then distValue.Text = string.format("%.1f km", data.distance or 0) end
-    if recordValue then
-        recordValue.Text = string.format("%.1f km", math.max(data.bestKm or 0, data.distance or 0))
-    end
-    do
-        local xp, gold = data.exp or 0, data.gold or 0
-        if lastXp then
-            if xp > lastXp then xpGained += xp - lastXp end
-            if gold > lastGold then goldGained += gold - lastGold end
-        end
-        lastXp, lastGold = xp, gold
-        local mins = math.max(1 / 60, (os.clock() - sessionT0) / 60)
-        if rateValue then
-            rateValue.Text = string.format("%s xp  \u{00B7}  %s or",
-                formatNumber(xpGained / mins), formatNumber(goldGained / mins))
-        end
-    end
-
-    -- Prominent distance display in the combat zone
-    if distLabelCZ then
-        distLabelCZ.Text = string.format("%.1f KM", data.distance or 0)
-    end
-
     -- Game Over state
     if data.gameOver then
         if gameOverWindow then
@@ -1411,8 +1387,9 @@ local function createDamageNumber(target, amount, isCrit)
     local label = Instance.new("TextLabel")
     label.Font = Enum.Font.Code
     label.TextSize = isCrit and 22 or 18
-    label.TextColor3 = isCrit and Color3.new(1, 0.2, 0.2) or Color3.new(1, 1, 0)
-    label.Text = string.format("-%d", amount)
+    -- muted tones (the old pure red / pure yellow bloomed on the dark scene)
+    label.TextColor3 = isCrit and Color3.fromRGB(206, 70, 58) or Color3.fromRGB(220, 178, 108)
+    label.Text = isCrit and string.format("-%d!", amount) or string.format("-%d", amount)
     label.BackgroundTransparency = 1
     label.BorderSizePixel = 0
     label.TextXAlignment = Enum.TextXAlignment.Center
@@ -1429,6 +1406,11 @@ local function createDamageNumber(target, amount, isCrit)
         xPos = (heroSlot and heroSlot.Position.X.Scale or WALK_LO) - 0.10
         label.TextColor3 = Color3.fromRGB(120, 230, 255)
         label.TextSize = 13
+    elseif target == "heal" or target == "revive" then
+        xPos = heroSlot and heroSlot.Position.X.Scale or WALK_LO
+        label.TextColor3 = Color3.fromRGB(110, 205, 120)
+        label.Text = (target == "revive") and string.format("REVIVE +%d", amount) or string.format("+%d", amount)
+        label.TextSize = (target == "revive") and 20 or 15
     else
         xPos = heroSlot and heroSlot.Position.X.Scale or WALK_LO
     end
@@ -1510,6 +1492,11 @@ combatEvent.OnClientEvent:Connect(function(data)
         end
     elseif data.type == "loot" and data.item then
         showLootToast(data.item, data.fromBoss)
+    elseif data.type == "petRevive" then
+        if statusText then
+            statusText.Text = "Sauvé par le familier !"
+            statusText.TextColor3 = Color3.fromRGB(110, 205, 120)
+        end
     elseif data.type == "rebirthDone" then
         if statusText then
             statusText.Text = string.format("REBIRTH %d !", data.rebirths or 0)
@@ -1926,22 +1913,47 @@ end
 pinBackdrop(farLayer) ; pinBackdrop(midLayer) ; pinBackdrop(nearLayer)
 
 RunService.RenderStepped:Connect(function()
-    -- Hero slides toward its target x; bob + lean while moving.
+    -- Hero slides toward its target x; the walk bob/lean is driven by ACTUAL
+    -- translation (not the server's isMoving), so it stops the instant he
+    -- reaches his spot - no "fake walking" while blocked at a mob.
     if heroSlot then
         local cur = heroSlot.Position.X.Scale
-        local nx  = cur + (heroTargetX - cur) * 0.16
-        local bob = isMovingState and (math.sin(tick() * 11) * 0.009) or 0
-        local attackT = math.max(0, heroAttackUntil - tick())
-        local attackOffset = attackT > 0 and math.sin((0.24 - attackT) / 0.24 * math.pi) * 0.055 or 0
+        local gap = heroTargetX - cur
+        local nx = cur + gap * 0.16                        -- ONE smooth rate, no branching
+        if math.abs(heroTargetX - nx) < 0.0015 then nx = heroTargetX end
+        -- walk amount eases in/out so the bob never snaps on/off (no twitch)
+        local target = (not activeEnemySlot) and math.abs(gap) > 0.003 and 1 or 0
+        heroWalkAmt = heroWalkAmt + (target - heroWalkAmt) * 0.15
+        local bob = heroWalkAmt * math.sin(tick() * 11) * 0.008
         local faceSign = (sceneFacing == "left") and -1 or 1
-        heroSlot.Position = UDim2.new(nx + faceSign * attackOffset, 0, SCENE_Y + bob, 0)
-        heroSlot.Rotation = isMovingState and ((moveDirState == "left") and -4 or 4) or 0
+        -- Attack = a weapon SWING: lean in + squash/stretch, no forward charge.
+        local attackT = math.max(0, heroAttackUntil - tick())
+        local swing = 0
+        if attackT > 0 then
+            local arc = math.sin((0.24 - attackT) / 0.24 * math.pi)
+            swing = faceSign * arc * 13
+            if heroScale then heroScale.Scale = 1 + arc * 0.05 end
+        elseif heroScale and heroScale.Scale ~= 1 then
+            heroScale.Scale = 1
+        end
+        heroSlot.Position = UDim2.new(nx, 0, SCENE_Y + bob, 0)
+        heroSlot.Rotation = swing + heroWalkAmt * ((moveDirState == "left") and -4 or 4)
         -- Small HP bar sits on the ground just under the hero (scaled to a sprite's width).
         if playerHpBar then
             playerHpBar.AnchorPoint = Vector2.new(0.5, 0)
             playerHpBar.Size = UDim2.new(HPBAR_W, 0, HPBAR_H, 0)
             playerHpBar.Position = UDim2.new(nx, 0, GROUND_Y + 0.02, 0)
         end
+    end
+
+    -- Enemy hit-flinch: the struck enemy recoils away from the hero + a quick
+    -- rock, then settles. This carries the "impact" so the hero doesn't have to.
+    if activeEnemySlot then
+        local faceSign = (sceneFacing == "left") and -1 or 1
+        local hitT = math.max(0, heroAttackUntil - tick())
+        local arc = hitT > 0 and math.sin((0.24 - hitT) / 0.24 * math.pi) or 0
+        activeEnemySlot.Position = UDim2.new(activeEnemyBaseX + faceSign * arc * 0.018, 0, SCENE_Y, 0)
+        activeEnemySlot.Rotation = -faceSign * arc * 7
     end
 
     -- Enemy HP bar rides on the ground under the enemy being fought.
@@ -1974,7 +1986,8 @@ RunService.RenderStepped:Connect(function()
         local bob = isMovingState and (math.sin(tick() * 13) * 0.010) or 0
         -- hero<->pet separation halved (0.09 -> 0.045) so the fairy hugs the hero.
         local px = math.clamp(hx + faceSign * (sideSign * 0.045 + lunge), 0.04, 0.92)
-        petSprite.Position = UDim2.new(px, 0, GROUND_Y + bob, 0)
+        -- the fairy hovers a little above the ground line the hero stands on
+        petSprite.Position = UDim2.new(px, 0, GROUND_Y - 0.05 + bob, 0)
     end
 end)
 

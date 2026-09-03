@@ -410,7 +410,7 @@ function resolvePlayerHit(player, st)
             fromBoss = drop.isBoss or false, kept = kept, reason = reason,
         })
     end
-    local petDrop = LootService.rollPetDrop(player, { zone = st.zone, isBoss = st.isBoss, isBigBoss = st.enemyIsBigBoss, dropRateMult = petLootMult })
+    local petDrop = LootService.rollPetDrop(player, { zone = st.zone, isBoss = st.isBoss, isBigBoss = st.enemyIsBigBoss, dropRateMult = petLootMult, enemyLevel = st.enemyLevel })
     if petDrop then
         local ok, kept, reason = pcall(InventoryService.addItem, player, petDrop)
         if not ok then
@@ -435,6 +435,19 @@ function resolvePlayerHit(player, st)
         st.playerExpToNext = xpNeeded(st.playerLevel)
     end
     if levelsGained > 0 then
+        -- The equipped pet levels up with the player (climbs toward, never past,
+        -- the player's level; catches up faster the further behind it is).
+        pcall(function()
+            local equipped = EquipmentService.getEquipped(player)
+            local petInst = equipped and equipped.pet
+            if petInst then
+                local cur = petInst.petLevel or 1
+                if cur < st.playerLevel then
+                    local catchUp = math.max(levelsGained, math.floor((st.playerLevel - cur) * 0.15))
+                    petInst.petLevel = math.min(st.playerLevel, cur + catchUp)
+                end
+            end
+        end)
         local oldMaxHp = st.playerMaxHp or 0
         StatsService.recalc(player, st)
         -- A level-up grants the newly-created HP, without becoming a full heal.
@@ -612,7 +625,14 @@ local function startCombat(player)
                     local dmg = DamageService.enemyHitPlayer(st)
                     st.playerHp = st.playerHp - dmg
                     sendDamage(player, "player", dmg, false)
-                    if st.playerHp <= 0 then
+                    if st.playerHp <= 0 and st.petHeal and st.petHeal.revives and not st.petReviveUsed then
+                        -- Mythique heal pet: one revive per run.
+                        st.petReviveUsed = true
+                        st.playerHp = math.max(1, math.floor(st.playerMaxHp * (st.petHeal.reviveHpPct or 0.30)))
+                        sendDamage(player, "revive", st.playerHp, false)
+                        combatEvent:FireClient(player, { type = "petRevive" })
+                        sendUpdate(player, st)
+                    elseif st.playerHp <= 0 then
                         st.playerHp = 0
                         st.combatActive = false
                         st.isMoving = false
@@ -630,6 +650,41 @@ local function startCombat(player)
                         sendUpdate(player, st)
                     end
                 end
+            end
+        end
+    end)
+
+    -- Heal-pet tick loop (etape 4.2 revised). Fires every st.petHeal.tickSec and
+    -- restores a % of MaxHP - in combat AND exploration. At a campfire the tick
+    -- also adds st.petHeal.campfirePct. Cleanse hooks fire here too (the debuff /
+    -- stun system does not exist yet - the calls are no-ops until it lands).
+    task.spawn(function()
+        while states[player] do
+            task.wait(MOB_TICK)
+            local st = states[player]
+            if not st then break end
+            local ph = st.petHeal
+            if ph and not st.gameOver and (st.playerHp or 0) > 0 then
+                st.petHealCharge = (st.petHealCharge or 0) + MOB_TICK
+                if st.petHealCharge >= ph.tickSec then
+                    st.petHealCharge = st.petHealCharge - ph.tickSec
+                    local resting = st.atCampfire ~= nil and st.moveDir == nil and not st.combatActive
+                    local pct = ph.pct + (resting and ph.campfirePct or 0)
+                    if st.playerHp < st.playerMaxHp and pct > 0 then
+                        local before = st.playerHp
+                        st.playerHp = math.min(st.playerMaxHp, st.playerHp + st.playerMaxHp * pct)
+                        local healed = math.floor(st.playerHp - before + 0.5)
+                        if healed > 0 then
+                            sendDamage(player, "heal", healed, false)
+                        end
+                    end
+                    -- cleanse hooks (debuff / stun system TBD)
+                    if ph.cleanseDebuff and st.clearOneDebuff then st.clearOneDebuff(st) end
+                    if ph.cleanseStun and st.clearStun then st.clearStun(st) end
+                    sendUpdate(player, st)
+                end
+            else
+                st.petHealCharge = 0
             end
         end
     end)
@@ -751,6 +806,8 @@ function restartRun(player, st, startKm)
     st.milestone       = nil
     st.combatActive    = false
     st.gameOver        = false
+    st.petReviveUsed   = false   -- mythique heal pet: one revive per run
+    st.petHealCharge   = 0
     st.enemyDamageType = nil
     st.enemyAtkSplit   = nil
     st.enemyIsBigBoss  = nil
@@ -849,10 +906,12 @@ combatEvent.OnServerEvent:Connect(function(player, data)
         -- body). Stub-safe: on failure, send an empty inventory rather than
         -- crash the dispatcher.
         local ok, inventory = pcall(InventoryService.getInventory, player)
+        local _, equipped = pcall(EquipmentService.serialize, player)
+        local equippedItems = (type(equipped) == "table" and equipped.equipe) or {}
         if not ok or not inventory then
-            combatEvent:FireClient(player, { type = "inventory", slots = {}, items = {}, capacity = GameConfig.Inventory.baseCapacity })
+            combatEvent:FireClient(player, { type = "inventory", slots = {}, items = {}, capacity = GameConfig.Inventory.baseCapacity, equipped = equippedItems })
         else
-            combatEvent:FireClient(player, { type = "inventory", items = inventory.items, capacity = inventory.capacity })
+            combatEvent:FireClient(player, { type = "inventory", items = inventory.items, capacity = inventory.capacity, equipped = equippedItems })
         end
 
     elseif data.type == "fuseItem" then
@@ -917,6 +976,10 @@ combatEvent.OnServerEvent:Connect(function(player, data)
         -- FTUE coach-mark dismissed (or auto-dismissed) client-side. Server
         -- revalidates the stepId before advancing (FtueService.ackStep).
         FtueService.ackStep(player, data.stepId)
+
+    elseif data.type == "ftueChoosePet" then
+        -- FTUE: player picked one of the three eggs. Server grants that pet.
+        FtueService.choosePet(player, data.role)
 
     elseif data.type == "ftueRequestState" then
         -- Client (re)connected its FTUE listener - resend state + current step.

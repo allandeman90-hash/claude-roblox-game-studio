@@ -303,35 +303,81 @@ GameConfig.Ui = {
 }
 
 --========================================================
--- PETS  (etape 4.2 - validated: PASSIVE only, one slot, same rarity table,
---        same x1.25 zone scaling as equipment)
+-- PETS  (etape 4.2 revised - scaling by LEVEL, not by Couche)
 --========================================================
--- Effect magnitude = base * zoneScaling^(zone-1) * rarityMult.
+-- A pet has two levels:
+--   sourceLevel : the level of the enemy/boss it dropped from. FIXED. Sets the
+--                 BASE floor - a pet from a lvl-500 boss starts stronger than one
+--                 from a lvl-100 boss even at petLevel 1.
+--   petLevel    : starts at 1, climbs toward the player's level while the pet is
+--                 EQUIPPED (like a Pokémon). No hard cap from the source.
+-- Effect magnitude = base * effectMul(effLevel) * rarityMult, where
+--   effLevel  = max(petLevel, floor(sourceLevel * sourceFloorFrac))
+--   effectMul = 1 + (effLevel - 1) * petLevelStep   (clamped to petLevelCap)
 --   dps  : +dpsPct of the player's effective damage        (passive, always on)
 --   tank : +hpPct of MaxHP  AND  +defFlat flat DEF          (passive, always on)
---   heal : +healPct of MaxHP per second, CAMPFIRE ONLY      (on top of the base 1%/s)
+--   heal : +healPct of MaxHP every healTickSeconds (combat AND exploration);
+--          at a campfire the tick also adds healCampfireBasePct.
 GameConfig.Pets = {
-    zoneScaling   = 1.25,   -- same as equipment
-    dpsPctBase    = 3.0,    -- % of damage  (-> /100)
-    tankHpPctBase = 2.0,    -- % of MaxHP
-    tankDefBase   = 4.0,    -- flat DEF (armorStat pattern)
-    healPctBase   = 0.5,    -- % of MaxHP per second, campfire only
+    dpsPctBase    = 2.0,    -- % of damage at effLevel 1  (-> /100)
+    tankHpPctBase = 1.5,    -- % of MaxHP at effLevel 1
+    tankDefBase   = 3.0,    -- flat DEF at effLevel 1
+
+    petLevelStep    = 0.02, -- +2% effect per effective pet level
+    petLevelCap     = 40,   -- effectMul hard cap (x)
+    sourceFloorFrac = 0.25, -- a fresh drop starts at 25% of its source-level tier
+
+    -- HEAL role. healPctByRarity is the % of MaxHP restored per tick at effLevel 1;
+    -- it scales by effectMul like the other roles.
+    healTickSeconds       = 6,
+    healPctByRarity       = { commun = 0.015, rare = 0.025, epique = 0.04, legendaire = 0.06, mythique = 0.09 },
+    healCampfireBasePct   = 0.05,   -- +5% of MaxHP per tick while resting at a campfire (FLAT, unscaled)
+    healCleanseDebuffRank = 3,      -- epique+ : removes one debuff / malus each tick
+    healCleanseStunRank   = 4,      -- legendaire+ : also removes stun / etourdissement
+    healReviveRank        = 5,      -- mythique : revives the hero once per run
+    healReviveHpPct       = 0.30,
 }
 
-local function petZoneMul(zone, rarityMult)
-    return GameConfig.Pets.zoneScaling ^ zoneExp(zone) * (rarityMult or 1)
+local PET_RARITY_RANK = { commun = 1, rare = 2, epique = 3, legendaire = 4, mythique = 5 }
+
+-- Which numeric effect keys the isStarter x0.5 nerf is allowed to touch.
+GameConfig.Pets.SCALABLE_KEYS = { dpsPct = true, hpPct = true, defFlat = true, healPct = true }
+
+local function petEffLevel(sourceLevel, petLevel)
+    local floor = math.floor(math.max(1, sourceLevel or 1) * GameConfig.Pets.sourceFloorFrac)
+    return math.max(1, math.max(math.floor(petLevel or 1), floor))
 end
 
--- Passive effect for a pet role. Keys present depend on the role; missing = 0.
-function GameConfig.Pets.effect(role, zone, rarityMult)
+function GameConfig.Pets.effectMul(sourceLevel, petLevel)
     local P = GameConfig.Pets
-    local m = petZoneMul(zone, rarityMult)
+    local eff = petEffLevel(sourceLevel, petLevel)
+    return math.min(P.petLevelCap, 1 + (eff - 1) * P.petLevelStep)
+end
+
+-- Passive/periodic effect for a pet role.
+--   sourceLevel : enemy level it dropped from (1 for the FTUE starter)
+--   petLevel    : the pet's current level (>= 1)
+--   rarityId    : "commun" ... "mythique" ; rarityMult its power multiplier
+function GameConfig.Pets.effect(role, sourceLevel, petLevel, rarityId, rarityMult)
+    local P = GameConfig.Pets
+    local mul = GameConfig.Pets.effectMul(sourceLevel, petLevel)
+    local rar = rarityMult or 1
     if role == "dps" then
-        return { dpsPct = P.dpsPctBase * m / 100 }
+        return { dpsPct = P.dpsPctBase / 100 * mul * rar }
     elseif role == "tank" then
-        return { hpPct = P.tankHpPctBase * m / 100, defFlat = math.round(P.tankDefBase * m) }
+        return { hpPct = P.tankHpPctBase / 100 * mul * rar, defFlat = math.round(P.tankDefBase * mul * rar) }
     elseif role == "heal" then
-        return { healPct = P.healPctBase * m / 100 }
+        local rank = PET_RARITY_RANK[rarityId] or 1
+        return {
+            healRole      = true,
+            healTickSec   = P.healTickSeconds,
+            healPct       = (P.healPctByRarity[rarityId] or P.healPctByRarity.commun) * mul,
+            campfirePct   = P.healCampfireBasePct,
+            cleanseDebuff = rank >= P.healCleanseDebuffRank,
+            cleanseStun   = rank >= P.healCleanseStunRank,
+            revives       = rank >= P.healReviveRank,
+            reviveHpPct   = P.healReviveHpPct,
+        }
     end
     return {}
 end

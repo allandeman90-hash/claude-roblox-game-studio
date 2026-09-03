@@ -35,6 +35,7 @@ local FtueService = {}
 -- server events, never by a client message.
 local ACKABLE: { [string]: boolean } = {
     move = true,
+    pet = true,
     warning = true,
 }
 
@@ -77,6 +78,14 @@ function FtueService.onSpawn(player: Player)
         push(player, { type = "ftueStep", stepId = "move" })
     elseif ftue.step == "equip" then
         push(player, { type = "ftueStep", stepId = "equip" })
+    elseif ftue.step == "pet" then
+        -- Only re-offer the egg choice if the player hasn't picked yet; once a
+        -- pet is granted, a reconnect resumes straight at the closing panel.
+        if ftue.petGranted then
+            push(player, { type = "ftueStep", stepId = "warning" })
+        else
+            push(player, { type = "ftueGift" })
+        end
     elseif ftue.step == "warning" then
         push(player, { type = "ftueStep", stepId = "warning" })
     end
@@ -98,6 +107,11 @@ function FtueService.ackStep(player: Player, stepId: any)
     if stepId == "move" then
         ftue.step = "kill"
         PlayerDataService.markDirty(player, profile)
+    elseif stepId == "pet" then
+        -- pet hatched + its briefing read -> show the closing "how to get stronger" panel
+        ftue.step = "warning"
+        PlayerDataService.markDirty(player, profile)
+        push(player, { type = "ftueStep", stepId = "warning" })
     elseif stepId == "warning" then
         FtueService._complete(player, profile, ftue)
     end
@@ -147,9 +161,33 @@ function FtueService.onEquip(player: Player)
         return
     end
 
-    ftue.step = "warning"
+    -- The weapon is on: show the "choose your egg" screen. The pet is granted
+    -- only once the player picks one (FtueService.choosePet). The closing
+    -- "how to get stronger" panel comes after they ack the pet card.
+    ftue.step = "pet"
     PlayerDataService.markDirty(player, profile)
-    push(player, { type = "ftueStep", stepId = "warning" })
+    push(player, { type = "ftueGift" })
+end
+
+--[[
+    C->S: the player picked one of the three FTUE eggs. Grants + equips a
+    starter pet of that role. Idempotent, and only valid on the "pet" beat.
+]]
+function FtueService.choosePet(player: Player, role: any)
+    local profile, ftue = ftueOf(player)
+    if not ftue or ftue.completed or ftue.step ~= "pet" then
+        return
+    end
+    if role ~= "dps" and role ~= "tank" and role ~= "heal" then
+        role = "dps"
+    end
+    if not ftue.petGranted then
+        local InventoryService = require(ServerScriptService:WaitForChild("InventoryService"))
+        local ok = pcall(InventoryService.grantStarterPet, player, role)
+        ftue.petGranted = ok == true
+        ftue.chosenPetRole = role
+        PlayerDataService.markDirty(player, profile)
+    end
 end
 
 function FtueService._complete(player: Player, profile: any, ftue: any)
@@ -157,9 +195,11 @@ function FtueService._complete(player: Player, profile: any, ftue: any)
         return
     end
 
+    -- Safety net: if the player somehow reached the end without picking an egg,
+    -- grant the default (DPS) starter pet.
     if not ftue.petGranted then
         local InventoryService = require(ServerScriptService:WaitForChild("InventoryService"))
-        local ok = pcall(InventoryService.grantStarterPet, player)
+        local ok = pcall(InventoryService.grantStarterPet, player, "dps")
         ftue.petGranted = ok == true
     end
 
@@ -168,7 +208,6 @@ function FtueService._complete(player: Player, profile: any, ftue: any)
     ftue.completedAt = os.time()
     PlayerDataService.markDirty(player, profile)
 
-    push(player, { type = "ftueGift", petId = GameConfig.Ftue.starterPetId })
     push(player, { type = "ftueState", ftue = ftue })
 end
 

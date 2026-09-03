@@ -105,6 +105,7 @@ function StatsService.recalc(player, st)
     -- CombatServer's campfire loop, not applied here).
     local pet = EquipmentService.getPetEffect(player)
     st.campfireRegenBonusPct = 0
+    st.petHeal = nil   -- {tickSec, pct, campfirePct, cleanseDebuff, cleanseStun, revives, reviveHpPct}
     if pet then
         if pet.dpsPct then
             st.playerAtk = st.playerAtk * (1 + pet.dpsPct)
@@ -115,8 +116,18 @@ function StatsService.recalc(player, st)
         if pet.defFlat then
             st.playerDef = st.playerDef + pet.defFlat
         end
-        if pet.healPct then
-            st.campfireRegenBonusPct = pet.healPct
+        if pet.healRole then
+            -- The heal pet uses its own tick loop (CombatServer), NOT the
+            -- continuous campfireRegenBonusPct trickle - leave that at 0.
+            st.petHeal = {
+                tickSec       = pet.healTickSec or 6,
+                pct           = pet.healPct or 0,
+                campfirePct   = pet.campfirePct or 0,
+                cleanseDebuff = pet.cleanseDebuff == true,
+                cleanseStun   = pet.cleanseStun == true,
+                revives       = pet.revives == true,
+                reviveHpPct   = pet.reviveHpPct or 0.30,
+            }
         end
     end
 

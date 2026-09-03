@@ -246,6 +246,12 @@ local function normalizeDraft(draft: any, isFromEquipSlot: boolean?): (Types.Ite
         locked = draft.locked == true,
         equippedSlot = nil, -- addItem always inserts into the bag, never pre-equipped
     }
+    if itemType == "pet" then
+        -- Pet scaling is level-based: sourceLevel (the enemy level it dropped
+        -- from) is fixed; petLevel climbs toward the player's level while equipped.
+        instance.sourceLevel = math.max(1, math.floor(tonumber(draft.sourceLevel) or 1))
+        instance.petLevel = math.max(1, math.floor(tonumber(draft.petLevel) or 1))
+    end
     return instance, nil
 end
 
@@ -729,28 +735,30 @@ end
     the campfire later). Idempotent: no-op if the player already owns a "fee".
     Called by FtueService when the tutorial completes.
 ]]
-function InventoryService.grantStarterPet(player: Player): (boolean, string?)
+function InventoryService.grantStarterPet(player: Player, role: string?): (boolean, string?)
     if not isValidPlayer(player) then
         return false, "invalid_argument"
     end
+
+    local petId = (type(role) == "string" and EquipmentConfig.StarterPetByRole[role]) or STARTER_PET_ID
 
     local profile, inv = getInventoryFor(player)
     if not profile or not inv then
         return false, "no_profile"
     end
 
+    -- Idempotent: bail if the player already owns ANY starter pet (bag or equipped).
     for _, item in pairs(inv.items) do
-        if item.id == STARTER_PET_ID then
+        if item.id == "fee" or item.id == "golem" or item.id == "lutin" then
             return true, nil
         end
     end
-
     local added = InventoryService.addItem(player, {
-        id = STARTER_PET_ID, rarete = "commun", zone = 1,
+        id = petId, rarete = "commun", zone = 1, sourceLevel = 1, petLevel = 1,
     })
     if added then
         for key, item in pairs(inv.items) do
-            if item.id == STARTER_PET_ID and item.equippedSlot == nil then
+            if item.id == petId and item.equippedSlot == nil then
                 InventoryService.equipItem(player, key)  -- pet branch routes to EquipmentService "pet" slot
                 break
             end
@@ -758,7 +766,7 @@ function InventoryService.grantStarterPet(player: Player): (boolean, string?)
     end
 
     PlayerDataService.markDirty(player, profile)
-    logAction(player, "granted starter pet (%s)", STARTER_PET_ID)
+    logAction(player, "granted starter pet (%s)", petId)
     return true, nil
 end
 
