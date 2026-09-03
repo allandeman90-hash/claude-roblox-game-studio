@@ -218,6 +218,16 @@ local AssetMap = {
 	mob_c12_reliquat_flip = "rbxassetid://76150484391587",
 	mob_c12_temoin_silencieux = "rbxassetid://94002791419794",
 	mob_c12_temoin_silencieux_flip = "rbxassetid://89807813771530",
+
+	-- Companion pets (uploaded 2026-09-03 via Studio MCP, NOT upload.py - the
+	-- pets/ folder is outside upload.py's SCAN_DIRS and its cache. These are
+	-- Image ids, directly usable in ImageLabel.Image once moderation clears.
+	pet_dps = "rbxassetid://116001506723962",
+	pet_dps_flip = "rbxassetid://86383473276686",
+	pet_heal = "rbxassetid://110001389336549",
+	pet_heal_flip = "rbxassetid://124335836614741",
+	pet_tank = "rbxassetid://90692743413785",
+	pet_tank_flip = "rbxassetid://77092629826718",
 }
 
 return AssetMap
