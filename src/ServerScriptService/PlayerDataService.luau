@@ -30,10 +30,16 @@ local PlayerDataService = {}
 
 -- v1 -> v2 (Inventory Sprint Day 1, 2026-09-02): stacked-count `inventaire`
 -- replaced by unique-instance `inventory` (see migrateInventoryV1toV2 below).
-PlayerDataService.PROFILE_VERSION = 3
+-- v3 -> v4: pets gain a visible XP bar (`petXp`), backfilled to 0.
+PlayerDataService.PROFILE_VERSION = 4
 
 local STORE_NAME = "FoG_PlayerData_v1"
-local JOB_ID = game.JobId ~= "" and game.JobId or ("studio_" .. tostring(os.time()))
+-- En vrai serveur game.JobId est un GUID stable. En Studio il vaut "" : on fixe
+-- un id constant pour qu'un _lock laisse par un Play precedent soit reconnu comme
+-- le notre (serveur unique) et purge au load/release, au lieu de bloquer les
+-- playtests pendant lockStaleSec. ("studio_"..os.time() etait regenere a chaque
+-- Play -> la session se verrouillait elle-meme.)
+local JOB_ID = game.JobId ~= "" and game.JobId or "studio_solo"
 local PERSIST = GameConfig.Persistence
 
 local store = nil
@@ -339,6 +345,21 @@ local function migrate(profile, player: Player?)
             backfillPet(profile.equipe.pet)
         end
         profile.version = 3
+    end
+
+    if profile.version < 4 then
+        -- Pets gain a visible XP bar. Existing pets start the new level at 0 XP.
+        local function backfillPetXp(inst: any)
+            if type(inst) ~= "table" or inst.itemType ~= "pet" then return end
+            inst.petXp = inst.petXp or 0
+        end
+        if type(profile.inventory) == "table" and type(profile.inventory.items) == "table" then
+            for _, inst in pairs(profile.inventory.items) do backfillPetXp(inst) end
+        end
+        if type(profile.equipe) == "table" then
+            backfillPetXp(profile.equipe.pet)
+        end
+        profile.version = 4
     end
 
     profile.version = PlayerDataService.PROFILE_VERSION
