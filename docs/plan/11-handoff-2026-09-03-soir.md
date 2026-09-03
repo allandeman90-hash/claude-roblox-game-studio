@@ -118,11 +118,14 @@ Nettoyage différé (voir `10-handoff` §Nettoyage) :
 
 ---
 
-## Hors-scope (rappel)
+## Uploads
 
-**Ne pas lancer `upload.py`** (écrase `AssetMap` ; compte Roblox banni pour les
-uploads — mémoire `roblox-account-ban-2026-08-30`). Pas de sprites uploadés.
-`assets/images/ftue/pet_egg.png` généré, jamais uploadé.
+**Compte Roblox NON banni** (confirmé par Allan 2026-09-03) — les uploads sont
+possibles. MAIS **ne pas lancer `upload.py`** : il écrase `AssetMap.luau` depuis un
+cache d'ids Decal périmés. Pour uploader un sprite : servir le dossier en HTTP local
++ `mcp__Roblox_Studio__upload_image` (URLs http only) → id direct → éditer
+`AssetMap.luau` à la main. `assets/images/ftue/pet_egg.png` généré, pas encore
+uploadé (à faire si on veut l'œuf en image au lieu d'une Frame).
 
 ---
 
