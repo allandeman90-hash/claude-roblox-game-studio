@@ -258,6 +258,7 @@ for bossIndex, s in ipairs(BOSS_SET_DEFS) do
 end
 
 EquipmentConfig.StarterWeaponPowerMult = 0.5   -- D4: creation-gift weapons are deliberately weak
+EquipmentConfig.StarterPetPowerMult    = 0.5   -- FTUE: the free "Fée" is half a looted zone-1 pet
 
 -- Multiplier on a weapon's derived power. Boss weapons hit harder (x2.5, GAME_SPEC 7.2),
 -- starter weapons are halved so the first real weapon is an upgrade.
@@ -303,6 +304,9 @@ do
     for _, p in ipairs(PET_DEFS) do
         EquipmentConfig.Pets[p.id] = { nom = p.nom, role = p.role }
     end
+    -- FTUE creation gift: the same generic pet for every new player. DPS role,
+    -- half the power of a looted zone-1 pet (isStarter -> StarterPetPowerMult).
+    EquipmentConfig.Pets.fee = { nom = "Fée", role = "dps", isStarter = true }
 end
 
 --===== Unified lookup =====

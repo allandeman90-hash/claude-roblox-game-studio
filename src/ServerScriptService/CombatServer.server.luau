@@ -22,6 +22,10 @@ local EquipmentService = require(script.Parent:WaitForChild("EquipmentService"))
 -- crashing until InventoryService's real bodies land Day 2.
 local InventoryService = require(script.Parent:WaitForChild("InventoryService"))
 
+-- Server-authoritative FTUE (onboarding-gdd.md). Coach-marks + the tutorial
+-- gifts (Épée en bois on the first kill, Fée pet at the end). Never blocks.
+local FtueService = require(script.Parent:WaitForChild("FtueService"))
+
 -- Central tuning constants + formulas (pure data). Etape 1: every value
 -- pulled from here equals the previous inline constant EXCEPT the XP curve
 -- (validated decision 1). GDD-target values that are not wired yet also
@@ -363,6 +367,14 @@ function resolvePlayerHit(player, st)
     end
     st.enemyHp = 0
 
+    -- FTUE: the first kill hands the player the "Épée en bois" and opens the
+    -- "equip" coach-mark. Idempotent server-side; the st guard just avoids the
+    -- per-kill require + lookup once the tutorial is past this beat.
+    if not st.ftueFirstKillDone then
+        st.ftueFirstKillDone = true
+        FtueService.onFirstKill(player)
+    end
+
     -- All reward multipliers come from the one resolver (B5). `st` is the ctx:
     -- it carries .rebirths now and .nightmareTier once G9 wires Nightmare.
     local levelXpMult = GameConfig.Level.killXpLevelMultiplier(st.playerLevel, st.enemyLevel)
@@ -543,9 +555,6 @@ local function startCombat(player)
     end
     applyProfileToState(profile, s)
     EquipmentService.restore(player, { equipe = profile.equipe })
-    -- Creation gift: mint + equip the "Épée en bois" on a brand-new hero
-    -- (idempotent, self-guards on an empty bag - see InventoryService).
-    pcall(InventoryService.grantStarterKit, player)
     -- profile.inventory (v2 bag, migrated by PlayerDataService.load) is read
     -- directly by InventoryService once it's implemented (Day 2) - no
     -- separate track-state restore needed for the bag side.
@@ -560,6 +569,10 @@ local function startCombat(player)
 
     -- Initial sync
     sendUpdate(player, s)
+
+    -- FTUE: send the tutorial state + (re)issue the current coach-mark. Safe
+    -- for returning players - onSpawn no-ops once ftue.completed is true.
+    FtueService.onSpawn(player)
 
     -- Player attack loop. AUTO-ATTACK ONLY. Charge-based (st.atkCharge, reset by
     -- startEncounter so the opening hit is free and the timer starts after it).
@@ -894,10 +907,20 @@ combatEvent.OnServerEvent:Connect(function(player, data)
         if pcallOk and equipped then
             StatsService.recalc(player, st)
             markProfileDirty(player, st)
+            FtueService.onEquip(player)   -- FTUE: advances the "equip" tutorial beat
         else
             combatEvent:FireClient(player, { type = "equipError", reason = pcallOk and reason or "unavailable" })
         end
         sendUpdate(player, st)
+
+    elseif data.type == "ftueAck" then
+        -- FTUE coach-mark dismissed (or auto-dismissed) client-side. Server
+        -- revalidates the stepId before advancing (FtueService.ackStep).
+        FtueService.ackStep(player, data.stepId)
+
+    elseif data.type == "ftueRequestState" then
+        -- Client (re)connected its FTUE listener - resend state + current step.
+        FtueService.onSpawn(player)
 
     elseif data.type == "unequipItem" then
         local ok, unequipped = pcall(InventoryService.unequipItem, player, data.slot)

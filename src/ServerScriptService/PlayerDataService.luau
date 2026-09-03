@@ -107,11 +107,26 @@ function PlayerDataService.defaultProfile()
         pointsNonAlloues = 0,
         equipe = {},
         owned = {},
-        -- One-time creation gift: the "Épée en bois" (epee_courte) minted + equipped
-        -- on the first run (InventoryService.grantStarterKit). migrate() backfills
-        -- this as false, but the grant itself is guarded on an empty bag so an
-        -- existing player who already has gear is never retro-granted.
+        -- One-time creation gift: the "Épée en bois" (epee_courte) minted on the
+        -- FIRST KILL during the FTUE (InventoryService.grantStarterKit, called by
+        -- FtueService.onFirstKill). migrate() backfills this as false, but the
+        -- grant is guarded on an empty bag so an existing player is never
+        -- retro-granted.
         starterKitGranted = false,
+
+        -- FTUE (onboarding-gdd.md). Short tutorial: move -> first kill (grants
+        -- the Épée en bois) -> equip it -> "the game is hard" warning -> the
+        -- starter pet (Fée). Server-authoritative; the client only renders the
+        -- coach-marks it is told to. Account-level flag: never replayed after a
+        -- Rebirth or a normal progression reset.
+        ftue = {
+            version = 1,
+            completed = false,
+            step = "move",          -- move | kill | equip | warning | done
+            petGranted = false,
+            startedAt = os.time(),
+            completedAt = nil,
+        },
         -- v2 (Inventory Sprint Day 1): unique-instance bag, replaces the old
         -- `inventaire = { [id|rarete|zone] = count }` stacks. See
         -- migrateInventoryV1toV2 for the one-time upgrade path.
@@ -287,11 +302,29 @@ local function migrate(profile, player: Player?)
         profile.version = 2
     end
 
+    -- A profile that has already played skips the FTUE entirely (it is an
+    -- account flag, not a run flag). Detected BEFORE the default backfill below
+    -- adds a fresh ftue table.
+    local hasPlayed = profile.ftue == nil and (
+        (profile.bestKm or 0) > 0
+        or (profile.niveau or 1) > 1
+        or (profile.rebirths or 0) > 0
+        or (type(profile.inventory) == "table" and type(profile.inventory.items) == "table" and next(profile.inventory.items) ~= nil)
+    )
+
     local d = PlayerDataService.defaultProfile()
     for k, v in pairs(d) do
         if profile[k] == nil then profile[k] = v end
     end
     if type(profile.filtres) ~= "table" then profile.filtres = d.filtres end
+
+    if hasPlayed and type(profile.ftue) == "table" and not profile.ftue.completed then
+        profile.ftue.completed = true
+        profile.ftue.step = "done"
+        profile.ftue.completedAt = os.time()
+        profile.starterKitGranted = true
+    end
+
     profile.version = PlayerDataService.PROFILE_VERSION
     return profile
 end

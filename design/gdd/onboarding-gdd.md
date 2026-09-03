@@ -1,9 +1,16 @@
-# FTUE (5 coach-marks, cadeau de fin = 1er familier) — GDD système
+# FTUE (tutoriel court, cadeau de fin = épée + familier) — GDD système
 
-**Version :** 1.0  
-**Dernière mise à jour :** 2026-09-02  
+**Version :** 2.0  
+**Dernière mise à jour :** 2026-09-03  
 **Auteur :** ux-designer  
-**Statut :** Prêt pour implémentation  
+**Statut :** Implémenté (`FtueService.luau`, `FtueClient.client.luau`)  
+
+> **v2.0 (2026-09-03) — décision du game-designer :** le tutoriel est raccourci à
+> **4 temps** : marcher → tuer le 1er mob à mains nues (→ Épée en bois) → l'équiper
+> → message « le jeu est dur ». Fin du tuto → **familier gratuit (Fée)**. Les
+> coach-marks `power` (talents) et `campfire` de la v1.0 sont supprimés ; le
+> cadeau familier est **découplé du feu de camp** (qui reste à km 50). L'épée
+> n'est plus un cadeau de création : elle tombe au 1er kill.
 **Parent :** `design/gdd/master-gdd.md` (§1, §3, §5 jalons, §9)  
 **Références :** `design/gdd/core-gameplay-gdd.md`, `design/gdd/campfire-gdd.md`,
 `design/gdd/pets-gdd.md` §2.1, `design/gdd/talents-gdd.md` §2 (1er point de talent),
@@ -46,25 +53,22 @@ funnel).
 
 ## 2. Core Mechanics
 
-### 2.1 Les 5 coach-marks
+### 2.1 Les 4 temps du tutoriel
 
-Chaque coach-mark est un **événement**, pas un timer : il se déclenche à la première occurrence
-de la situation qu'il explique, jamais à l'avance ("show, don't tell", `.claude` UX standards).
-Un seul coach-mark visible à la fois (voir `ui-ux-gdd.md` §2.2, `ModalStack`).
+Chaque temps est un **événement**, pas un timer. Un seul coach-mark visible à la fois. Aucun ne
+bloque l'entrée : le joueur peut ignorer et jouer.
 
-| # | ID | Déclencheur | Explique | Récompense immédiate |
+| # | `step` | Déclencheur (serveur) | Coach-mark | Effet à la validation |
 |---|---|---|---|---|
-| 1 | `move` | Spawn initial, avant tout déplacement | Tenir ◀ / ▶ pour marcher | — |
-| 2 | `combat` | 1ʳᵉ collision héros/monstre | Le combat démarre seul ; le héros frappe en premier | — |
-| 3 | `loot` | 1ᵉʳ kill | Ramassage auto ; rareté annoncée en texte flottant coloré | Le 1ᵉʳ objet lui-même |
-| 4 | `power` | 1ᵉʳ point de talent disponible (niveau 5, `talents-gdd.md` §2) — **pas un km fixe** | 1ᵉʳ slot de pouvoir actif débloqué et son icône/cooldown (`abilities-gdd.md` §2.1) | Le pouvoir devient utilisable |
-| 5 | `campfire` | Entrée dans la zone du 1ᵉʳ feu de camp (~km 5, `campfire-gdd.md` §2.1) | Soins, coffre horaire, menu du hub | **Cadeau de fin : 1ᵉʳ familier** |
+| 1 | `move` | Spawn | « Tiens ◀ / ▶ pour avancer et reculer » | ack → `step = kill` |
+| 2 | `kill` | 1ᵉʳ monstre tué (à mains nues) | *(pas de bulle : c'est l'événement)* | **Épée en bois** mintée dans le sac (non équipée) ; `step = equip` ; coach-mark `equip` affiché |
+| 3 | `equip` | Une arme occupe le slot `arme` | « Ouvre ton inventaire et équipe l'Épée en bois » | `step = warning` ; coach-mark `warning` affiché |
+| 4 | `warning` | — | Panneau : « Ce monde est impitoyable. Tu vas mourir, souvent et vite. C'est normal — chaque tentative te rend plus fort. » | ack → **familier Fée** minté + équipé ; `step = done`, `completed = true` ; fenêtre cadeau |
 
-**Pourquoi `power` n'est pas positionné par distance :** le 1ᵉʳ point de talent tombe au niveau 5
-(`talents-gdd.md` §2), pas à un km fixe — le rythme de montée en niveau dépend des kills réels du
-joueur. Le coach-mark `power` **peut donc apparaître avant ou après** le coach-mark `campfire`
-selon le joueur. C'est voulu (contextuel, pas upfront) : voir §7 edge case 3 pour l'ordre non
-garanti.
+**Fin du tuto :** dès l'ack du temps 4. Le 1ᵉʳ boss (Roi Gobelin, km 10) n'a aucun coach-mark.
+
+**Le combat auto** n'a plus de coach-mark dédié (temps `combat` de la v1.0 supprimé) : il démarre
+seul à la 1ʳᵉ collision, le joueur le voit. Idem pour le ramassage auto du butin.
 
 ### 2.2 Skip pour joueurs de retour
 
@@ -106,25 +110,27 @@ Standards UX du studio (`ux-designer` — 5 premières secondes / 1ʳᵉ minute 
 ## 3. Data Schema
 
 ```lua
--- PlayerProfile.ftue (persisté, ProfileStore)
-export type FtueState = {
-    version: number,           -- schéma FTUE, actuellement 1. Permet d'ajouter un 6e coach-mark
-                                -- plus tard sans rejouer les 5 premiers (voir §7 edge case 6)
-    completed: boolean,        -- true dès que "campfire" est vu ET le cadeau remis
-    currentStep: number,       -- 0 = jamais commencé ; 1-5 = index du dernier coach-mark VU
-    stepsSeen: {[string]: boolean}, -- clé = id ("move"|"combat"|"loot"|"power"|"campfire")
-    giftClaimed: boolean,      -- 1er familier remis (idempotence, voir §7 edge case 7)
-    startedAt: number,         -- os.time() au tout premier spawn
-    completedAt: number?,      -- os.time() quand completed passe à true ; nil sinon
+-- PlayerProfile.ftue (persisté) — voir PlayerDataService.defaultProfile()
+ftue = {
+    version = 1,               -- schéma FTUE
+    completed = false,         -- true dès l'ack du temps "warning" ET le familier remis
+    step = "move",             -- "move" | "kill" | "equip" | "warning" | "done"
+    petGranted = false,        -- familier Fée remis (idempotence)
+    startedAt = os.time(),
+    completedAt = nil,         -- os.time() quand completed passe à true
 }
 ```
 
+L'épée utilise le drapeau existant `profile.starterKitGranted` (déjà au profil) pour l'idempotence,
+pas un champ `ftue` dédié.
+
 **Contraintes (validées serveur) :**
-- `currentStep` ne peut qu'augmenter, jamais reculer (protège contre un client qui rejoue un ack).
-- `giftClaimed` ne peut passer à `true` qu'une seule fois par profil, quel que soit le nombre
-  d'acks reçus pour `campfire` (idempotence stricte).
-- `stepsSeen` est purement informatif pour l'UI/analytics ; `currentStep` est la source de vérité
-  pour "où en est le joueur".
+- `step` n'avance que dans l'ordre `move → kill → equip → warning → done`. Un ack hors séquence
+  ou pour un step non-ackable (`kill`, `equip` sont résolus par de vrais événements serveur) est
+  un **no-op silencieux**, jamais une erreur.
+- `petGranted` et `starterKitGranted` ne passent à `true` qu'une fois par profil.
+- Un profil qui **a déjà joué** (`bestKm > 0`, `niveau > 1`, `rebirths > 0`, ou sac non vide) au
+  moment de la migration reçoit `ftue.completed = true` d'office — il ne rejoue jamais le tuto.
 
 ---
 
@@ -150,24 +156,22 @@ export type FtueState = {
 
 ## 5. RemoteEvents / Functions
 
-Canal C→S / S→C dédié `Ftue` dans `Remotes.lua` :
+**Pas de canal dédié** : le FTUE est multiplexé sur le `CombatEvent` existant (même choix que
+l'Inventory Sprint), par `data.type` :
 
-- `Ftue_State` — **S→C**, envoyé une fois au spawn : `{ftue: FtueState}`. Source de vérité pour
-  l'UI cliente (reprise, skip si `completed`).
-- `Ftue_StepReady` — **S→C**, envoyé quand le serveur détecte le déclencheur d'un step :
-  `{stepId: string}`. Le client affiche le coach-mark correspondant.
-- `Ftue_AckStep` — **C→S**, envoyé quand le joueur ferme/ignore un coach-mark ou que le timer
-  d'auto-dismiss expire côté client : `{stepId: string}`. Le serveur revalide (le step doit
-  correspondre au `currentStep + 1` attendu) avant de faire avancer `currentStep`.
-- `Ftue_GiftGranted` — **S→C**, envoyé une seule fois quand le cadeau (1ᵉʳ familier) est
-  effectivement en inventaire : `{petInstance: ItemInstance}` (forme définie par `pets-gdd.md`).
+- `{type = "ftueState", ftue = <ftue>}` — **S→C**, au spawn. Reprise / skip si `completed`.
+- `{type = "ftueStep", stepId = "move"|"equip"|"warning"}` — **S→C**, quand le serveur veut
+  afficher un coach-mark.
+- `{type = "ftueGift", petId = "fee"}` — **S→C**, une fois, quand la Fée est en inventaire.
+- `{type = "ftueAck", stepId = "move"|"warning"}` — **C→S**, sur « Compris » ou auto-dismiss.
+  Le serveur revalide (`FtueService.ackStep` : `stepId` ackable ET == `ftue.step`) avant d'avancer.
 
-**Validation sur chaque handler C→S :**
-- `Ftue_AckStep.stepId` doit être une chaîne parmi les 5 IDs connus, et doit correspondre au step
-  actuellement attendu (`currentStep + 1`) — un ack pour un step déjà vu ou hors séquence est un
-  no-op silencieux (`ok=true`), jamais une erreur exposée au client.
+**Validation C→S :** seuls `move` et `warning` sont ackables. `kill` et `equip` ne peuvent jamais
+être déclenchés par un message client (résolus par le kill réel / l'équip réel). Ack hors
+séquence = no-op silencieux.
 
-**Rate-limiting :** `Ftue_AckStep` — 2/s (largement suffisant, 5 acks max par joueur au total).
+**Rate-limiting :** `ftueAck` — 4 / fenêtre (`GameConfig.Security.remotePerType.ftueAck`),
+2 acks max par joueur au total.
 
 ---
 

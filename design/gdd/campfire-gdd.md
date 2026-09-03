@@ -30,11 +30,13 @@ Le Feu de camp est **présenté comme un château/structure pixelisée 2D** au k
 
 ### 2.1 Localisation et accès
 
-- **Position :** à la fin de la zone 1 (après ~5 km de marche)
-- **Déclenchement :** quand le joueur entre dans la zone du château → transition écran (5 secondes)
-  et menu principal du Feu de camp
+- **Fréquence :** le joueur atteint un Feu de camp **tous les 50 km** (`GameConfig.World.campfireEveryKm`),
+  progression infinie. Le premier est donc à **km 50**. *(Note : il n'y a PAS de feu de camp
+  spécial « fin de zone 1 » — une version antérieure de ce GDD le mentionnait, c'était une
+  erreur ; le cadeau de familier du tutoriel est découplé du feu de camp, voir `onboarding-gdd.md`.)*
+- **Déclenchement :** quand le joueur entre dans la zone du château (`campfireRangeKm` d'un
+  multiple de 50) → transition écran (5 secondes) et menu principal du Feu de camp
 - **Retour :** bouton « Quitter le Feu de camp » → retour à la marche
-- **Fréquence :** le joueur atteint le Feu de camp environ **tous les 50 km** (progression infinie)
 
 ### 2.2 Soins (récupération)
 

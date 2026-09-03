@@ -317,6 +317,16 @@ function EquipmentService.getPetEffect(player)
     local def = EquipmentConfig.getItem(inst.id)
     local role = def and def.role
     local eff = GameConfig.Pets.effect(role, inst.droppedAtKm or 1, r.mult)
+    -- FTUE starter pet (Fée) is deliberately weak: half a looted pet of the
+    -- same zone/rarity. Mirrors EquipmentConfig.weaponPowerMult for weapons.
+    if def and def.isStarter then
+        local m = EquipmentConfig.StarterPetPowerMult or 1
+        for k, v in pairs(eff) do
+            if type(v) == "number" then
+                eff[k] = v * m
+            end
+        end
+    end
     eff.role = role
     return eff
 end

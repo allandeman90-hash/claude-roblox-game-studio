@@ -92,6 +92,11 @@ local MAX_ITEM_KEY_LEN = 64
 -- run. Deliberately weak (isStarter -> x0.5 power) so the first drop is an upgrade.
 local STARTER_WEAPON_ID = "epee_courte"
 
+-- FTUE end-of-tutorial gift (onboarding-gdd §2.1). Generic DPS pet, identical
+-- for every new player. Its power is halved vs a looted pet (isStarter, see
+-- EquipmentConfig.StarterPetPowerMult / EquipmentService.getPetEffect).
+local STARTER_PET_ID = "fee"
+
 --===== Private state =====
 
 -- [player] = { instance: ItemInstance, thread: thread?, createdAt: number }
@@ -664,16 +669,21 @@ end
     hygiene gap.
 ]]
 --[[
-    One-time creation gift. Mints the "Épée en bois" into the bag and equips it.
+    One-time creation gift: mints the "Épée en bois" into the bag. Called by
+    FtueService.onFirstKill (the tutorial hands the player their first weapon
+    after the bare-handed first kill, then teaches them to equip it).
+
+    `autoEquip` (default false): when true, also equips the weapon right away -
+    kept for any non-FTUE caller that wants a ready-to-fight hero.
+
     Idempotent and self-guarding:
       * no-op if profile.starterKitGranted is already true
       * no-op if the bag is non-empty or a weapon is already equipped (an
         existing player who has played is never retro-granted, even though
         migrate() backfills starterKitGranted = false on their profile)
     Sets profile.starterKitGranted = true either way, so it runs at most once.
-    Called by CombatServer.startCombat after the profile is loaded/restored.
 ]]
-function InventoryService.grantStarterKit(player: Player): (boolean, string?)
+function InventoryService.grantStarterKit(player: Player, autoEquip: boolean?): (boolean, string?)
     if not isValidPlayer(player) then
         return false, "invalid_argument"
     end
@@ -698,7 +708,7 @@ function InventoryService.grantStarterKit(player: Player): (boolean, string?)
     local added = InventoryService.addItem(player, {
         id = STARTER_WEAPON_ID, rarete = "commun", zone = 1,
     })
-    if added then
+    if added and autoEquip then
         for key, item in pairs(inv.items) do
             if item.id == STARTER_WEAPON_ID and item.equippedSlot == nil then
                 InventoryService.equipItem(player, key)
@@ -709,7 +719,46 @@ function InventoryService.grantStarterKit(player: Player): (boolean, string?)
 
     profile.starterKitGranted = true
     PlayerDataService.markDirty(player, profile)
-    logAction(player, "granted starter kit (%s)", STARTER_WEAPON_ID)
+    logAction(player, "granted starter weapon (%s, autoEquip=%s)", STARTER_WEAPON_ID, tostring(autoEquip == true))
+    return true, nil
+end
+
+--[[
+    FTUE end-of-tutorial gift: mints the "Fée" starter pet into the bag and
+    equips it (the buff is active immediately; the player re-picks the role at
+    the campfire later). Idempotent: no-op if the player already owns a "fee".
+    Called by FtueService when the tutorial completes.
+]]
+function InventoryService.grantStarterPet(player: Player): (boolean, string?)
+    if not isValidPlayer(player) then
+        return false, "invalid_argument"
+    end
+
+    local profile, inv = getInventoryFor(player)
+    if not profile or not inv then
+        return false, "no_profile"
+    end
+
+    for _, item in pairs(inv.items) do
+        if item.id == STARTER_PET_ID then
+            return true, nil
+        end
+    end
+
+    local added = InventoryService.addItem(player, {
+        id = STARTER_PET_ID, rarete = "commun", zone = 1,
+    })
+    if added then
+        for key, item in pairs(inv.items) do
+            if item.id == STARTER_PET_ID and item.equippedSlot == nil then
+                InventoryService.equipItem(player, key)  -- pet branch routes to EquipmentService "pet" slot
+                break
+            end
+        end
+    end
+
+    PlayerDataService.markDirty(player, profile)
+    logAction(player, "granted starter pet (%s)", STARTER_PET_ID)
     return true, nil
 end
 

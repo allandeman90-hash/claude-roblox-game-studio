@@ -337,6 +337,19 @@ function GameConfig.Pets.effect(role, zone, rarityMult)
 end
 
 --========================================================
+-- FTUE  (onboarding-gdd.md)
+--========================================================
+-- Short tutorial: move -> first kill (grants the Épée en bois) -> equip it ->
+-- "the game is hard" warning -> the starter pet (Fée). Coach-marks never block.
+GameConfig.Ftue = {
+    schemaVersion               = 1,
+    coachMarkAutoDismissSeconds = 8,    -- a coach-mark left alone auto-acks after this
+    coachMarkMinDisplaySeconds  = 2,    -- ...but never before this
+    suppressMonetizationUntilComplete = true,
+    starterPetId                = "fee",
+}
+
+--========================================================
 -- REBIRTH  (GAME_SPEC.md 8.1)
 --========================================================
 -- Voluntary infinite reset. KEEPS equipment / pets / checkpoints / rebirth
@@ -582,6 +595,7 @@ GameConfig.Security = {
         setFilters       = 4,
         toggleLock       = 4,
         setCheckpoint    = 4,
+        ftueAck          = 4,    -- at most 2 acks in the whole tutorial (move, warning)
         restart          = 2,
         setFastMode      = 2,
         campfireContinue = 2,    -- no-op legacy, bounded anyway

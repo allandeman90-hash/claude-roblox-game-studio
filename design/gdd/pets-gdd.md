@@ -26,7 +26,12 @@ de stratégie (choix du rôle du familier). Les familiers soigneurs sont *critiq
 ### 2.1 Obtention
 
 **Sources :**
-- **Récompense du tuto :** le joueur reçoit **1 familier gratuit de départ** (obtenu à la fin du tutoriel)
+- **Récompense du tuto :** à la fin du tutoriel (`onboarding-gdd.md` §2.1), le joueur reçoit
+  **la « Fée »** — un familier générique **identique pour tous les nouveaux joueurs**, rôle DPS,
+  rareté Commune. Sa puissance est **50 % de celle d'un familier lâché par un monstre** de même
+  zone/rareté (`EquipmentConfig.StarterPetPowerMult = 0.5`, appliqué dans
+  `EquipmentService.getPetEffect` via le flag `isStarter`) — comme les armes de départ. Le joueur
+  peut re-choisir son rôle au feu de camp.
 - **Drops en combat :** chaque monstre normal a une chance de drop familier (rareté variable)
 - **Boss golden :** chaque boss nommé donne une version **"dorée"** unique du familier (aspect visuel différent, stats meilleures)
 - **Récompenses quotidiennes :** J3 et J5 du système quotidien donnent un familier aléatoire de la zone actuelle (+20 % de puissance vs le même trouvé en loot)
