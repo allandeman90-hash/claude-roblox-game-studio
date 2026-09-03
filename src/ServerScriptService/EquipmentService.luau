@@ -1,11 +1,11 @@
 --==============================================================
 -- EquipmentService  (ModuleScript - ServerScriptService)
--- Per-player equipment slots: data + slot management ONLY.
---
--- This lot deliberately does NOT modify combat. getStatBonuses and
--- getPetEffect are pure read helpers that nothing consumes yet - the
--- combat integration (DEF/RES, ATK bonus, pet effects) is the next lot
--- and depends on resolving the section 3 damage formula first.
+-- Per-player EQUIP SLOTS only (the 6 `equipe` slots) + the pure stat-bonus /
+-- pet-effect read helpers. Bag storage/mutation moved to InventoryService
+-- (Inventory Sprint Day 1, design/specs/inventory-implementation-spec.md §9:
+-- "EquipmentService's role narrows... it becomes the definitions/config
+-- lookup layer plus the pure stat-bonus calculator; InventoryService becomes
+-- the sole owner of slot mutation and persistence").
 --
 -- The per-player state is exactly the `equipe` sub-table from
 -- GAME_SPEC.md section 11, so a future ProfileStore layer can persist
@@ -17,28 +17,28 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local EquipmentConfig = require(ReplicatedStorage:WaitForChild("EquipmentConfig"))
 local GameConfig      = require(ReplicatedStorage:WaitForChild("GameConfig"))
 
+-- One-directional dependency (sprint risk register #2): InventoryService
+-- never requires EquipmentService. equip()/unequip() are the only functions
+-- here that call into it, to move an item between the bag and a slot.
+local InventoryService = require(script.Parent:WaitForChild("InventoryService"))
+
 local EquipmentService = {}
 
 -- [player] = {
---   equipe    = { arme, casque, plastron, jambieres, bottes, pet },  -- equipped instances
---   inventory = { [key] = count },   -- GAME_SPEC.md 10: quantitied stacks (max 100 keys)
---   locked    = { [key] = true },    -- protected from quick-sell
---   filters   = { rareteMin, guerrier, mage },  -- auto-pickup filter
+--   equipe = { arme, casque, plastron, jambieres, bottes, pet },  -- equipped instances
 -- }
--- Item key = "id|rarete|zone". Instance shape { id, voie|role, rarete, zone }.
+-- Slot instance shape (Inventory Sprint Day 3 fix - see wiki/concepts +
+-- production/bugs for the "itemKey/forgeLevel lost on equip" report): each
+-- populated slot holds the FULL Types.ItemInstance that was equipped (id,
+-- itemType, rarity, voie, baseStats, forgeLevel, droppedAtKm, droppedAtTime,
+-- setId, locked, equippedSlot), PLUS an `itemKey` field so callers can still
+-- identify which bag key it came from. This replaced the older lossy
+-- { id, voie|role, rarete, zone, itemKey? } shape, which reset forgeLevel/
+-- setId/locked to their defaults every time an item passed through a slot.
+-- `EquipmentService.restore` still accepts the old shape for saves written
+-- before this fix (detected by the absence of a `rarity` field) and
+-- degrades it gracefully - see the restore()-only legacy conversion below.
 local track = {}
-
-local INVENTORY_MAX = 100   -- distinct stacks (GAME_SPEC.md 10)
-
--- Fusion recipe (GAME_SPEC.md 5.2): N of a rarity -> 1 of the next.
-local RARITY_ORDER = { "commun", "rare", "epique", "legendaire", "mythique" }
-local RARITY_INDEX = {}
-for i, id in ipairs(RARITY_ORDER) do RARITY_INDEX[id] = i end
-local FUSE_COUNT = { commun = 3, rare = 4, epique = 5, legendaire = 6 }  -- mythique = top, no fuse
-
-local function ownKey(itemId, rarete, zone)
-    return itemId .. "|" .. tostring(rarete) .. "|" .. tostring(math.max(1, math.floor(tonumber(zone) or 1)))
-end
 
 local SLOT_SET = {}
 for _, s in ipairs(EquipmentConfig.SLOTS) do
@@ -67,9 +67,6 @@ end
 function EquipmentService.init(player)
     track[player] = {
         equipe = emptyLoadout(),
-        inventory = {},
-        locked = {},
-        filters = { rareteMin = "commun", guerrier = true, mage = true },
     }
 end
 
@@ -77,209 +74,47 @@ function EquipmentService.release(player)
     track[player] = nil
 end
 
--- Parse "id|rarete|zone" back into parts.
-local function parseKey(key)
-    local id, rarete, zone = key:match("^(.-)|(.-)|(.-)$")
-    return id, rarete, tonumber(zone) or 1
-end
-
-local function countKeys(inv)
-    local n = 0
-    for _ in pairs(inv) do n += 1 end
-    return n
-end
-
---===== Inventory (GAME_SPEC.md 10) =====
-function EquipmentService.getFilters(player)
-    local t = track[player]
-    return t and t.filters or { rareteMin = "commun", guerrier = true, mage = true }
-end
-
-function EquipmentService.setFilters(player, patch)
-    local t = track[player]
-    if not t or type(patch) ~= "table" then return end
-    if patch.rareteMin and RARITY_INDEX[patch.rareteMin] then t.filters.rareteMin = patch.rareteMin end
-    if type(patch.guerrier) == "boolean" then t.filters.guerrier = patch.guerrier end
-    if type(patch.mage) == "boolean" then t.filters.mage = patch.mage end
-end
-
--- Should an auto-picked-up loot item be kept? (shop / fusion / equip-return bypass this.)
-function EquipmentService.passesFilter(player, itemId, rarete)
-    local t = track[player]
-    if not t then return true end
-    local f = t.filters
-    if (RARITY_INDEX[rarete] or 1) < (RARITY_INDEX[f.rareteMin] or 1) then
-        return false
-    end
-    local def, category = EquipmentConfig.getItem(itemId)
-    if def and category ~= "pet" then
-        if def.voie == "guerrier" and not f.guerrier then return false end
-        if def.voie == "mage" and not f.mage then return false end
-    end
-    return true
-end
-
--- Add one item to the inventory. `source` = "loot" (filter applies) | anything else
--- (bypass filter). Returns (ok, reason):
---   "filtered"        - the auto-pickup filter rejected it
---   "inventory full"  - 100 distinct stacks and this is a new one
-function EquipmentService.addItem(player, item, source)
-    local t = track[player]
-    if not t then return false, "no loadout" end
-    local id = item.id
-    local rarete = item.rarete
-    local zone = item.zone
-    if type(id) ~= "string" or not EquipmentConfig.getItem(id) then return false, "unknown item" end
-    if not (EquipmentConfig.getRarity(rarete)) then return false, "invalid rarity" end
-
-    if source == "loot" and not EquipmentService.passesFilter(player, id, rarete) then
-        return false, "filtered"
-    end
-    local key = ownKey(id, rarete, zone)
-    if not t.inventory[key] and countKeys(t.inventory) >= INVENTORY_MAX then
-        return false, "inventory full"
-    end
-    t.inventory[key] = (t.inventory[key] or 0) + 1
-    return true
-end
-
-local function removeItems(t, key, n)
-    local have = t.inventory[key] or 0
-    if have < n then return false end
-    if have == n then t.inventory[key] = nil else t.inventory[key] = have - n end
-    return true
-end
-
-function EquipmentService.count(player, itemId, rarete, zone)
-    local t = track[player]
-    return t and (t.inventory[ownKey(itemId, rarete, zone)] or 0) or 0
-end
-
--- Backward-compatible alias used by older callers (shop, tests): puts one copy
--- in the inventory, bypassing the filter.
-function EquipmentService.grantOwnership(player, itemId, rarete, zone)
-    return EquipmentService.addItem(player, { id = itemId, rarete = rarete, zone = zone }, "grant")
-end
-
-function EquipmentService.ownsItem(player, itemId, rarete, zone)
-    return EquipmentService.count(player, itemId, rarete, zone) > 0
-end
-
---===== Fusion (GAME_SPEC.md 5.2) =====
--- N same-item copies of one rarity -> 1 copy of the next. Strict: exact id+zone.
--- Returns (ok, reason, newRarete).
-function EquipmentService.fuse(player, itemId, rarete, zone)
-    local t = track[player]
-    if not t then return false, "no loadout" end
-    local need = FUSE_COUNT[rarete]
-    if not need then return false, "cannot fuse this rarity" end
-    local key = ownKey(itemId, rarete, zone)
-    if (t.inventory[key] or 0) < need then
-        return false, ("need %d"):format(need)
-    end
-    local nextRarete = RARITY_ORDER[(RARITY_INDEX[rarete] or 1) + 1]
-    if not nextRarete or not EquipmentConfig.getRarity(nextRarete) then
-        return false, "no higher rarity"
-    end
-    removeItems(t, key, need)
-    t.inventory[ownKey(itemId, nextRarete, zone)] = (t.inventory[ownKey(itemId, nextRarete, zone)] or 0) + 1
-    return true, nil, nextRarete
-end
-
---===== Lock / sell =====
-function EquipmentService.toggleLock(player, itemId, rarete, zone)
-    local t = track[player]
-    if not t then return end
-    local key = ownKey(itemId, rarete, zone)
-    t.locked[key] = (not t.locked[key]) or nil
-    return t.locked[key] == true
-end
-
--- Remove every unlocked, unequipped stack strictly below `maxRarete`.
--- Returns the list of removed { id, rarete, zone, count } so the caller can pay gold.
-function EquipmentService.sellBelow(player, maxRarete)
-    local t = track[player]
-    if not t then return {} end
-    local cap = RARITY_INDEX[maxRarete] or 1
-    local removed = {}
-    for key, cnt in pairs(t.inventory) do
-        local id, rarete, zone = parseKey(key)
-        if not t.locked[key] and (RARITY_INDEX[rarete] or 1) < cap then
-            removed[#removed + 1] = { id = id, rarete = rarete, zone = zone, count = cnt }
-            t.inventory[key] = nil
-        end
-    end
-    return removed
-end
-
--- Inventory stacks that fit `slot`, strongest first. Each entry:
---   { id, nom, voie|role, rarete, rareteLabel, zone, slot, power, count,
---     equipped, locked, fuseReady }
-function EquipmentService.listInventoryForSlot(player, slot)
-    local t = track[player]
-    if not t then return {} end
-    local EQ = GameConfig.Equipment
-    local equippedInst = t.equipe[slot]
-    local list = {}
-    for key, cnt in pairs(t.inventory) do
-        local id, rarete, zone = parseKey(key)
-        local def, category = EquipmentConfig.getItem(id)
-        if def then
-            local fits = (category == "pet" and slot == "pet")
-                or (category ~= "pet" and def.slot == slot)
-            local r = EquipmentConfig.getRarity(rarete)
-            if fits and r and r.active then
-                local power
-                if category == "pet" then
-                    power = 0
-                elseif slot == "arme" then
-                    power = math.floor(EQ.weaponPct(zone, r.mult) * EquipmentConfig.weaponPowerMult(id) * 1000)
-                else
-                    power = EQ.armorStat(zone, r.mult)
-                end
-                list[#list + 1] = {
-                    id = id, nom = def.nom or id,
-                    voie = def.voie, role = def.role,
-                    rarete = rarete, rareteLabel = r.label,
-                    zone = zone, slot = slot, power = power, count = cnt,
-                    equipped = (equippedInst ~= nil and equippedInst.id == id
-                        and equippedInst.rarete == rarete and (equippedInst.zone or 1) == zone),
-                    locked = t.locked[key] == true,
-                    fuseReady = FUSE_COUNT[rarete] ~= nil and cnt >= FUSE_COUNT[rarete],
-                }
-            end
-        end
-    end
-    table.sort(list, function(a, b)
-        if a.zone ~= b.zone then return a.zone > b.zone end
-        return (a.power or 0) > (b.power or 0)
-    end)
-    return list
-end
-
--- kept as an alias so older call sites keep working
-EquipmentService.listOwnedForSlot = EquipmentService.listInventoryForSlot
-
-function EquipmentService.getInventorySummary(player)
-    local t = track[player]
-    if not t then return { used = 0, max = INVENTORY_MAX } end
-    return { used = countKeys(t.inventory), max = INVENTORY_MAX }
-end
-
---===== Slot access =====
+--===== Slot access (read-only) =====
 -- Read-only view of the 6 slots (entries may be nil).
 function EquipmentService.getEquipped(player)
     local t = track[player]
     return t and t.equipe or nil
 end
 
--- Equip `itemId` at rarity `rarete` (and, for weapon / armor, `zone`) into `slot`.
--- Validation (section 4.1): no Lv gate, no voie gate.
--- Etape 4.0: weapon / armor require OWNERSHIP (grantOwnership, via shop / loot).
--- Etape 4.2: pets now carry a `zone` and ALSO require ownership. One pet slot,
--- so equipping a new pet replaces the previous (still owned).
+-- Best-effort ItemInstance reconstruction from a LEGACY `equipe` slot entry
+-- ({ id, voie|role, rarete, zone, itemKey? }), for EquipmentService.restore
+-- upgrading a save written before the Day 3 full-ItemInstance fix. Lossy:
+-- the legacy shape never retained forgeLevel/setId/locked, so those default.
+-- Not used by equip()/unequip() any more - both now carry the real
+-- ItemInstance through, so nothing is lost on freshly-written saves.
+local function instanceFromLegacyEquipeEntry(slot, inst)
+    local slotDef = (slot ~= "pet") and EquipmentConfig.getItem(inst.id)
+    return {
+        id = inst.id,
+        itemType = (slot == "pet") and "pet" or (slotDef and slotDef.slot) or slot,
+        rarity = inst.rarete,
+        voie = inst.voie,
+        baseStats = {},
+        forgeLevel = 0,
+        droppedAtKm = inst.zone or 1,
+        droppedAtTime = os.time(),
+        setId = nil,
+        locked = false,
+        equippedSlot = (slot ~= "pet") and slot or nil,
+        itemKey = inst.itemKey,
+    }
+end
+
+-- Equip `itemKey` (an InventoryService-owned bag item) into `slot`. The item
+-- is looked up + removed from the bag via InventoryService; EquipmentService
+-- only owns the 6-slot `equipe` state and the pure stat-bonus math below.
+-- Weapon changes are refused mid-combat via player:GetAttribute("InCombat")
+-- - NOTE: nothing currently sets this attribute (CombatServer's combat state
+-- is a private per-player table, not yet exposed as an attribute), so this
+-- gate is structurally present but inert until that wiring lands. Flagging
+-- rather than silently pretending it's live.
 -- Returns (ok: boolean, err: string?).
-function EquipmentService.equip(player, slot, itemId, rarete, zone)
+function EquipmentService.equip(player: Player, slot: string, itemKey: string): (boolean, string?)
     local t = track[player]
     if not t then
         return false, "no loadout"
@@ -287,68 +122,105 @@ function EquipmentService.equip(player, slot, itemId, rarete, zone)
     if type(slot) ~= "string" or not SLOT_SET[slot] then
         return false, "invalid slot"
     end
-    if type(itemId) ~= "string" then
-        return false, "invalid itemId"
+    if type(itemKey) ~= "string" then
+        return false, "invalid itemKey"
+    end
+    if slot == "arme" and player:GetAttribute("InCombat") == true then
+        return false, "in_combat"
     end
 
-    local def, category = EquipmentConfig.getItem(itemId)
-    if not def then
-        return false, "unknown item"
+    -- Fetch the live inventory ONCE, up front. This (a) hands us the new
+    -- item's full ItemInstance BEFORE it is removed from the bag (bug fix:
+    -- the old code removed the item first, then re-fetched it - which
+    -- worked for the new item, but the OLD equipped item's re-add used a
+    -- separately-reconstructed lossy draft), and (b) lets us pre-check bag
+    -- capacity for the swap-out below, since `itemKey` is still counted in
+    -- `inventory.items` at this point - the same count
+    -- InventoryService.equipItem's own "displaced" guard would see.
+    local listOk, inventory = pcall(InventoryService.getInventory, player)
+    if not listOk or not inventory then
+        return false, "inventory unavailable"
+    end
+    local newInstance = inventory.items and inventory.items[itemKey]
+    if not newInstance then
+        return false, "item_not_found"
     end
 
-    local targetSlot = (category == "pet") and "pet" or def.slot
-    if targetSlot ~= slot then
-        return false, "item does not fit this slot"
-    end
-
-    local r = EquipmentConfig.getRarity(rarete)
-    if not r or not r.active then
-        return false, "invalid rarity"
-    end
-
-    local itemZone = math.max(1, math.floor(tonumber(zone) or 1))
-    local key = ownKey(itemId, rarete, itemZone)
+    -- Bag-full pre-check. Mirrors InventoryService.equipItem's "displaced"
+    -- guard - duplicated here because InventoryService.equipItem's pet
+    -- branch calls straight into EquipmentService.equip WITHOUT going
+    -- through that guard, and this function is the one that actually
+    -- performs the bag swap. If the target slot is occupied and the bag has
+    -- no free slot for the item being swapped out, reject up front instead
+    -- of removing the new item and then silently dropping the old one when
+    -- InventoryService.addItem fails below (the bug this fixes).
     local current = t.equipe[slot]
-    local alreadyThis = current and current.id == itemId and current.rarete == rarete
-        and (current.zone or 1) == itemZone
-    if not alreadyThis and (t.inventory[key] or 0) < 1 then
-        return false, "not owned"
-    end
-
-    if not alreadyThis then
-        removeItems(t, key, 1)
-        -- the previously equipped item goes back to the inventory
-        if current then
-            EquipmentService.addItem(player, {
-                id = current.id, rarete = current.rarete, zone = current.zone or 1,
-            }, "return")
+    if current then
+        local capacity = inventory.capacity or GameConfig.Inventory.baseCapacity
+        local count = 0
+        for _ in pairs(inventory.items) do
+            count += 1
+        end
+        if count >= capacity then
+            return false, "bag_full"
         end
     end
 
-    if category == "pet" then
-        t.equipe[slot] = { id = itemId, role = def.role, rarete = rarete, zone = itemZone }
-    else
-        t.equipe[slot] = { id = itemId, voie = def.voie, rarete = rarete, zone = itemZone }
+    -- Pull the new item out of the bag now that the swap is known to fit.
+    local removeOk, removed, removeErr = pcall(InventoryService.removeItem, player, itemKey)
+    if not removeOk or not removed then
+        return false, removeOk and removeErr or "inventory unavailable"
     end
+
+    if current then
+        -- `current` is already a full ItemInstance (forgeLevel/baseStats/
+        -- setId/locked included, per the Day 3 schema fix) - hand it back to
+        -- the bag as-is instead of reconstructing a lossy draft.
+        current.equippedSlot = nil
+        local addOk, added, addErr = pcall(InventoryService.addItem, player, current, true)
+        if not addOk or not added then
+            -- Should not happen after the capacity pre-check above, but if
+            -- it does, put the new item back so the player loses neither.
+            -- newInstance is also a previously-owned bag item (it may already
+            -- carry a nonzero forgeLevel from Forge), not a new drop, so it
+            -- gets the same isFromEquipSlot flag.
+            pcall(InventoryService.addItem, player, newInstance, true)
+            return false, addOk and addErr or "inventory unavailable"
+        end
+    end
+
+    newInstance.equippedSlot = (slot ~= "pet") and slot or nil
+    newInstance.itemKey = itemKey
+    t.equipe[slot] = newInstance
     return true
 end
 
--- Empty a slot; the item returns to the inventory. Returns (ok, err).
-function EquipmentService.unequip(player, slot)
+-- Empty a slot; the item returns to the bag via InventoryService.addItem.
+-- Returns (ok, err?).
+function EquipmentService.unequip(player: Player, slot: string): (boolean, string?)
     local t = track[player]
     if not t then return false, "no loadout" end
-    if not SLOT_SET[slot] then return false, "invalid slot" end
+    if type(slot) ~= "string" or not SLOT_SET[slot] then return false, "invalid slot" end
     local current = t.equipe[slot]
-    if current then
-        EquipmentService.addItem(player, {
-            id = current.id, rarete = current.rarete, zone = current.zone or 1,
-        }, "return")
+    if not current then
+        return true  -- no-op: nothing equipped
+    end
+
+    -- `current` already holds the full ItemInstance (forgeLevel/baseStats/
+    -- setId/locked intact) - hand it straight back to the bag instead of
+    -- reconstructing a lossy draft. InventoryService.addItem mints a fresh
+    -- itemKey, same as before this fix.
+    current.equippedSlot = nil
+    local addOk, added, addErr = pcall(InventoryService.addItem, player, current, true)
+    if not addOk or not added then
+        current.equippedSlot = (slot ~= "pet") and slot or nil  -- restore on failure
+        return false, addOk and addErr or "inventory unavailable"
     end
     t.equipe[slot] = nil
     return true
 end
 
---===== Pure read helpers =====
+--===== Pure read helpers (unchanged - source is `equipe`, not the bag) =====
 -- Etape 4.0 validated model. Returns:
 --   weaponPct   : multiplicative ATK bonus (0.08 = +8%), 0 if no weapon
 --   damageType  : "physical" | "magic" - the equipped weapon's voie
@@ -372,9 +244,9 @@ function EquipmentService.getStatBonuses(player)
     local arme = t.equipe.arme
     if arme then
         local wdef = EquipmentConfig.getItem(arme.id)
-        local r = EquipmentConfig.getRarity(arme.rarete)
+        local r = EquipmentConfig.getRarity(arme.rarity)
         if wdef and r and r.active then
-            totals.weaponPct  = EQ.weaponPct(arme.zone or 1, r.mult) * EquipmentConfig.weaponPowerMult(arme.id)
+            totals.weaponPct  = EQ.weaponPct(arme.droppedAtKm or 1, r.mult) * EquipmentConfig.weaponPowerMult(arme.id)
             totals.damageType = (wdef.voie == "mage") and "magic" or "physical"
         end
     end
@@ -384,10 +256,10 @@ function EquipmentService.getStatBonuses(player)
         local inst = t.equipe[slot]
         if inst then
             local adef = EquipmentConfig.getItem(inst.id)
-            local r = EquipmentConfig.getRarity(inst.rarete)
+            local r = EquipmentConfig.getRarity(inst.rarity)
             if adef and r and r.active then
                 totals.armorPieces += 1
-                local val = EQ.armorStat(inst.zone or 1, r.mult)
+                local val = EQ.armorStat(inst.droppedAtKm or 1, r.mult)
                 if adef.voie == "mage" then
                     totals.armorRes += val
                 else
@@ -436,12 +308,16 @@ function EquipmentService.getPetEffect(player)
         return nil
     end
     local inst = t.equipe.pet
-    local r = EquipmentConfig.getRarity(inst.rarete)
+    local r = EquipmentConfig.getRarity(inst.rarity)
     if not r or not r.active then
         return nil
     end
-    local eff = GameConfig.Pets.effect(inst.role, inst.zone or 1, r.mult)
-    eff.role = inst.role
+    -- Pets carry no `role` field on the ItemInstance itself (Types.luau) -
+    -- it is a property of the pet DEFINITION, looked up by id.
+    local def = EquipmentConfig.getItem(inst.id)
+    local role = def and def.role
+    local eff = GameConfig.Pets.effect(role, inst.droppedAtKm or 1, r.mult)
+    eff.role = role
     return eff
 end
 
@@ -451,7 +327,11 @@ end
 function EquipmentService.getPetSpriteRole(player: Player): string?
     local t = track[player]
     local inst = t and t.equipe and t.equipe.pet
-    return inst and inst.role or nil
+    if not inst then
+        return nil
+    end
+    local def = EquipmentConfig.getItem(inst.id)
+    return def and def.role or nil
 end
 
 --===== HUD description strings =====
@@ -468,10 +348,11 @@ function EquipmentService.describeSlot(player, slot)
     local def = EquipmentConfig.getItem(inst.id)
     local nom = (def and def.nom) or inst.id
     if slot == "pet" then
-        local role = ROLE_LABELS[inst.role] or tostring(inst.role)
-        return string.format("%s · %s · %s", nom, role, rarityLabel(inst.rarete))
+        local role = def and def.role
+        local roleLabel = ROLE_LABELS[role] or tostring(role)
+        return string.format("%s · %s · %s", nom, roleLabel, rarityLabel(inst.rarity))
     end
-    return string.format("%s · %s", nom, rarityLabel(inst.rarete))
+    return string.format("%s · %s", nom, rarityLabel(inst.rarity))
 end
 
 -- Section 1.1: "nom du set dominant, ou Mixte", + active set-bonus tier.
@@ -514,60 +395,39 @@ function EquipmentService.describeArmorSummary(player)
     return string.format("%s %d/4", setNom, domCount)
 end
 
---===== Persistence (GAME_SPEC.md 11) =====
+--===== Persistence (GAME_SPEC.md 11) - equipe only, bag lives in profile.inventory =====
 function EquipmentService.serialize(player)
     local t = track[player]
     if not t then
-        return { equipe = {}, inventory = {}, locked = {}, filters = { rareteMin = "commun", guerrier = true, mage = true } }
+        return { equipe = {} }
     end
     local equipe = {}
     for slot, inst in pairs(t.equipe) do
         equipe[slot] = inst
     end
-    local inventory = {}
-    for key, cnt in pairs(t.inventory) do inventory[key] = cnt end
-    local locked = {}
-    for key in pairs(t.locked) do locked[#locked + 1] = key end
-    return {
-        equipe = equipe,
-        inventory = inventory,
-        locked = locked,
-        filters = { rareteMin = t.filters.rareteMin, guerrier = t.filters.guerrier, mage = t.filters.mage },
-    }
+    return { equipe = equipe }
 end
 
 function EquipmentService.restore(player, data)
     EquipmentService.init(player)
     if type(data) ~= "table" then return end
     local t = track[player]
-    -- inventory: new {key=count} shape, or legacy `owned` array (each = 1 copy)
-    if type(data.inventory) == "table" then
-        for key, cnt in pairs(data.inventory) do
-            if type(key) == "string" and type(cnt) == "number" and cnt > 0 then
-                t.inventory[key] = math.floor(cnt)
-            end
-        end
-    elseif type(data.owned) == "table" then
-        for _, key in ipairs(data.owned) do
-            if type(key) == "string" then t.inventory[key] = (t.inventory[key] or 0) + 1 end
-        end
-    end
-    if type(data.locked) == "table" then
-        for _, key in ipairs(data.locked) do
-            if type(key) == "string" then t.locked[key] = true end
-        end
-    end
-    if type(data.filters) == "table" then
-        EquipmentService.setFilters(player, data.filters)
-    end
-    if type(data.equipe) == "table" then
-        for _, slot in ipairs(EquipmentConfig.SLOTS) do
-            local inst = data.equipe[slot]
-            if type(inst) == "table" and type(inst.id) == "string" then
-                t.equipe[slot] = {
-                    id = inst.id, voie = inst.voie, role = inst.role,
-                    rarete = inst.rarete, zone = inst.zone,
-                }
+    if type(data.equipe) ~= "table" then return end
+    for _, slot in ipairs(EquipmentConfig.SLOTS) do
+        local inst = data.equipe[slot]
+        if type(inst) == "table" and type(inst.id) == "string" then
+            if inst.rarity ~= nil then
+                -- Day 3+ schema: already a full ItemInstance (+ itemKey) -
+                -- PlayerDataService.migrateInventoryV1toV2 deliberately never
+                -- touches `profile.equipe`, so no separate migration step is
+                -- needed here beyond this shape check.
+                t.equipe[slot] = inst
+            else
+                -- Legacy save (pre-Day-3 lossy shape: { id, voie|role,
+                -- rarete, zone, itemKey? }) - upgrade in place. forgeLevel/
+                -- setId/locked were never recorded by the old shape, so they
+                -- default; that is the best this data can offer.
+                t.equipe[slot] = instanceFromLegacyEquipeEntry(slot, inst)
             end
         end
     end

@@ -23,16 +23,29 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage:WaitForChild("GameConfig"))
+local EquipmentConfig = require(ReplicatedStorage:WaitForChild("EquipmentConfig"))
+local Types = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Types"))
 
 local PlayerDataService = {}
 
-PlayerDataService.PROFILE_VERSION = 1
+-- v1 -> v2 (Inventory Sprint Day 1, 2026-09-02): stacked-count `inventaire`
+-- replaced by unique-instance `inventory` (see migrateInventoryV1toV2 below).
+PlayerDataService.PROFILE_VERSION = 2
 
 local STORE_NAME = "FoG_PlayerData_v1"
 local JOB_ID = game.JobId ~= "" and game.JobId or ("studio_" .. tostring(os.time()))
 local PERSIST = GameConfig.Persistence
 
-local store = DataStoreService:GetDataStore(STORE_NAME)
+local store = nil
+local storeOk, storeOrError = pcall(function()
+    return DataStoreService:GetDataStore(STORE_NAME)
+end)
+if storeOk then
+    store = storeOrError
+else
+    warn("[PlayerDataService] DataStore unavailable at startup (" .. tostring(storeOrError)
+        .. ") - running in UNSAVED mode.")
+end
 
 -- [player] = { profile, dirty, dsAvailable, lastWrite, lastLockBeat }
 --   lastWrite / lastLockBeat are os.clock() timestamps.
@@ -54,6 +67,10 @@ end
 
 local function probeDataStore()
     if dsUsable ~= nil then return dsUsable end
+    if not store then
+        dsUsable = false
+        return false
+    end
     local ok, err = pcall(function()
         return store:GetAsync("__probe__")
     end)
@@ -90,7 +107,18 @@ function PlayerDataService.defaultProfile()
         pointsNonAlloues = 0,
         equipe = {},
         owned = {},
-        inventaire = {},          -- reserved (inventory etape)
+        -- v2 (Inventory Sprint Day 1): unique-instance bag, replaces the old
+        -- `inventaire = { [id|rarete|zone] = count }` stacks. See
+        -- migrateInventoryV1toV2 for the one-time upgrade path.
+        inventory = {
+            version = 1,
+            capacity = GameConfig.Inventory.baseCapacity,
+            items = {},
+            equipped = {
+                arme = nil, casque = nil, plastron = nil,
+                jambieres = nil, bottes = nil, gants = nil,
+            },
+        } :: Types.PlayerInventory,
         verrouilles = {},         -- reserved
         filtres = { rareteMin = "commun", guerrier = true, mage = true },
 
@@ -109,11 +137,151 @@ function PlayerDataService.defaultProfile()
     }
 end
 
--- Bring an older profile up to the current version (no-op for v1).
-local function migrate(profile)
+--===== Migration: v1 (stacked counts) -> v2 (unique ItemInstances) =====
+-- Mirrors EquipmentService's old ownKey format ("id|rarete|zone") without
+-- requiring EquipmentService itself - PlayerDataService stays a low-level
+-- module with no gameplay-service dependencies.
+local function parseInventaireKey(key: string): (string, string, number)
+    local id, rarete, zone = key:match("^(.-)|(.-)|(.-)$")
+    return id, rarete, tonumber(zone) or 1
+end
+
+-- Armor slot -> ItemInstance.itemType (spec §5.1: open string, English body
+-- locations for armor). Weapons are always "weapon"; pets are "pet".
+local ARMOR_SLOT_TO_ITEM_TYPE = {
+    casque = "head", plastron = "chest", gants = "hands",
+    jambieres = "legs", bottes = "feet",
+}
+
+local function itemTypeFor(category: string, def: any): string
+    if category == "weapon" then return "weapon" end
+    if category == "pet" then return "pet" end
+    return ARMOR_SLOT_TO_ITEM_TYPE[def.slot] or def.slot
+end
+
+-- Items carry no literal stat numbers (power is DERIVED from zone + rarity,
+-- GAME_SPEC.md etape 4.0) - baseStats is a snapshot of that derived power at
+-- migration time, computed the same way EquipmentService.getStatBonuses does.
+local function buildMigratedBaseStats(category: string, def: any, rarete: string, rarityDef: any, zone: number): {[string]: number}
+    local EQ = GameConfig.Equipment
+    local baseStats = {}
+    if category == "weapon" then
+        baseStats.weaponPct = EQ.weaponPct(zone, rarityDef.mult) * EquipmentConfig.weaponPowerMult(def.id or "")
+    elseif category == "armor" then
+        local val = EQ.armorStat(zone, rarityDef.mult)
+        if def.voie == "mage" then
+            baseStats.res = val
+        else
+            baseStats.def = val
+        end
+    elseif category == "pet" then
+        local eff = GameConfig.Pets.effect(def.role, zone, rarityDef.mult)
+        for k, v in pairs(eff) do
+            if k ~= "role" then baseStats[k] = v end
+        end
+    end
+    return baseStats
+end
+
+-- One-time, one-way: expand `profile.inventaire` ({key=count} stacks) into
+-- `profile.inventory.items` ({itemKey=ItemInstance}). No-op if `profile.inventory`
+-- already exists (already migrated, or a brand-new profile that never had
+-- `inventaire` to begin with). Equipped items (`profile.equipe`) are NOT
+-- touched here and are never added to the bag - they were already excluded
+-- from `inventaire` by the old EquipmentService.equip/unequip logic.
+local function migrateInventoryV1toV2(profile, player: Player?)
+    if profile.inventory ~= nil then
+        return
+    end
+
+    local uid = player and tostring(player.UserId) or "?"
+    local oldStacks = profile.inventaire
+    local newItems = {}
+    local epoch = os.time()
+    local sequence = 0
+    local generated = {}  -- ordered { key, seq } - clamp drops lowest seq first ("oldest")
+
+    if type(oldStacks) == "table" then
+        for key, count in pairs(oldStacks) do
+            if type(key) == "string" and type(count) == "number" and count > 0 then
+                local id, rarete, zone = parseInventaireKey(key)
+                local def, category = EquipmentConfig.getItem(id)
+                local rarityDef = EquipmentConfig.getRarity(rarete)
+                if def and category and rarityDef then
+                    for _ = 1, math.floor(count) do
+                        sequence += 1
+                        local itemKey = id .. "_" .. epoch .. "_" .. string.format("%04d", sequence)
+                        while newItems[itemKey] ~= nil do  -- defensive collision-retry
+                            sequence += 1
+                            itemKey = id .. "_" .. epoch .. "_" .. string.format("%04d", sequence)
+                        end
+                        newItems[itemKey] = {
+                            id = id,
+                            itemType = itemTypeFor(category, { slot = def.slot, id = id }),
+                            rarity = rarete,
+                            voie = def.voie,
+                            baseStats = buildMigratedBaseStats(category, { id = id, voie = def.voie }, rarete, rarityDef, zone),
+                            forgeLevel = 0,
+                            droppedAtKm = zone,
+                            droppedAtTime = epoch + sequence,  -- deterministic monotonic order for the clamp below
+                            setId = def.set,
+                            locked = false,
+                            equippedSlot = nil,
+                        } :: Types.ItemInstance
+                        generated[#generated + 1] = { key = itemKey, seq = sequence }
+                    end
+                else
+                    warn(("[Migration] Player %s: dropped unrecognised legacy stack %q (unknown item or rarity)")
+                        :format(uid, key))
+                end
+            end
+        end
+    end
+
+    -- Clamp to capacity (spec §10 edge case 10): drop oldest-generated first.
+    -- A fresh migration always starts at baseCapacity - bonus-pack ownership
+    -- was never tracked pre-migration, so it cannot be honored retroactively.
+    local capacity = GameConfig.Inventory.baseCapacity
+    local dropped = 0
+    if #generated > capacity then
+        table.sort(generated, function(a, b) return a.seq < b.seq end)
+        for i = 1, #generated - capacity do
+            newItems[generated[i].key] = nil
+            dropped += 1
+        end
+    end
+
+    local migratedCount = 0
+    for _ in pairs(newItems) do migratedCount += 1 end
+
+    profile.inventory = {
+        version = 1,
+        capacity = capacity,
+        items = newItems,
+        equipped = {
+            arme = nil, casque = nil, plastron = nil,
+            jambieres = nil, bottes = nil, gants = nil,
+        },
+    } :: Types.PlayerInventory
+    profile.inventaire = nil
+
+    if dropped > 0 then
+        warn("Inventory clamp: player " .. uid .. " had " .. dropped
+            .. " items trimmed to fit capacity " .. tostring(capacity))
+    end
+    warn("[Migration] Player " .. uid .. ": " .. migratedCount .. " items migrated from stacks to instances")
+end
+
+-- Bring an older profile up to the current version.
+local function migrate(profile, player: Player?)
     if type(profile) ~= "table" then return PlayerDataService.defaultProfile() end
     profile.version = profile.version or 1
-    -- (future: if profile.version < N then ... end)
+
+    if profile.version < 2 then
+        migrateInventoryV1toV2(profile, player)
+        profile.version = 2
+    end
+
     local d = PlayerDataService.defaultProfile()
     for k, v in pairs(d) do
         if profile[k] == nil then profile[k] = v end
@@ -166,7 +334,7 @@ function PlayerDataService.load(player)
     for attempt = 1, PERSIST.loadLockRetries + 1 do
         local ok, stored = retry(function()
             return store:UpdateAsync(key, function(old)
-                old = migrate(old or PlayerDataService.defaultProfile())
+                old = migrate(old or PlayerDataService.defaultProfile(), player)
                 if isForeignLiveLock(old._lock) then
                     return nil  -- another live session holds the lock: don't steal it
                 end

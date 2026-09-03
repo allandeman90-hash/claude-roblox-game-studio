@@ -99,7 +99,7 @@ end
 --   context = { zone = <current zone>, isBoss = <boolean> }
 -- Returns nil (no drop) or:
 --   { id, slot, voie, rarete, zone, isBoss }
--- The caller is responsible for EquipmentService.grantOwnership. Never auto-equips.
+-- The caller is responsible for InventoryService.addItem. Never auto-equips.
 function LootService.rollDrop(player, context)
     local zone = math.max(1, math.floor((context and context.zone) or 1))
     local isBoss = (context and context.isBoss) == true

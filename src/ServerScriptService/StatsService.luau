@@ -43,15 +43,22 @@ function StatsService.recalc(player, st)
     -- Rebirth (GAME_SPEC.md 8.1 - reworked): every ALLOCATED skill point is
     -- (1 + 0.10 * rebirths) more effective. The tiny starting stats are NOT
     -- multiplied - only what the player chose to spend.
+    local equipped = EquipmentService.getEquipped(player)
+    local weapon = equipped and equipped.arme
+    local classKey = (weapon and weapon.voie == "mage") and "mage" or "warrior"
+    local auto = GameConfig.ClassGrowth.statsAtLevel(classKey, st.playerLevel)
     local sm = GameConfig.Rebirth.skillMult(st.rebirths or 0)
-    local function eff(cur, start)
-        return start + math.max(0, (cur or start) - start) * sm
+    local function eff(cur, start, autoValue)
+        local earned = math.max(0, autoValue - start) + math.max(0, (cur or start) - start)
+        return start + earned * sm
     end
-    local effPow = eff(st.statPow, S.pow)
-    local effInt = eff(st.statInt, S.int)
-    local effVit = eff(st.statVit, S.vit)
-    local effSpd = eff(st.statSpd, S.spd)
-    local effLuk = eff(st.statLuk, S.luk)
+    local effPow = eff(st.statPow, S.pow, auto.pow)
+    local effInt = eff(st.statInt, S.int, auto.int)
+    local effVit = eff(st.statVit, S.vit, auto.vit)
+    local effSpd = eff(st.statSpd, S.spd, auto.spd)
+    local effLuk = eff(st.statLuk, S.luk, auto.luk)
+    st.effectiveStatPow, st.effectiveStatInt = effPow, effInt
+    st.effectiveStatVit, st.effectiveStatSpd, st.effectiveStatLuk = effVit, effSpd, effLuk
 
     -- VIT -> Max HP. Etape 4.0: each equipped armor piece adds hpPctPerPiece of
     -- the VIT-derived pool (multiplicative, NOT zone-scaled - VIT stays the driver).
@@ -64,8 +71,6 @@ function StatsService.recalc(player, st)
     -- Etape 4.0: the equipped weapon is a MULTIPLIER on the matching base, and its
     -- voie picks the effective damage type (GAME_SPEC.md 3.3). No weapon -> physical,
     -- weaponPct 0. A mage weapon boosts magic only (and vice-versa).
-    local equipped = EquipmentService.getEquipped(player)
-    local weapon = equipped and equipped.arme
     if weapon and weapon.voie == "mage" then
         st.playerMagAtk     = baseMag * (1 + bonus.weaponPct)
         st.playerPhysAtk    = basePhys

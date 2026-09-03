@@ -7,8 +7,8 @@
 -- (enemy-rebalance etape). HP/ATK match a REFERENCE curve-player `levelLead`
 -- levels below the mob (same 5-points-per-level slope the player earns, so a
 -- same-level fight is ~even and the player's edge is level lead + gear + pet).
--- EXP/gold grow geometrically per level (expPerLevel / goldPerLevel), calibrated
--- to the old per-zone curve at the zone boundaries.
+-- EXP follows GameConfig.Level's strict Classic-style curve; gold remains
+-- geometric per level.
 --
 -- Enemy level (GAME_SPEC.md 6.1): ramps smoothly across a zone from lo+1 to
 -- zone*10-1 (mobs); the end-of-zone boss is exactly zone*10.
@@ -68,6 +68,12 @@ end
 -- zone, from lo+1 at the zone start to the boss level (zone*10) at the zone end,
 -- so the player feels a steady climb toward each end-of-zone boss.
 function EnemyService.levelForKm(km)
+    -- Couche 1 is the complete launch/tutorial slice: regular enemies climb
+    -- cleanly from level 1 to 9, then the Roi Gobelin closes it at level 10.
+    -- Later couches keep the global progression curve until the full D6 pass.
+    if km < ZoneConfig.KM_PER_ZONE then
+        return math.clamp(math.floor(math.max(0, km)) + 1, 1, 9)
+    end
     -- [D1/D6] mob level = round(km * GameConfig.Enemy.levelPerKm) (3.5). The wall
     -- comes from this curve vs the player cap + the level-gap penalty, not from
     -- a per-zone band any more.
@@ -92,7 +98,7 @@ end
 --              mob's level - that player has spent max(0, level - levelLead) *
 --              refPointsPerLevel points, refVitShare into VIT (-> MaxHP =
 --              VIT * hpPerVit) and refPowShare into POW (-> physATK = baseAtk +
---              POW * atkPerPow), then x enemyPowerScale.
+--              POW * atkPerPow), then separate HP/ATK difficulty scales.
 --   EXP / gold : geometric per LEVEL (expPerLevel / goldPerLevel), so the reward
 --              tracks the exact mob level instead of stepping once per zone. The
 --              exponent is capped like the old zone curve (scaleExpCap).
@@ -104,12 +110,13 @@ function EnemyService.combatBaseForLevel(level)
     local pts = math.max(0, L - (E.levelLead or 1)) * (E.refPointsPerLevel or 5)
     local vit = S.vit + (E.refVitShare or 0.5) * pts
     local pow = S.pow + (E.refPowShare or 0.42) * pts
-    local scale = E.enemyPowerScale or 1
+    local hpScale = E.enemyHpScale or E.enemyPowerScale or 1
+    local atkScale = E.enemyAtkScale or E.enemyPowerScale or 1
     local rewardExp = math.clamp(L - 1, 0, SCALE_CAP)
     return {
-        maxHp = clampStat((vit * P.hpPerVit) * scale),
-        atk   = clampStat((P.baseAtk + pow * P.atkPerPow) * scale),
-        exp   = clampStat(E.base.exp * (E.expPerLevel or 1.02) ^ rewardExp),
+        maxHp = clampStat((vit * P.hpPerVit) * hpScale),
+        atk   = clampStat((P.baseAtk + pow * P.atkPerPow) * atkScale),
+        exp   = clampStat(GameConfig.Level.xpForEnemyLevel(L)),
         gold  = clampStat(E.base.gold * (E.goldPerLevel or 1.03) ^ rewardExp),
     }
 end
@@ -226,7 +233,20 @@ function EnemyService.rollEnemy(km)
         }
     end
 
-    local def = roster[math.random(1, #roster)]
+    local def
+    if zone == 1 then
+        -- Couche 1 is a deterministic difficulty ramp, not a roulette. The first
+        -- two encounters teach movement/combat with chaff; all six silhouettes
+        -- then appear before the Roi Gobelin, with tanks introduced late.
+        local sequence = { 1, 2, 1, 3, 2, 4, 1, 5, 3, 4, 2, 6, 1, 3, 4, 5, 2, 6, 4 }
+        local localKm = math.clamp(km, 0, ZoneConfig.KM_PER_ZONE - 0.001)
+        local step = math.floor(localKm) + 1
+        local slot = (localKm - math.floor(localKm) > 0.75) and 2 or 1
+        local index = math.clamp((step - 1) * 2 + slot, 1, #sequence)
+        def = roster[sequence[index]]
+    else
+        def = roster[math.random(1, #roster)]
+    end
     return {
         name  = def.name,
         id    = def.id,   -- sprite slug; client art only

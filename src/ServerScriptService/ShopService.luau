@@ -18,7 +18,10 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local EquipmentConfig  = require(ReplicatedStorage:WaitForChild("EquipmentConfig"))
 local GameConfig       = require(ReplicatedStorage:WaitForChild("GameConfig"))
 local ZoneConfig       = require(ReplicatedStorage:WaitForChild("ZoneConfig"))
-local EquipmentService = require(script.Parent:WaitForChild("EquipmentService"))
+
+-- Bag storage/mutation (Inventory Sprint Day 1). Still a stub - handlePurchase
+-- pcall-wraps every call and refunds on failure instead of crashing.
+local InventoryService = require(script.Parent:WaitForChild("InventoryService"))
 
 local ShopService = {}
 
@@ -149,12 +152,62 @@ function ShopService.handlePurchase(player, st, data)
 	end
 
 	st.gold = st.gold - price
-	EquipmentService.grantOwnership(player, entry.id, data.rarete, zone)
-	local ok, err = EquipmentService.equip(player, entry.slot, entry.id, data.rarete, zone)
-	if not ok then
-		-- refund on the (shouldn't-happen) equip failure so gold is never lost
+
+	-- Inventory Sprint Day 1: InventoryService owns the bag directly now.
+	-- Both calls are pcall-wrapped since InventoryService is still a stub
+	-- (errors "not implemented") - refund on any failure so gold is never lost.
+	local instance = {
+		id = entry.id,
+		itemType = entry.slot,   -- best-effort; InventoryService normalizes this (Day 2)
+		rarity = data.rarete,
+		voie = entry.voie,
+		baseStats = {},
+		forgeLevel = 0,
+		droppedAtKm = zone,
+		droppedAtTime = os.time(),
+		setId = nil,
+		locked = false,
+		equippedSlot = nil,
+	}
+	local addOk, added, addErr = pcall(InventoryService.addItem, player, instance)
+	if not addOk or not added then
 		st.gold = st.gold + price
-		return false, err or "equip failed"
+		return false, (addOk and addErr) or "shop unavailable"
+	end
+
+	-- Find the itemKey InventoryService.addItem actually minted for this
+	-- purchase ("<id>_<epoch>_<seq4>", InventoryService.luau's mintItemKey -
+	-- NOT the hardcoded "<id>_<os.time()>_shop" this used to guess, which
+	-- never matched the real format and made every auto-equip fail with
+	-- "item_not_found"). addItem doesn't hand the key back directly, so scan
+	-- the just-updated inventory for the newest unequipped instance of this
+	-- exact id/rarity - safe because this purchase is the only mutation that
+	-- could have just added one.
+	local listOk, inventory = pcall(InventoryService.getInventory, player)
+	local itemKey: string? = nil
+	if listOk and inventory and inventory.items then
+		local newestTime = -1
+		for key, inst in pairs(inventory.items) do
+			if inst.id == entry.id and inst.rarity == data.rarete then
+				-- Tie-break same-second purchases (droppedAtTime equal) by
+				-- itemKey: mintItemKey increments the "<seq4>" suffix within
+				-- the same "<id>_<epoch>_" prefix, so the lexicographically
+				-- greatest key among ties is the most recently minted one.
+				if inst.droppedAtTime > newestTime or (inst.droppedAtTime == newestTime and (not itemKey or key > itemKey)) then
+					itemKey, newestTime = key, inst.droppedAtTime
+				end
+			end
+		end
+	end
+	if not itemKey then
+		st.gold = st.gold + price
+		return false, "item not found after purchase"
+	end
+
+	local equipOk, equipped, equipErr = pcall(InventoryService.equipItem, player, itemKey)
+	if not (equipOk and equipped) then
+		st.gold = st.gold + price
+		return false, (equipOk and equipErr) or "equip failed"
 	end
 
 	local receipt = { itemId = entry.id, rarete = data.rarete, zone = zone, slot = entry.slot, price = price, gold = st.gold }

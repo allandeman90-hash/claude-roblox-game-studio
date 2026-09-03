@@ -31,15 +31,40 @@ GameConfig.Level = {
     -- StatsService) reads this until Track G1 flips it to the auto model. Kept equal
     -- to autoPointsPerLevel so the interim hand-out already matches D1 (5 -> 4).
     statPointsPerLevel   = 4,
+
+    -- [ACTIVE - Classic-style progression] Enemy XP rises at every level, while
+    -- the target kills per level rises more quickly. The additive level term
+    -- guarantees strict growth even when the exponential rounds to the same int.
+    enemyXpBase          = 8,
+    enemyXpGrowth        = 1.085,
+    killsPerLevelBase    = 8,
+    killsPerLevelGrowth  = 1.02,
 }
 
--- [D2 - validated 2026-08-31] XP to advance FROM level N to N+1. Curve A "Douce":
--- round(6 + 0.5 * n^1.10). The geometric x1.35 of the GDD is impossible (sum ~3e13);
--- this sums to ~4300 to reach level 100 => cap in ~1-2 h, first level-wall ~km 25-30
--- (fast rebirth cycle by design). The 0.5 coefficient is the D6 fine-tune dial.
---   N=1 -> 7 | N=10 -> 12 | N=25 -> 24 | N=50 -> 45 | N=99 -> 89 | sum(1..99) ~4300
+-- Base XP from a standard enemy of level N. Strictly increasing for every N.
+function GameConfig.Level.xpForEnemyLevel(n)
+    local level = math.max(1, math.floor(n or 1))
+    local exponent = level - 1
+    return math.round(GameConfig.Level.enemyXpBase * GameConfig.Level.enemyXpGrowth ^ exponent) + exponent
+end
+
+-- XP required to advance FROM level N to N+1. At equal level this targets
+-- 8 kills at L1, ~13 at L25, ~21 at L50 and ~57 at L100 before role modifiers.
 function GameConfig.Level.xpForNextLevel(n)
-    return math.round(6 + 0.5 * n ^ 1.10)
+    local level = math.max(1, math.floor(n or 1))
+    local exponent = level - 1
+    local targetKills = GameConfig.Level.killsPerLevelBase * GameConfig.Level.killsPerLevelGrowth ^ exponent
+    return math.round(GameConfig.Level.xpForEnemyLevel(level) * targetKills)
+end
+
+-- Level-colour reward curve. Harder enemies pay slightly more, but old/grey
+-- enemies keep their full base XP: revisiting earlier kilometres must remain a
+-- valid source of XP, gold and equipment instead of becoming dead content.
+function GameConfig.Level.killXpLevelMultiplier(playerLevel, enemyLevel)
+    local gap = math.floor(enemyLevel or 1) - math.floor(playerLevel or 1)
+    if gap >= 5 then return 1.20 end
+    if gap >= 0 then return 1 + gap * 0.05 end
+    return 1
 end
 
 --========================================================
@@ -237,6 +262,47 @@ function GameConfig.Equipment.armorPiecePrice(zone)
 end
 
 --========================================================
+-- INVENTORY  (Inventory Sprint Day 1 - design/specs/inventory-implementation-spec.md §11)
+--========================================================
+-- Unique-instance bag: every dropped/purchased item is its own itemKey (never
+-- stacks). Capacity is base + an optional purchasable bonus pack, hard-capped
+-- at maxCapacity. Rate limits here are consumed by InventoryService's remote
+-- handlers (Day 2) - separate from the generic GameConfig.Security.remotePerType
+-- sliding window CombatServer already enforces on the multiplexed dispatcher.
+GameConfig.Inventory = {
+    baseCapacity                 = 100,
+    bonusCapacity                = 100,
+    maxCapacity                  = 200,
+    bagFullTimeoutSeconds        = 30,
+    weaponChangeRateLimitPerSec  = 2,
+    removeItemRateLimitPerSec    = 2,
+    equipItemRateLimitPerSec     = 2,
+    listInventoryRateLimitPerSec = 5,
+}
+
+--========================================================
+-- UI  (design/gdd/ui-ux-gdd.md §8 - design language shared by every screen)
+--========================================================
+-- Pure presentation tuning: touch targets, contrast floor, spacing unit,
+-- animation timings, grid columns, accessibility bounds. Consumed by
+-- StyleConstants.luau (ReplicatedStorage/Shared) and every UI screen module -
+-- never read directly by gameplay/server code.
+GameConfig.Ui = {
+    minTouchTargetPx        = 44,     -- WCAG / mobile minimum tap target
+    minContrastRatio        = 4.5,    -- WCAG AA text contrast floor
+    baseSpacingPx           = 4,      -- spacing unit; scale = 4/8/12/16/24/32
+    buttonPressTweenSeconds = 0.10,   -- ui-ux-gdd 2.8: 0.08-0.12s button feedback
+    modalTweenSeconds       = 0.22,   -- ui-ux-gdd 2.8: 0.20-0.25s modal open
+    maxFlashHz              = 3,      -- epilepsy-safety cap on any flashing effect
+    fontScaleMin            = 0.85,
+    fontScaleMax            = 1.5,
+    fontScaleDefault        = 1.0,
+    gridColumnsStandard     = 7,      -- ui-ux-gdd 2.6: standard item grid width
+    gridColumnsMinNarrow    = 5,      -- narrow-screen fallback (ui-ux-gdd 7.1)
+    setPrefsRateLimitPerSec = 1,      -- Ui_SetPrefs remote budget (not yet wired - see wiki gap)
+}
+
+--========================================================
 -- PETS  (etape 4.2 - validated: PASSIVE only, one slot, same rarity table,
 --        same x1.25 zone scaling as equipment)
 --========================================================
@@ -425,7 +491,8 @@ GameConfig.Enemy = {
     -- the mob's LEVEL - EnemyService.combatBaseForLevel - not the old 1.35^zone.
     --   HP / ATK : matched to a REFERENCE curve-player `levelLead` levels below
     --     the mob; that player spent max(0, L - levelLead) * refPointsPerLevel
-    --     points, refVitShare -> VIT, refPowShare -> POW ; result x enemyPowerScale.
+    --     points, refVitShare -> VIT, refPowShare -> POW; HP and ATK then use
+    --     separate scales so durability can be punitive without making every hit lethal.
     --   EXP / gold : base.exp / base.gold x (expPerLevel / goldPerLevel)^(L-1),
     --     exponent capped at scaleExpCap. Calibrated so the total ~matches the old
     --     per-zone curve at the boundaries, but tracks the exact mob level.
@@ -437,9 +504,8 @@ GameConfig.Enemy = {
     refPointsPerLevel = 4.7,
     refVitShare     = 0.50,   -- reference build: half the earned points into VIT ...
     refPowShare     = 0.42,   -- ... most of the rest into the damage stat (POW)
-    enemyPowerScale = 1.0,    -- global HP/ATK dial (>1 harder, <1 easier). 1.0 =
-                              -- a same-level fight is ~even; the player's edge is
-                              -- their +levelLead, gear, pet and smarter play.
+    enemyHpScale    = 1.80,   -- naked equal-level targets take several hits; gear matters
+    enemyAtkScale   = 0.55,   -- dangerous attrition without unavoidable early one-shots
     expPerLevel     = 1.02,   -- EXP  x this per mob level  (1.02^10 ~= 1.22 / zone, unchanged total)
     goldPerLevel    = 1.026,  -- [D2] gold x this per mob level. Flattened 1.03 -> 1.026 so
                               -- gold/climb grows ~x2.0/rebirth vs cost x2.2 (Q64: rebirth keeps the lead).
@@ -506,6 +572,12 @@ GameConfig.Security = {
         buyEquipment     = 4,
         equipItem        = 4,
         unequipItem      = 4,
+        -- Mirrors GameConfig.Inventory.*RateLimitPerSec (the Inventory
+        -- Sprint's own budget, kept there for InventoryService's Day 2 remote
+        -- handlers) - duplicated here too since CombatServer's multiplexed
+        -- dispatcher enforces THIS table, not GameConfig.Inventory directly.
+        removeItem           = GameConfig.Inventory.removeItemRateLimitPerSec,
+        confirmFullBagAction = GameConfig.Inventory.equipItemRateLimitPerSec,
         fuseItem         = 4,
         setFilters       = 4,
         toggleLock       = 4,

@@ -17,6 +17,11 @@ local ShopService = require(script.Parent:WaitForChild("ShopService"))
 -- NOT feed combat stats yet - that is a later lot.
 local EquipmentService = require(script.Parent:WaitForChild("EquipmentService"))
 
+-- Bag storage/mutation (Inventory Sprint Day 1). Still a stub - every call
+-- below is pcall-wrapped and degrades to a warn + no-op response instead of
+-- crashing until InventoryService's real bodies land Day 2.
+local InventoryService = require(script.Parent:WaitForChild("InventoryService"))
+
 -- Central tuning constants + formulas (pure data). Etape 1: every value
 -- pulled from here equals the previous inline constant EXCEPT the XP curve
 -- (validated decision 1). GDD-target values that are not wired yet also
@@ -113,7 +118,6 @@ end
 -- GameConfig.Level.xpForNextLevel). It only feeds ZoneService's boss-level
 -- heuristic below, kept unchanged. Removed when bosses are reworked.
 local XP_PER_LEVEL          = 30
-local STAT_POINTS_PER_LEVEL = GameConfig.Level.statPointsPerLevel        -- 5
 local KM_PER_STEP          = GameConfig.Progression.kmPerStep            -- 0.1 (client scroll unit)
 local STEPS_PER_ZONE       = GameConfig.Progression.stepsPerZone        -- 100 (client scroll unit)
 local MOVE_SPEED           = GameConfig.World.moveSpeedKmPerSec         -- km / s
@@ -237,12 +241,13 @@ local function sendUpdate(player, s)
         fastModeAvailable = (s.bigBossesBeaten or 0) >= GameConfig.World.fastModeUnlockBigBosses,
         distance        = s.pos or 0,
         enemyExp        = s.enemyExp,
+        enemyGold       = s.enemyGold,
         gameOver        = s.gameOver or false,
-        statPow         = s.statPow,
-        statInt         = s.statInt,
-        statVit         = s.statVit,
-        statSpd         = s.statSpd,
-        statLuk         = s.statLuk,
+        statPow         = s.effectiveStatPow or s.statPow,
+        statInt         = s.effectiveStatInt or s.statInt,
+        statVit         = s.effectiveStatVit or s.statVit,
+        statSpd         = s.effectiveStatSpd or s.statSpd,
+        statLuk         = s.effectiveStatLuk or s.statLuk,
         spdNextCost     = spdNextCost,
         spdAtMax        = spdAtMax,
         spdMax          = GameConfig.Combat.spdMax,
@@ -322,11 +327,12 @@ local function captureProfile(player, s)
     profile.pointsNonAlloues   = s.statPoints
     profile.stats = { pow = s.statPow, int = s.statInt, vit = s.statVit, spd = s.statSpd, luk = s.statLuk }
     local eq = EquipmentService.serialize(player)
-    profile.equipe      = eq.equipe
-    profile.inventaire  = eq.inventory
-    profile.verrouilles = eq.locked
-    profile.filtres     = eq.filters
-    profile.owned       = nil   -- legacy field, superseded by inventaire
+    profile.equipe = eq.equipe
+    -- profile.inventory (v2 bag) is NOT touched here: InventoryService owns
+    -- it directly on the live profile object (Day 2), so whatever it already
+    -- wrote in place is preserved by simply not overwriting the key.
+    profile.owned       = nil   -- legacy field, superseded by inventory
+    profile.inventaire  = nil   -- legacy field, migrated to profile.inventory on load
     return profile
 end
 
@@ -359,7 +365,8 @@ function resolvePlayerHit(player, st)
 
     -- All reward multipliers come from the one resolver (B5). `st` is the ctx:
     -- it carries .rebirths now and .nightmareTier once G9 wires Nightmare.
-    local xpGain   = math.floor(st.enemyExp * RewardService.multiplier(player, "xp", st))
+    local levelXpMult = GameConfig.Level.killXpLevelMultiplier(st.playerLevel, st.enemyLevel)
+    local xpGain   = math.floor(st.enemyExp * levelXpMult * RewardService.multiplier(player, "xp", st))
     local goldGain = math.floor(st.enemyGold * RewardService.multiplier(player, "gold", st))
     st.exp  = st.exp + xpGain
     st.gold = st.gold + goldGain
@@ -378,7 +385,13 @@ function resolvePlayerHit(player, st)
     end
     local drop = LootService.rollDrop(player, { zone = st.zone, isBoss = st.isBoss, isBigBoss = st.enemyIsBigBoss, bossIndex = bossIdx, dropRateMult = lootMult })
     if drop then
-        local kept, reason = EquipmentService.addItem(player, drop, "loot")
+        -- InventoryService.addItem is still a Day 1 stub - pcall degrades a
+        -- crash into "not kept", exactly like a real "full" bag response
+        -- would look to the client, until Day 2 wires the real bag-full flow.
+        local ok, kept, reason = pcall(InventoryService.addItem, player, drop)
+        if not ok then
+            kept, reason = false, "unavailable"
+        end
         combatEvent:FireClient(player, {
             type = "loot",
             item = { id = drop.id, nom = drop.nom, slot = drop.slot, voie = drop.voie, rarete = drop.rarete, zone = drop.zone },
@@ -387,7 +400,10 @@ function resolvePlayerHit(player, st)
     end
     local petDrop = LootService.rollPetDrop(player, { zone = st.zone, isBoss = st.isBoss, isBigBoss = st.enemyIsBigBoss, dropRateMult = petLootMult })
     if petDrop then
-        local kept, reason = EquipmentService.addItem(player, petDrop, "loot")
+        local ok, kept, reason = pcall(InventoryService.addItem, player, petDrop)
+        if not ok then
+            kept, reason = false, "unavailable"
+        end
         combatEvent:FireClient(player, {
             type = "loot",
             item = { id = petDrop.id, nom = petDrop.nom, slot = "pet", role = petDrop.role, rarete = petDrop.rarete, zone = petDrop.zone },
@@ -396,11 +412,21 @@ function resolvePlayerHit(player, st)
     end
 
     st.playerExp = st.playerExp + xpGain
+    local levelsGained = 0
     while st.playerExp >= st.playerExpToNext do
         st.playerExp       = st.playerExp - st.playerExpToNext
         st.playerLevel     = st.playerLevel + 1
-        st.statPoints      = st.statPoints + STAT_POINTS_PER_LEVEL
+        levelsGained += 1
+        if st.playerLevel % GameConfig.Level.freePointEveryLevels == 0 then
+            st.statPoints += 1
+        end
         st.playerExpToNext = xpNeeded(st.playerLevel)
+    end
+    if levelsGained > 0 then
+        local oldMaxHp = st.playerMaxHp or 0
+        StatsService.recalc(player, st)
+        -- A level-up grants the newly-created HP, without becoming a full heal.
+        st.playerHp = math.min(st.playerMaxHp, st.playerHp + math.max(0, st.playerMaxHp - oldMaxHp))
     end
 
     local wasBigBoss = false
@@ -516,13 +542,10 @@ local function startCombat(player)
         return
     end
     applyProfileToState(profile, s)
-    EquipmentService.restore(player, {
-        equipe = profile.equipe,
-        inventory = profile.inventaire,
-        owned = profile.owned,          -- legacy fallback (old saves)
-        locked = profile.verrouilles,
-        filters = profile.filtres,
-    })
+    EquipmentService.restore(player, { equipe = profile.equipe })
+    -- profile.inventory (v2 bag, migrated by PlayerDataService.load) is read
+    -- directly by InventoryService once it's implemented (Day 2) - no
+    -- separate track-state restore needed for the bag side.
     LootService.noteZoneReached(player, math.floor((s.checkpointMaxKm or 0) / 10) + 1)
 
     -- Start this run at the selected checkpoint (default 0). restartRun does the
@@ -806,68 +829,79 @@ combatEvent.OnServerEvent:Connect(function(player, data)
         end
 
     elseif data.type == "requestInventory" then
-        local slots = data.slot and { data.slot } or { "arme", "casque", "plastron", "jambieres", "bottes", "pet" }
-        local byslot = {}
-        for _, sl in ipairs(slots) do
-            byslot[sl] = EquipmentService.listInventoryForSlot(player, sl)
+        -- Bag listing moves to InventoryService.getInventory (Day 2 real
+        -- body). Stub-safe: on failure, send an empty inventory rather than
+        -- crash the dispatcher.
+        local ok, inventory = pcall(InventoryService.getInventory, player)
+        if not ok or not inventory then
+            combatEvent:FireClient(player, { type = "inventory", slots = {}, items = {}, capacity = GameConfig.Inventory.baseCapacity })
+        else
+            combatEvent:FireClient(player, { type = "inventory", items = inventory.items, capacity = inventory.capacity })
         end
-        combatEvent:FireClient(player, {
-            type = "inventory", slots = byslot,
-            summary = EquipmentService.getInventorySummary(player),
-            filters = EquipmentService.getFilters(player),
-        })
 
     elseif data.type == "fuseItem" then
-        -- GAME_SPEC.md 5.2
-        local ok, err, newRarete = EquipmentService.fuse(player, data.id, data.rarete, data.zone)
-        if ok then
-            StatsService.recalc(player, st)
-            markProfileDirty(player, st)
-            combatEvent:FireClient(player, { type = "fuseResult", ok = true, newRarete = newRarete })
-        else
-            combatEvent:FireClient(player, { type = "fuseResult", ok = false, reason = err })
-        end
-        combatEvent:FireClient(player, { type = "inventory",
-            slots = { [data.slot] = EquipmentService.listInventoryForSlot(player, data.slot) },
-            summary = EquipmentService.getInventorySummary(player) })
-        sendUpdate(player, st)
+        -- Fusion is out of v0.1 scope per the Inventory Sprint plan (unique
+        -- instances need a new fusion model against economy-gdd.md §2.5).
+        combatEvent:FireClient(player, { type = "fuseResult", ok = false, reason = "not_available" })
 
     elseif data.type == "setFilters" then
-        EquipmentService.setFilters(player, {
-            rareteMin = data.rareteMin, guerrier = data.guerrier, mage = data.mage,
-        })
-        markProfileDirty(player, st)
-        combatEvent:FireClient(player, { type = "inventory", filters = EquipmentService.getFilters(player), slots = {} })
+        local ok = pcall(InventoryService.setFilters, player, data.rareteMin, data.voie)
+        if ok then
+            markProfileDirty(player, st)
+        end
+        -- No InventoryService.getFilters stub yet (Day 2) - echo the request
+        -- back rather than call a function that doesn't exist.
+        combatEvent:FireClient(player, { type = "inventory",
+            filters = { rareteMin = data.rareteMin, guerrier = data.guerrier, mage = data.mage } })
 
     elseif data.type == "toggleLock" then
-        EquipmentService.toggleLock(player, data.id, data.rarete, data.zone)
-        combatEvent:FireClient(player, { type = "inventory",
-            slots = { [data.slot] = EquipmentService.listInventoryForSlot(player, data.slot) } })
+        pcall(InventoryService.toggleLock, player, data.itemKey)
+        combatEvent:FireClient(player, { type = "inventory" })
+
+    elseif data.type == "removeItem" then
+        -- Deliberate bag discard (quick-sell / "drop"). itemKey is
+        -- client-supplied but InventoryService.removeItem validates it
+        -- (existence, lock state, not-equipped) before mutating anything.
+        local pcallOk, removed, reason = pcall(InventoryService.removeItem, player, data.itemKey)
+        combatEvent:FireClient(player, {
+            type = "itemRemoved",
+            ok = pcallOk and removed == true,
+            reason = pcallOk and reason or "unavailable",
+        })
+
+    elseif data.type == "confirmFullBagAction" then
+        -- Resolves the 30s bag-full prompt opened by InventoryService.addItem
+        -- (choice = "keep_new" | "keep_old" | "drop_both"). Both choice and
+        -- targetItemKey are client-supplied but validated inside
+        -- InventoryService.confirmFullBagAction before anything is mutated.
+        local pcallOk, confirmed, reason = pcall(
+            InventoryService.confirmFullBagAction, player, data.choice, data.targetItemKey
+        )
+        combatEvent:FireClient(player, {
+            type = "bagActionConfirmed",
+            ok = pcallOk and confirmed == true,
+            reason = pcallOk and reason or "unavailable",
+        })
 
     elseif data.type == "equipItem" then
-        -- Equip an OWNED item (GAME_SPEC.md 1.1 selectors / 1.2 inventory).
-        local slot = data.slot
-        local ok, err = EquipmentService.equip(player, slot, data.id, data.rarete, data.zone)
-        if ok then
+        -- Equip an OWNED item by itemKey (Inventory Sprint remote contract
+        -- §7: InventoryService derives the slot from itemType, never the
+        -- client-supplied slot).
+        local pcallOk, equipped, reason = pcall(InventoryService.equipItem, player, data.itemKey)
+        if pcallOk and equipped then
             StatsService.recalc(player, st)
             markProfileDirty(player, st)
         else
-            combatEvent:FireClient(player, { type = "equipError", reason = err })
+            combatEvent:FireClient(player, { type = "equipError", reason = pcallOk and reason or "unavailable" })
         end
-        combatEvent:FireClient(player, { type = "inventory",
-            slots = { [slot] = EquipmentService.listInventoryForSlot(player, slot) },
-            summary = EquipmentService.getInventorySummary(player) })
         sendUpdate(player, st)
 
     elseif data.type == "unequipItem" then
-        local ok = EquipmentService.unequip(player, data.slot)
-        if ok then
+        local ok, unequipped = pcall(InventoryService.unequipItem, player, data.slot)
+        if ok and unequipped then
             StatsService.recalc(player, st)
             markProfileDirty(player, st)
         end
-        combatEvent:FireClient(player, { type = "inventory",
-            slots = { [data.slot] = EquipmentService.listInventoryForSlot(player, data.slot) },
-            summary = EquipmentService.getInventorySummary(player) })
         sendUpdate(player, st)
 
     elseif data.type == "rebirth" then
@@ -914,6 +948,7 @@ Players.PlayerRemoving:Connect(function(player)
     remoteRejects[player] = nil
     ZoneService.release(player)
     EquipmentService.release(player)
+    InventoryService.release(player)
     ShopService.release(player)
     LootService.release(player)
 end)

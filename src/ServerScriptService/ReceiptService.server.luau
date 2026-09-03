@@ -28,7 +28,15 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ProductConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("ProductConfig"))
 local PlayerDataService = require(script.Parent:WaitForChild("PlayerDataService"))
 
-local RECEIPT_STORE = DataStoreService:GetDataStore("FoG_Receipts_v1")
+local RECEIPT_STORE = nil
+local receiptStoreOk, receiptStoreOrError = pcall(function()
+    return DataStoreService:GetDataStore("FoG_Receipts_v1")
+end)
+if receiptStoreOk then
+    RECEIPT_STORE = receiptStoreOrError
+else
+    warn("[ReceiptService] receipt DataStore unavailable at startup: " .. tostring(receiptStoreOrError))
+end
 local RECEIPT_WRITE_RETRIES = 5
 
 local function receiptKey(purchaseId: string): string
@@ -37,6 +45,7 @@ end
 
 -- Returns (seen: boolean, lookupOk: boolean).
 local function receiptSeen(purchaseId: string): (boolean, boolean)
+    if not RECEIPT_STORE then return false, false end
     local ok, value = pcall(function()
         return RECEIPT_STORE:GetAsync(receiptKey(purchaseId))
     end)
@@ -48,6 +57,7 @@ local function receiptSeen(purchaseId: string): (boolean, boolean)
 end
 
 local function writeReceipt(purchaseId: string, receiptInfo): boolean
+    if not RECEIPT_STORE then return false end
     for attempt = 1, RECEIPT_WRITE_RETRIES do
         local ok, err = pcall(function()
             RECEIPT_STORE:SetAsync(receiptKey(purchaseId), {
