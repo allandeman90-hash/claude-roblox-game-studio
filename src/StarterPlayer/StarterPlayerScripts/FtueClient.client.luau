@@ -43,15 +43,26 @@ local COACH = {
         cta  = "Ouvrir l'inventaire",
     },
     warning = {
-        title = "Ce monde est impitoyable",
-        body  = "Tu vas mourir. Souvent, et vite. C'est normal — chaque tentative te rend plus fort. On recommence, encore et encore.",
-        cta   = "Compris",
+        title = "Ce monde ne te fera pas de cadeau",
+        body  = table.concat({
+            "Tu vas mourir vite, et souvent. C'est normal : à chaque mort tu repars du début — mais tu gardes tout ce que tu as gagné.",
+            "",
+            "Tu deviens plus fort de 4 façons :",
+            "• Niveau — chaque monstre tué te fait monter (plus de PV, plus d'ATK)",
+            "• Équipement — arme, armure et familiers tombent en combat ou s'achètent au feu de camp",
+            "• Forge — améliore une pièce que tu aimes pour la garder plus longtemps",
+            "• Familiers — ils frappent, encaissent ou te soignent selon leur rôle",
+            "",
+            "Plus tu descends dans les Couches, plus le butin est puissant.",
+        }, "\n"),
+        align = Enum.TextXAlignment.Left,
+        cta   = "Je suis prêt",
     },
 }
 local GIFT = {
     title = "Ton premier familier",
-    body  = "La Fée te rejoint et augmente tes dégâts. Tu pourras changer son rôle au feu de camp.",
-    cta   = "Continuer",
+    body  = "La Fée te rejoint et augmente tes dégâts. Au feu de camp tu pourras changer son rôle (dégâts, défense ou soin). Les familiers lâchés par les monstres sont plus forts — celui-ci n'est que ton point de départ.",
+    cta   = "Commencer l'aventure",
 }
 
 --===== ScreenGui =============================================================
@@ -131,7 +142,7 @@ bubbleBtn.ZIndex = FTUE_Z
 bubbleBtn.Parent = bubble
 
 -- Modal card (warning / gift): centered, dimmed behind.
-local card = panel(UDim2.fromOffset(440, 0), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5))
+local card = panel(UDim2.fromOffset(520, 0), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5))
 card.AutomaticSize = Enum.AutomaticSize.Y
 local cardTitle = label(card, "", "Heading", C.Accent, 1)
 local cardBody = label(card, "", "Body", C.TextPrimary, 2)
@@ -201,14 +212,17 @@ local function showStep(stepId: string)
     elseif stepId == "warning" then
         cardTitle.Text = COACH.warning.title
         cardBody.Text = COACH.warning.body
+        cardBody.TextXAlignment = COACH.warning.align or Enum.TextXAlignment.Center
         cardBtn.Text = COACH.warning.cta
         dim.Visible = true
         card.Visible = true
-        armAutoDismiss("warning")
+        -- no auto-dismiss: this panel carries the "how to get stronger" briefing,
+        -- the player reads it and clicks. (The tutorial only completes on the ack.)
     end
 end
 
 local function showGift()
+    cardBody.TextXAlignment = Enum.TextXAlignment.Center
     hideAll()
     cardTitle.Text = GIFT.title
     cardBody.Text = GIFT.body
