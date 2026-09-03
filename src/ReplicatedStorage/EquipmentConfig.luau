@@ -77,7 +77,7 @@ EquipmentConfig.Weapons = {
     --=== deliberately weak (isStarter -> x0.5 power) so the first shop weapon / drop
     --=== is a real upgrade. ===--
     epee_courte = {
-        nom = "Épée ébréchée", slot = "arme", voie = "guerrier",
+        nom = "Épée en bois", slot = "arme", voie = "guerrier",
         zone = 1, lvIndicatif = 1, isStarter = true,
     },
     baguette_simple = {

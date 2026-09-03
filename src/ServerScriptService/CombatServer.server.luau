@@ -543,6 +543,9 @@ local function startCombat(player)
     end
     applyProfileToState(profile, s)
     EquipmentService.restore(player, { equipe = profile.equipe })
+    -- Creation gift: mint + equip the "Épée en bois" on a brand-new hero
+    -- (idempotent, self-guards on an empty bag - see InventoryService).
+    pcall(InventoryService.grantStarterKit, player)
     -- profile.inventory (v2 bag, migrated by PlayerDataService.load) is read
     -- directly by InventoryService once it's implemented (Day 2) - no
     -- separate track-state restore needed for the bag side.

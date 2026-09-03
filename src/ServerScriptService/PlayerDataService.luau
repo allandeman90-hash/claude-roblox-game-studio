@@ -107,6 +107,11 @@ function PlayerDataService.defaultProfile()
         pointsNonAlloues = 0,
         equipe = {},
         owned = {},
+        -- One-time creation gift: the "Épée en bois" (epee_courte) minted + equipped
+        -- on the first run (InventoryService.grantStarterKit). migrate() backfills
+        -- this as false, but the grant itself is guarded on an empty bag so an
+        -- existing player who already has gear is never retro-granted.
+        starterKitGranted = false,
         -- v2 (Inventory Sprint Day 1): unique-instance bag, replaces the old
         -- `inventaire = { [id|rarete|zone] = count }` stacks. See
         -- migrateInventoryV1toV2 for the one-time upgrade path.

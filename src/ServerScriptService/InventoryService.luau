@@ -87,6 +87,11 @@ local VOIE_FILTER_VALUES: { [string]: boolean } = {
 
 local MAX_ITEM_KEY_LEN = 64
 
+-- Creation gift (onboarding-gdd §2.1 / EquipmentConfig starter weapons): the
+-- "Épée en bois", minted into the bag and equipped on a brand-new hero's first
+-- run. Deliberately weak (isStarter -> x0.5 power) so the first drop is an upgrade.
+local STARTER_WEAPON_ID = "epee_courte"
+
 --===== Private state =====
 
 -- [player] = { instance: ItemInstance, thread: thread?, createdAt: number }
@@ -658,6 +663,56 @@ end
     fires or the server restarts - not a correctness bug, just a minor
     hygiene gap.
 ]]
+--[[
+    One-time creation gift. Mints the "Épée en bois" into the bag and equips it.
+    Idempotent and self-guarding:
+      * no-op if profile.starterKitGranted is already true
+      * no-op if the bag is non-empty or a weapon is already equipped (an
+        existing player who has played is never retro-granted, even though
+        migrate() backfills starterKitGranted = false on their profile)
+    Sets profile.starterKitGranted = true either way, so it runs at most once.
+    Called by CombatServer.startCombat after the profile is loaded/restored.
+]]
+function InventoryService.grantStarterKit(player: Player): (boolean, string?)
+    if not isValidPlayer(player) then
+        return false, "invalid_argument"
+    end
+
+    local profile, inv = getInventoryFor(player)
+    if not profile or not inv then
+        return false, "no_profile"
+    end
+
+    if profile.starterKitGranted then
+        return true, nil
+    end
+
+    local hasWeaponEquipped = inv.equipped and inv.equipped.arme ~= nil
+    if countItems(inv) > 0 or hasWeaponEquipped then
+        -- Player already owns gear: assume they've had their starter, just flag it.
+        profile.starterKitGranted = true
+        PlayerDataService.markDirty(player, profile)
+        return true, nil
+    end
+
+    local added = InventoryService.addItem(player, {
+        id = STARTER_WEAPON_ID, rarete = "commun", zone = 1,
+    })
+    if added then
+        for key, item in pairs(inv.items) do
+            if item.id == STARTER_WEAPON_ID and item.equippedSlot == nil then
+                InventoryService.equipItem(player, key)
+                break
+            end
+        end
+    end
+
+    profile.starterKitGranted = true
+    PlayerDataService.markDirty(player, profile)
+    logAction(player, "granted starter kit (%s)", STARTER_WEAPON_ID)
+    return true, nil
+end
+
 function InventoryService.release(player: Player)
     local pending = pendingFullBag[player]
     if pending then
