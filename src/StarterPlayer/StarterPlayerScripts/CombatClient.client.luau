@@ -639,8 +639,7 @@ end
 local enemyStep1 = combatZone:FindFirstChild("EnemyStep1")
 local enemyStep2 = combatZone:FindFirstChild("EnemyStep2")
 local ENC_FRAC    = { 0.5, 0.95 }     -- fallback ; the server sends enc.rel per mob
-local WALK_LO, WALK_HI = 0.15, 0.88   -- enemy slot placement band (stepXtoScreen range)
-local HERO_EXPLORE_X = 0.30           -- the hero holds here while exploring (no per-step traversal)
+local WALK_LO, WALK_HI = 0.15, 0.88   -- hero/enemy placement band (stepXtoScreen range)
 local PORTAL_L, PORTAL_R = 0.05, 0.95 -- blue (go back) / red (go forward)
 local WALL_LEAN   = 0.10              -- lean a touch further against the km-0 boundary
 local SCENE_Y     = 0.70              -- vertical centre of the slot Frames
@@ -650,7 +649,7 @@ local SLOT_H      = 0.40              -- slot Frame height (CombatZone fraction;
 local GROUND_Y    = 0.99
 local SPRITE_FEET_R = (GROUND_Y - (SCENE_Y - SLOT_H / 2)) / SLOT_H  -- GROUND_Y as a slot-relative Y
 local FIGHT_NUDGE = 0.06              -- hero fights just off the enemy (opening hit lands here)
-local heroTargetX    = HERO_EXPLORE_X
+local heroTargetX    = WALK_LO   -- overwritten by the first updateScene
 local enemyHpTargetX = WALK_HI
 local sceneLastStepKey = nil          -- floor(km) of the step the hero is currently in
 local sceneFacing    = "right"        -- set ONLY when crossing into a new step
@@ -1913,6 +1912,7 @@ end
 pinBackdrop(farLayer) ; pinBackdrop(midLayer) ; pinBackdrop(nearLayer)
 
 RunService.RenderStepped:Connect(function()
+    local faceSign = (sceneFacing == "left") and -1 or 1   -- +1 = enemy is to the hero's right
     -- Hero slides toward its target x; the walk bob/lean is driven by ACTUAL
     -- translation (not the server's isMoving), so it stops the instant he
     -- reaches his spot - no "fake walking" while blocked at a mob.
@@ -1925,7 +1925,6 @@ RunService.RenderStepped:Connect(function()
         local target = (not activeEnemySlot) and math.abs(gap) > 0.003 and 1 or 0
         heroWalkAmt = heroWalkAmt + (target - heroWalkAmt) * 0.15
         local bob = heroWalkAmt * math.sin(tick() * 11) * 0.008
-        local faceSign = (sceneFacing == "left") and -1 or 1
         -- Attack = a weapon SWING: lean in + squash/stretch, no forward charge.
         local attackT = math.max(0, heroAttackUntil - tick())
         local swing = 0
@@ -1949,7 +1948,6 @@ RunService.RenderStepped:Connect(function()
     -- Enemy hit-flinch: the struck enemy recoils away from the hero + a quick
     -- rock, then settles. This carries the "impact" so the hero doesn't have to.
     if activeEnemySlot then
-        local faceSign = (sceneFacing == "left") and -1 or 1
         local hitT = math.max(0, heroAttackUntil - tick())
         local arc = hitT > 0 and math.sin((0.24 - hitT) / 0.24 * math.pi) or 0
         activeEnemySlot.Position = UDim2.new(activeEnemyBaseX + faceSign * arc * 0.018, 0, SCENE_Y, 0)
@@ -1962,7 +1960,6 @@ RunService.RenderStepped:Connect(function()
         enemyHpPanel.Size = UDim2.new(HPBAR_W, 0, HPBAR_H, 0)
         local attackT = math.max(0, enemyAttackUntil - tick())
         local attackOffset = attackT > 0 and math.sin((0.24 - attackT) / 0.24 * math.pi) * 0.045 or 0
-        local faceSign = (sceneFacing == "left") and -1 or 1
         enemyHpPanel.Position = UDim2.new(enemyHpTargetX - faceSign * attackOffset, 0, GROUND_Y + 0.02, 0)
     end
 
@@ -1980,7 +1977,6 @@ RunService.RenderStepped:Connect(function()
     -- DPS / HEAL fairies hover BEHIND. All lunge toward the enemy on each hit.
     if petSprite and petSprite.Visible and heroSlot then
         local hx = heroSlot.Position.X.Scale
-        local faceSign = (sceneFacing == "left") and -1 or 1   -- +1 = enemy is to the hero's right
         local sideSign = (petRole == "tank") and 1 or -1        -- +1 = front (toward enemy), -1 = behind
         local lunge = (tick() < petLungeUntil) and 0.05 or 0
         local bob = isMovingState and (math.sin(tick() * 13) * 0.010) or 0

@@ -542,6 +542,8 @@ local function buildEgg(col, color)
     return egg, eScale, glow
 end
 
+local choiceEggs = {}   -- {egg, glow, phase} — animated by ONE shared loop below
+
 for i, role in ipairs(EGG_CHOICE.order) do
     local info = EGG_CHOICE.eggs[role]
     local col = Instance.new("TextButton")
@@ -598,23 +600,9 @@ for i, role in ipairs(EGG_CHOICE.order) do
     blurb.Parent = col
     StyleConstants.applyTypography(blurb, "Label")
 
-    -- idle bob + rock, phase-offset per egg
-    task.spawn(function()
-        local phase = i * 0.7
-        while egg.Parent do
-            if choiceStage.Visible then
-                local tsec = os.clock() + phase
-                egg.Position = UDim2.new(0.5, 0, 0, 70 + math.sin(tsec * 1.6) * 5)
-                egg.Rotation = math.sin(tsec * 1.1) * 3
-                glow.BackgroundTransparency = 0.82 + math.sin(tsec * 2) * 0.06
-            end
-            task.wait(0.03)
-        end
-    end)
+    choiceEggs[#choiceEggs + 1] = { egg = egg, glow = glow, phase = i * 0.7 }
 
-    local hovering = false
     local function setHover(on)
-        hovering = on
         cs.Color = on and info.eggColor or C.Border
         cs.Transparency = on and 0 or 0.1
         col.BackgroundTransparency = on and 0.08 or 0.25
@@ -628,6 +616,7 @@ for i, role in ipairs(EGG_CHOICE.order) do
     end)
 end
 
+local eggIdleRunning = false
 local function showEggChoice()
     choiceStage.Visible = true
     dim.Visible = true
@@ -635,6 +624,23 @@ local function showEggChoice()
     TweenService:Create(choiceScale, TweenInfo.new(0.26, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
     currentStep = "pet"
     shownAt = os.clock()
+    -- ONE idle loop for all three eggs; exits for good once the screen closes.
+    if not eggIdleRunning then
+        eggIdleRunning = true
+        task.spawn(function()
+            while choiceStage.Visible do
+                local now = os.clock()
+                for _, e in ipairs(choiceEggs) do
+                    local t = now + e.phase
+                    e.egg.Position = UDim2.new(0.5, 0, 0, 70 + math.sin(t * 1.6) * 5)
+                    e.egg.Rotation = math.sin(t * 1.1) * 3
+                    e.glow.BackgroundTransparency = 0.82 + math.sin(t * 2) * 0.06
+                end
+                task.wait(1 / 30)
+            end
+            eggIdleRunning = false
+        end)
+    end
 end
 
 local function hideEggChoice()

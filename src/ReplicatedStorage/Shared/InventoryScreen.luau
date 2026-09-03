@@ -133,11 +133,17 @@ local function itemStatLines(item: Types.ItemInstance): { string }
     return out
 end
 
+-- "#RRGGBB" for a Color3 (RichText <font color> wants hex).
+local function hex(c: Color3): string
+    return string.format("#%02X%02X%02X",
+        math.floor(c.R * 255 + 0.5), math.floor(c.G * 255 + 0.5), math.floor(c.B * 255 + 0.5))
+end
+
 local function itemDescription(item: Types.ItemInstance): string
     local def = EquipmentConfig.getItem(item.id)
     if def and type(def.description) == "string" then return def.description end
     local rar = StyleConstants.rarityInfo(item.rarity)
-    local kind = SLOT_LABELS_FR[EquipmentConfig.getItem(item.id) and EquipmentConfig.getItem(item.id).slot or ""] or "Objet"
+    local kind = SLOT_LABELS_FR[(def and def.slot) or ""] or "Objet"
     return string.format("%s de rareté %s, trouvé Couche %d.", kind, string.lower(rar.label), item.droppedAtKm or 1)
 end
 
@@ -500,9 +506,7 @@ function InventoryScreen.mount(rpgGui: ScreenGui, combatEvent: RemoteEvent, deps
         detailIconSym.Text = rar.symbol ~= "" and rar.symbol or "\u{25A0}"
         detailIconSym.TextColor3 = rar.color
         selectionLabel.Text = string.format('%s\n<font color="%s">%s</font>',
-            displayName(item), string.format("#%02X%02X%02X",
-                math.floor(rar.color.R * 255), math.floor(rar.color.G * 255), math.floor(rar.color.B * 255)),
-            rar.label)
+            displayName(item), hex(rar.color), rar.label)
         selectionLabel.TextColor3 = StyleConstants.BaseColors.TextPrimary
         detailStats.Text = table.concat(itemStatLines(item), "\n")
         detailDesc.Text = itemDescription(item)
@@ -528,11 +532,8 @@ function InventoryScreen.mount(rpgGui: ScreenGui, combatEvent: RemoteEvent, deps
             if row then
                 local inst = equipped[slot]
                 if inst then
-                    local rar = StyleConstants.rarityInfo(inst.rarity)
-                    row.Text = string.format('<font color="#7a7a7e">%s</font>  <font color="#%02X%02X%02X">%s</font>',
-                        SLOT_LABELS_FR[slot],
-                        math.floor(rar.color.R * 255), math.floor(rar.color.G * 255), math.floor(rar.color.B * 255),
-                        displayName(inst))
+                    row.Text = string.format('<font color="#7a7a7e">%s</font>  <font color="%s">%s</font>',
+                        SLOT_LABELS_FR[slot], hex(StyleConstants.rarityInfo(inst.rarity).color), displayName(inst))
                 else
                     row.Text = string.format('<font color="#7a7a7e">%s</font>  \u{2014}', SLOT_LABELS_FR[slot])
                 end

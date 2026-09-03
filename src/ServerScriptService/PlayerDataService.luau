@@ -30,7 +30,7 @@ local PlayerDataService = {}
 
 -- v1 -> v2 (Inventory Sprint Day 1, 2026-09-02): stacked-count `inventaire`
 -- replaced by unique-instance `inventory` (see migrateInventoryV1toV2 below).
-PlayerDataService.PROFILE_VERSION = 2
+PlayerDataService.PROFILE_VERSION = 3
 
 local STORE_NAME = "FoG_PlayerData_v1"
 local JOB_ID = game.JobId ~= "" and game.JobId or ("studio_" .. tostring(os.time()))
@@ -194,15 +194,10 @@ local function buildMigratedBaseStats(category: string, def: any, rarete: string
         else
             baseStats.def = val
         end
-    elseif category == "pet" then
-        -- Pet power is computed LIVE from sourceLevel / petLevel (see
-        -- EquipmentService.getPetEffect); baseStats is only a snapshot for old
-        -- rows. Store the level-1 effect numbers.
-        local eff = GameConfig.Pets.effect(def.role, zone * 30, 1, rarete, rarityDef.mult)
-        for k, v in pairs(eff) do
-            if type(v) == "number" and GameConfig.Pets.SCALABLE_KEYS[k] then baseStats[k] = v end
-        end
     end
+    -- Pets carry no baseStats: their power is computed live from sourceLevel /
+    -- petLevel (EquipmentService.getPetEffect). migrate()'s backfillPet fills
+    -- those fields for pre-change rows.
     return baseStats
 end
 
@@ -328,21 +323,22 @@ local function migrate(profile, player: Player?)
         profile.starterKitGranted = true
     end
 
-    -- Pet level-scaling (etape 4.2 revised): backfill sourceLevel / petLevel on
-    -- pets minted before the change. sourceLevel is derived from the old
-    -- Couche-of-origin (droppedAtKm, a zone index), petLevel resets to 1.
-    local function backfillPet(inst: any)
-        if type(inst) ~= "table" or inst.itemType ~= "pet" then return end
-        if inst.sourceLevel == nil then
-            inst.sourceLevel = math.max(1, math.floor((inst.droppedAtKm or 1) * 30))
+    if profile.version < 3 then
+        -- Pet level-scaling (etape 4.2 revised): backfill sourceLevel / petLevel
+        -- on pets minted before the change. sourceLevel is derived from the old
+        -- Couche-of-origin (droppedAtKm, a zone index); petLevel starts at 1.
+        local function backfillPet(inst: any)
+            if type(inst) ~= "table" or inst.itemType ~= "pet" then return end
+            inst.sourceLevel = inst.sourceLevel or math.max(1, math.floor((inst.droppedAtKm or 1) * 30))
+            inst.petLevel = inst.petLevel or 1
         end
-        if inst.petLevel == nil then inst.petLevel = 1 end
-    end
-    if type(profile.inventory) == "table" and type(profile.inventory.items) == "table" then
-        for _, inst in pairs(profile.inventory.items) do backfillPet(inst) end
-    end
-    if type(profile.equipe) == "table" then
-        backfillPet(profile.equipe.pet)
+        if type(profile.inventory) == "table" and type(profile.inventory.items) == "table" then
+            for _, inst in pairs(profile.inventory.items) do backfillPet(inst) end
+        end
+        if type(profile.equipe) == "table" then
+            backfillPet(profile.equipe.pet)
+        end
+        profile.version = 3
     end
 
     profile.version = PlayerDataService.PROFILE_VERSION
