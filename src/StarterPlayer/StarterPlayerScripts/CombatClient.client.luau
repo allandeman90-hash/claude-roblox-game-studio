@@ -118,7 +118,7 @@ local artifactTalentsButton
 -- their objects alive for legacy overlay wiring, but render a brand-new HUD.
 do
     -- ==== palette (matches Reference/mon ui final.png) =========================
-    local BG      = Color3.fromRGB(14, 15, 19)     -- screen ground
+    local BG      = Color3.fromRGB(0, 0, 0)        -- screen ground (matches the overlays' pure black)
     local BAR_BG  = Color3.fromRGB(23, 24, 29)     -- top / bottom bars, bar tracks
     local CARD_BG = Color3.fromRGB(19, 20, 25)     -- stat cards
     local LINE    = Color3.fromRGB(70, 71, 77)     -- thin dim borders (no bright white)
