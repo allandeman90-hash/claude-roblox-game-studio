@@ -36,6 +36,7 @@ export type ItemInstance = {
     equippedSlot: string?,  -- nil, or "arme"|"casque"|"plastron"|"gants"|"jambieres"|"bottes" when equipped
     sourceLevel: number?,   -- pets only: enemy level it dropped from (fixed base tier)
     petLevel: number?,      -- pets only: current level (>=1), climbs toward player level while equipped
+    petXp: number?,         -- pets only: XP toward the next pet level (only accrues while equipped)
 }
 
 export type PlayerInventory = {

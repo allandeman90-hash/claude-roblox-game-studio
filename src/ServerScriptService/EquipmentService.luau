@@ -343,6 +343,78 @@ function EquipmentService.getPetSpriteRole(player: Player): string?
     return def and def.role or nil
 end
 
+--[[
+    The equipped pet earns the SAME XP the hero earned on a kill, and levels up
+    while it is below the hero's level. It is hard-capped at the hero's level:
+    at the cap the XP bar just sits full (no banking), and a later hero level-up
+    lets it advance one step from that full bar. Replaces the old instant
+    catch-up. Returns true if the pet gained at least one level (so the caller
+    can flag the profile dirty / refresh stats).
+]]
+function EquipmentService.grantPetXp(player: Player, xpAmount: number, playerLevel: number): boolean
+    local t = track[player]
+    local inst = t and t.equipe and t.equipe.pet
+    if not inst then
+        return false
+    end
+    local cap = math.max(1, math.floor(playerLevel or 1))
+    inst.petLevel = math.max(1, math.floor(inst.petLevel or 1))
+    inst.petXp = math.max(0, inst.petXp or 0)
+
+    if inst.petLevel >= cap then
+        inst.petLevel = cap
+        inst.petXp = GameConfig.Pets.petXpToNext(inst.petLevel)  -- bar sits full at the cap
+        return false
+    end
+
+    if type(xpAmount) ~= "number" or xpAmount <= 0 then
+        return false
+    end
+
+    local leveled = false
+    inst.petXp += xpAmount
+    while inst.petLevel < cap do
+        local need = GameConfig.Pets.petXpToNext(inst.petLevel)
+        if inst.petXp < need then
+            break
+        end
+        inst.petXp -= need
+        inst.petLevel += 1
+        leveled = true
+    end
+    if inst.petLevel >= cap then
+        inst.petLevel = cap
+        inst.petXp = GameConfig.Pets.petXpToNext(inst.petLevel)
+    end
+    return leveled
+end
+
+--[[
+    Read-only snapshot of the equipped pet's progression for the HUD / inventory
+    (nil when no pet is equipped). `xp`/`xpToNext` describe the bar; `atMax` is
+    true once petLevel has caught up to the hero's level.
+]]
+function EquipmentService.getPetProgress(player: Player, playerLevel: number)
+    local t = track[player]
+    local inst = t and t.equipe and t.equipe.pet
+    if not inst then
+        return nil
+    end
+    local def = EquipmentConfig.getItem(inst.id)
+    local role = def and def.role
+    local level = math.max(1, math.floor(inst.petLevel or 1))
+    local cap = math.max(1, math.floor(playerLevel or 1))
+    return {
+        name      = (def and def.nom) or inst.id,
+        roleLabel = EquipmentConfig.RoleLabels[role] or tostring(role),
+        rarity    = inst.rarity,
+        level     = level,
+        xp        = math.max(0, math.floor(inst.petXp or 0)),
+        xpToNext  = GameConfig.Pets.petXpToNext(level),
+        atMax     = level >= cap,
+    }
+end
+
 --===== HUD description strings =====
 -- "<nom> · <rarete>" for arme, "<nom> · <role> · <rarete>" for pet, "-" empty.
 function EquipmentService.describeSlot(player, slot)

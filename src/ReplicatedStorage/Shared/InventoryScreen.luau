@@ -114,8 +114,12 @@ local function itemStatLines(item: Types.ItemInstance): { string }
     if item.itemType == "pet" then
         local def = EquipmentConfig.getItem(item.id)
         local roleFr = EquipmentConfig.RoleLabels[def and def.role or ""] or "?"
+        local lvl = math.max(1, math.floor(item.petLevel or 1))
         out[#out + 1] = "Rôle       " .. roleFr
-        out[#out + 1] = "Niveau     " .. tostring(item.petLevel or 1)
+        out[#out + 1] = "Niveau     " .. tostring(lvl)
+        -- XP only accrues while the pet is equipped (see EquipmentService.grantPetXp).
+        out[#out + 1] = "XP         " .. tostring(math.floor(item.petXp or 0))
+            .. " / " .. tostring(GameConfig.Pets.petXpToNext(lvl))
         out[#out + 1] = "Palier     " .. tostring(item.sourceLevel or 1) .. "  (source)"
         return out
     end

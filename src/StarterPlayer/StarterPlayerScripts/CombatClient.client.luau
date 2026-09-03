@@ -15,6 +15,7 @@ local ZoneConfig = require(ReplicatedStorage:WaitForChild("ZoneConfig"))
 -- Slug -> rbxassetid map for the generated pixel-art sprites (GENERATED file).
 local AssetMap = require(ReplicatedStorage:WaitForChild("AssetMap"))
 local GameConfig = require(ReplicatedStorage:WaitForChild("GameConfig"))
+local StyleConstants = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("StyleConstants"))
 
 local player = Players.LocalPlayer
 
@@ -1239,7 +1240,26 @@ local function updateUI(data)
     end
     if artifactHeroWeaponCard then artifactHeroWeaponCard.Text = fld("Arme", data.equipWeapon or "\u{2014}") end
     if artifactHeroArmorCard then artifactHeroArmorCard.Text = fld("Armr", data.equipArmor or "\u{2014}") end
-    if artifactHeroPetCard then artifactHeroPetCard.Text = fld("Pets", data.equipPet or "\u{2014}") end
+    if artifactHeroPetCard then
+        local pet = data.pet
+        if pet then
+            -- Rarity as name colour + symbol (Regle d'or: never colour alone);
+            -- rarity word itself moves to the inventory detail panel to keep the
+            -- HUD card on one line: "Lutin<sym> · Soin · Niv.3 · 1.2k/3.4k".
+            local rar = StyleConstants.rarityInfo(pet.rarity)
+            local hexColour = string.format("#%02X%02X%02X",
+                math.floor(rar.color.R * 255 + 0.5),
+                math.floor(rar.color.G * 255 + 0.5),
+                math.floor(rar.color.B * 255 + 0.5))
+            local nameTag = string.format('<font color="%s">%s</font>%s', hexColour, pet.name, rar.symbol or "")
+            local prog = pet.atMax and "MAX"
+                or string.format("%s/%s", formatNumber(pet.xp or 0), formatNumber(pet.xpToNext or 1))
+            artifactHeroPetCard.Text = fld("Pets", string.format(
+                "%s \u{00B7} %s \u{00B7} Niv.%d \u{00B7} %s", nameTag, pet.roleLabel, pet.level, prog))
+        else
+            artifactHeroPetCard.Text = fld("Pets", data.equipPet or "\u{2014}")
+        end
+    end
     if artifactHeroStatsCard then
         artifactHeroStatsCard.Text = string.format(
             '<font color="#78787d">ATK</font> %s  <font color="#78787d">DEF</font> %s\n<font color="#78787d">RES</font> %s  <font color="#78787d">CRIT</font> %.1f%%',

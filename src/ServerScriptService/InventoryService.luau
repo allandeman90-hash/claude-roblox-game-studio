@@ -248,9 +248,11 @@ local function normalizeDraft(draft: any, isFromEquipSlot: boolean?): (Types.Ite
     }
     if itemType == "pet" then
         -- Pet scaling is level-based: sourceLevel (the enemy level it dropped
-        -- from) is fixed; petLevel climbs toward the player's level while equipped.
+        -- from) is fixed; petLevel climbs toward the player's level while equipped
+        -- as petXp fills (EquipmentService.grantPetXp).
         instance.sourceLevel = math.max(1, math.floor(tonumber(draft.sourceLevel) or 1))
         instance.petLevel = math.max(1, math.floor(tonumber(draft.petLevel) or 1))
+        instance.petXp = math.max(0, math.floor(tonumber(draft.petXp) or 0))
     end
     return instance, nil
 end

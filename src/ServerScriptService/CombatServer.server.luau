@@ -258,6 +258,7 @@ local function sendUpdate(player, s)
         equipWeapon     = EquipmentService.describeSlot(player, "arme"),
         equipArmor      = EquipmentService.describeArmorSummary(player),
         equipPet        = EquipmentService.describeSlot(player, "pet"),
+        pet             = EquipmentService.getPetProgress(player, s.playerLevel),  -- nil | {name,roleLabel,rarity,level,xp,xpToNext,atMax}
         enemyAtk        = s.enemyAtk,
         enemyIsBoss     = s.isBoss or false,
         enemyIsBigBoss  = s.enemyIsBigBoss or false,
@@ -434,22 +435,24 @@ function resolvePlayerHit(player, st)
         end
         st.playerExpToNext = xpNeeded(st.playerLevel)
     end
-    if levelsGained > 0 then
-        -- The equipped pet levels up with the player (climbs toward, never past,
-        -- the player's level; catches up faster the further behind it is).
-        pcall(function()
-            local equipped = EquipmentService.getEquipped(player)
-            local petInst = equipped and equipped.pet
-            if petInst then
-                local cur = petInst.petLevel or 1
-                if cur < st.playerLevel then
-                    local gapClose = math.floor((st.playerLevel - cur) * GameConfig.Pets.petLevelCatchUpFrac)
-                    local catchUp = math.max(levelsGained, gapClose)
-                    petInst.petLevel = math.min(st.playerLevel, cur + catchUp)
-                    markProfileDirty(player, st)
-                end
-            end
+    -- The equipped pet earns the same XP the hero just earned and levels toward
+    -- (never past) the hero's level - a visible bar, not the old instant
+    -- catch-up (onboarding-gdd, pets). Runs every kill, hero level-up or not.
+    do
+        local petLeveled = false
+        local ok = pcall(function()
+            petLeveled = EquipmentService.grantPetXp(player, xpGain, st.playerLevel)
         end)
+        if ok and petLeveled then
+            markProfileDirty(player, st)
+            if levelsGained == 0 then
+                -- A hero level-up recalcs below; a pet-only level-up needs its own.
+                StatsService.recalc(player, st)
+            end
+        end
+    end
+
+    if levelsGained > 0 then
         local oldMaxHp = st.playerMaxHp or 0
         StatsService.recalc(player, st)
         -- A level-up grants the newly-created HP, without becoming a full heal.

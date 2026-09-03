@@ -326,7 +326,9 @@ GameConfig.Pets = {
     petLevelStep       = 0.02, -- +2% effect per effective pet level
     petLevelCap        = 40,   -- effectMul hard cap (x)
     sourceFloorFrac    = 0.25, -- a fresh drop starts at 25% of its source-level tier
-    petLevelCatchUpFrac = 0.15, -- on a hero level-up the pet closes 15% of the level gap
+    -- Pet leveling: the equipped pet earns the same XP the hero earns per kill
+    -- (GameConfig.Pets.petXpToNext curve) and is hard-capped at the hero's level.
+    -- See EquipmentService.grantPetXp.
 
     -- HEAL role. healPctByRarity is the % of MaxHP restored per tick at effLevel 1;
     -- it scales by effectMul like the other roles.
@@ -381,6 +383,15 @@ function GameConfig.Pets.effect(role, sourceLevel, petLevel, rarityId, rarityMul
         }
     end
     return {}
+end
+
+-- XP the equipped pet needs to go from `petLevel` to `petLevel + 1`. Reuses the
+-- hero curve on purpose: the pet earns the same XP the hero earns per kill, so a
+-- pet that is behind the hero (cheaper early curve) catches up fast, then tracks
+-- the hero once it reaches the same level (petLevel is hard-capped at the hero's
+-- level in EquipmentService.grantPetXp).
+function GameConfig.Pets.petXpToNext(petLevel)
+    return GameConfig.Level.xpForNextLevel(math.max(1, math.floor(petLevel or 1)))
 end
 
 --========================================================
