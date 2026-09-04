@@ -173,11 +173,15 @@ do
     grid.Parent = shortcutRow
 end
 
+-- Talents/Codex now wired below (the underlying panels ship in CombatClient's
+-- HUD - see the hideAll()-then-open pattern). Sac needs InventoryScreen.open()
+-- (a real module, not a raw panel toggle) and Boutique/Rang/Reglages have no
+-- backing system yet - still grayed out.
 local SHORTCUTS = {
-    { key = "talents", text = "Talents",   ready = false },
+    { key = "talents", text = "Talents",   ready = true },
     { key = "sac",     text = "Sac",       ready = false },
     { key = "boutique", text = "Boutique", ready = false },
-    { key = "codex",   text = "Codex",     ready = false },
+    { key = "codex",   text = "Codex",     ready = true },
     { key = "rang",    text = "Rang",      ready = false },
     { key = "reglages", text = "\u{2699}", ready = false },
 }
@@ -561,6 +565,40 @@ end
 local function showCreation()
     menu.Visible = false
     create.Visible = true
+end
+
+-- Talents/Codex shortcuts: RpgGui (CombatClient's HUD, incl. TalentsPanel/
+-- CodexPanel) is already built and enabled underneath TitleGui at this point
+-- (both ScreenGuis Enabled=true simultaneously - TitleGui just sits on top by
+-- DisplayOrder) - so hideAll() to reveal it, then open the panel directly,
+-- exactly like clicking its HUD footer button mid-run would.
+local function openHudPanel(panelName: string, requestType: string?)
+    hideAll()
+    local rpgBackground = player.PlayerGui:FindFirstChild("RpgGui", true)
+        and player.PlayerGui.RpgGui:FindFirstChild("Background")
+    local panel = rpgBackground and rpgBackground:FindFirstChild(panelName)
+    if panel then
+        panel.Visible = true
+        if requestType then
+            combatEvent:FireServer({ type = requestType })
+        end
+    end
+end
+
+local scTalents = shortcutRow:FindFirstChild("Sc_talents")
+if scTalents then
+    scTalents.MouseButton1Click:Connect(function()
+        if dismissed or needsCreation then return end   -- no hero yet: nothing to show
+        openHudPanel("TalentsPanel")
+    end)
+end
+
+local scCodex = shortcutRow:FindFirstChild("Sc_codex")
+if scCodex then
+    scCodex.MouseButton1Click:Connect(function()
+        if dismissed or needsCreation then return end
+        openHudPanel("CodexPanel", "requestCodexState")
+    end)
 end
 
 playBtn.MouseButton1Click:Connect(function()
