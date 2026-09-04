@@ -632,11 +632,15 @@ GameConfig.Enemy = {
     },
 }
 
--- [D1/D6 - validated] monster level = round(km * levelPerKm). The GAME_SPEC
--- `km * 10` is unplayable; `~= km` puts the wall too far. 3.5 => the first
--- level-wall bites ~km 28-35 (with the D6 level-gap penalty). Consumed by
--- EnemyService.levelForKm.
-GameConfig.Enemy.levelPerKm = 3.5
+-- monster level = round(km * levelPerKm), for km >= KM_PER_ZONE (couche 1 uses
+-- its own gentle km+1 ramp, capped at 9). 1.15 keeps this CONTINUOUS with the
+-- couche-1 tutorial: km 10 -> ~12 (couche-1 boss is 10), km 50 -> ~58,
+-- km 100 -> ~115. The old 3.5 made km 10 = level 35 -> a 26-level cliff at the
+-- couche 1->2 boundary (a lvl-9 player faced lvl-35 mobs, forced couche-1 farm).
+-- The real difficulty wall is meant to come from the levelGap penalty + the
+-- level cap (100 + 20*rebirths), not from this ramp - see D6 §2/§3.
+-- TODO: D6-playthrough-balance.md table (assumes 3.5 + an old XP curve) is stale.
+GameConfig.Enemy.levelPerKm = 1.15
 function GameConfig.Enemy.levelFromKm(km)
     return math.max(1, math.round((km or 0) * GameConfig.Enemy.levelPerKm))
 end

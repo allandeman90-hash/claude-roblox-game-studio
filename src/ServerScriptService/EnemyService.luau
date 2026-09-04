@@ -74,10 +74,13 @@ function EnemyService.levelForKm(km)
     if km < ZoneConfig.KM_PER_ZONE then
         return math.clamp(math.floor(math.max(0, km)) + 1, 1, 9)
     end
-    -- [D1/D6] mob level = round(km * GameConfig.Enemy.levelPerKm) (3.5). The wall
-    -- comes from this curve vs the player cap + the level-gap penalty, not from
-    -- a per-zone band any more.
-    return math.max(1, GameConfig.Enemy.levelFromKm(km))
+    -- mob level = round(km * GameConfig.Enemy.levelPerKm) (1.15), CLAMPED to stay
+    -- one below the zone's boss (zone*10, EnemyService.rollBoss) so mobs always
+    -- ramp toward - never past - the boss that closes their zone. The difficulty
+    -- wall comes from the level-gap penalty + the level cap, not this ramp.
+    local zone = ZoneConfig.zoneIdFromKm(km)
+    local ramp = math.max(1, GameConfig.Enemy.levelFromKm(km))
+    return math.min(ramp, zone * 10 - 1)
 end
 
 -- DEPRECATED - nothing calls this since HP/ATK/EXP/gold all went level-driven
