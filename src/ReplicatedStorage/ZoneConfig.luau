@@ -288,19 +288,23 @@ end
 -- `id`    = boss sprite slug (the Gardien, met at km = index * 10)
 -- `bigId` = big-boss sprite slug (the "Gueule" / forme de domaine, every 100 km)
 -- `magic` = deals magic damage (player RES matters); `atkSplit` = ATK/INT ratio shown.
+-- `famille` = Codex grouping (codex-gdd.md SS2.4). Thematic call, not
+-- mechanical: e.g. "Dragon de Fer" reads Construct (an iron-forge automaton,
+-- zone 10 theme) rather than Bête. Easy to re-tag later; only affects which
+-- Codex family the boss counts toward.
 ZoneConfig.BossThemes = {
-	{ name = "Roi Gobelin",         id = "boss_roi_gobelin",     bigId = "bigboss_roi_gobelin",     magic = false, atkSplit = 0.75 },  -- km 10
-	{ name = "Golem de Pierre",     id = "boss_golem_pierre",    bigId = "bigboss_golem_pierre",    magic = false, atkSplit = 0.90 },  -- km 20
-	{ name = "Sorciere des Bois",   id = "boss_sorciere_bois",   bigId = "bigboss_sorciere_bois",   magic = true,  atkSplit = 0.35 },  -- km 30
-	{ name = "Colosse des Cendres", id = "boss_colosse_cendres", bigId = "bigboss_colosse_cendres", magic = false, atkSplit = 0.80 },  -- km 40
-	{ name = "Liche Glaciale",      id = "boss_liche_glaciale",  bigId = "bigboss_liche_glaciale",  magic = true,  atkSplit = 0.25 },  -- km 50
-	{ name = "Tyran des Abysses",   id = "boss_tyran_abysses",   bigId = "bigboss_tyran_abysses",   magic = false, atkSplit = 0.70 },  -- km 60
-	{ name = "Archimage Dechu",     id = "boss_archimage_dechu", bigId = "bigboss_archimage_dechu", magic = true,  atkSplit = 0.20 },  -- km 70
-	{ name = "Behemoth",            id = "boss_behemoth",        bigId = "bigboss_behemoth",        magic = false, atkSplit = 0.85 },  -- km 80
-	{ name = "Spectre Hurlant",     id = "boss_spectre_hurlant", bigId = "bigboss_spectre_hurlant", magic = true,  atkSplit = 0.40 },  -- km 90
-	{ name = "Dragon de Fer",       id = "boss_dragon_fer",      bigId = "bigboss_dragon_fer",      magic = false, atkSplit = 0.80 },  -- km 100
-	{ name = "Oeil du Vide",        id = "boss_oeil_vide",       bigId = "bigboss_oeil_vide",       magic = true,  atkSplit = 0.15 },  -- km 110
-	{ name = "Avatar de la Fin",    id = "boss_avatar_fin",      bigId = "bigboss_avatar_fin",      magic = false, atkSplit = 0.60 },  -- km 120
+	{ name = "Roi Gobelin",         id = "boss_roi_gobelin",     bigId = "bigboss_roi_gobelin",     magic = false, atkSplit = 0.75, famille = "Humanoïde" },   -- km 10
+	{ name = "Golem de Pierre",     id = "boss_golem_pierre",    bigId = "bigboss_golem_pierre",    magic = false, atkSplit = 0.90, famille = "Construct" },   -- km 20
+	{ name = "Sorciere des Bois",   id = "boss_sorciere_bois",   bigId = "bigboss_sorciere_bois",   magic = true,  atkSplit = 0.35, famille = "Humanoïde" },   -- km 30
+	{ name = "Colosse des Cendres", id = "boss_colosse_cendres", bigId = "bigboss_colosse_cendres", magic = false, atkSplit = 0.80, famille = "Élémentaire" }, -- km 40
+	{ name = "Liche Glaciale",      id = "boss_liche_glaciale",  bigId = "bigboss_liche_glaciale",  magic = true,  atkSplit = 0.25, famille = "Mort-vivant" }, -- km 50
+	{ name = "Tyran des Abysses",   id = "boss_tyran_abysses",   bigId = "bigboss_tyran_abysses",   magic = false, atkSplit = 0.70, famille = "Bête" },        -- km 60
+	{ name = "Archimage Dechu",     id = "boss_archimage_dechu", bigId = "bigboss_archimage_dechu", magic = true,  atkSplit = 0.20, famille = "Humanoïde" },   -- km 70
+	{ name = "Behemoth",            id = "boss_behemoth",        bigId = "bigboss_behemoth",        magic = false, atkSplit = 0.85, famille = "Bête" },        -- km 80
+	{ name = "Spectre Hurlant",     id = "boss_spectre_hurlant", bigId = "bigboss_spectre_hurlant", magic = true,  atkSplit = 0.40, famille = "Mort-vivant" }, -- km 90
+	{ name = "Dragon de Fer",       id = "boss_dragon_fer",      bigId = "bigboss_dragon_fer",      magic = false, atkSplit = 0.80, famille = "Construct" },   -- km 100
+	{ name = "Oeil du Vide",        id = "boss_oeil_vide",       bigId = "bigboss_oeil_vide",       magic = true,  atkSplit = 0.15, famille = "Élémentaire" }, -- km 110
+	{ name = "Avatar de la Fin",    id = "boss_avatar_fin",      bigId = "bigboss_avatar_fin",      magic = false, atkSplit = 0.60, famille = "Élémentaire" }, -- km 120
 }
 
 -- Cycles the theme list past boss 12 (deeper couches reuse identities, stats keep scaling).

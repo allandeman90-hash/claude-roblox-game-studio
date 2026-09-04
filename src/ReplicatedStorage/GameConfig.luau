@@ -140,6 +140,36 @@ function GameConfig.Missions.dayKey(t: number?)
 end
 
 --========================================================
+-- CODEX  (codex-gdd.md)
+--
+-- Monster/boss entries and their "famille" come straight from ZoneConfig
+-- (each roster entry already carries a `famille`; CodexService builds its
+-- index from that at require-time - no separate content list to keep in
+-- sync). The GDD's illustrative bonus-stat rotation (ATK/DEF/HP/Or/XP/heal
+-- speed) is narrowed here to Or/XP only: those are the two categories
+-- RewardService's single-resolver multiplier already supports as an
+-- "earned" bonus (alongside rebirth) - touching StatsService's combat math
+-- for a cosmetic collection system was judged not worth the balance risk.
+-- The "Objets" tab (GDD SS2.6/6.5, pure cosmetic per the GDD itself) is
+-- deferred, same as DailyRewardService's dungeon-key TODO.
+--========================================================
+GameConfig.Codex = {
+    killsToUnlockMonster = 10,  -- boss: unlocked at kill #1 (see CodexService)
+    bonusPerFamilyBase   = 0.05,  -- +5% at the 1st family completed for a category
+    bonusGrowthPerFamily = 0.15,  -- each LATER family on the same category is bigger
+    -- Families alternate which reward category their bonus lands on, in this
+    -- fixed order (matches the "famille" strings already used in ZoneConfig).
+    familyOrder = { "Bête", "Mort-vivant", "Élémentaire", "Humanoïde", "Construct" },
+    familyCategory = {
+        ["Bête"]        = "gold",
+        ["Mort-vivant"] = "xp",
+        ["Élémentaire"] = "gold",
+        ["Humanoïde"]   = "xp",
+        ["Construct"]   = "gold",
+    },
+}
+
+--========================================================
 -- HERO CREATION  (02-maquettes SS02, master-gdd SS5.2)
 --========================================================
 GameConfig.Hero = {

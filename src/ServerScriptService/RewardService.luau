@@ -10,6 +10,7 @@
 --                                     temp boost, Roblox Premium ))
 --       earned(cat)   = Nightmare.rewardMult(ctx.nightmareTier)
 --                       * rebirthBonus[cat](ctx.rebirths)
+--                       * CodexService.rewardMult(profile, cat)
 --       -> comfort * earned
 --
 -- Comfort uses max(), NEVER a product: a x2 pass + a x2 boost + premium = x3,
@@ -25,6 +26,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage:WaitForChild("GameConfig"))
 local PlayerDataService = require(script.Parent:WaitForChild("PlayerDataService"))
+local CodexService = require(script.Parent:WaitForChild("CodexService"))
 
 local RewardService = {}
 
@@ -111,6 +113,15 @@ local function rebirthBonus(category: string, rebirths: number): number
     return 1
 end
 
+-- Codex family-completion bonus (codex-gdd.md SS2.5), Or/XP only - see
+-- GameConfig.Codex header. Permanent, so it belongs with rebirth in
+-- "earned", not with the timed/comfort sources above.
+local function codexBonus(player: Player, category: string): number
+    local profile = PlayerDataService.getProfile(player)
+    if not profile then return 1 end
+    return CodexService.rewardMult(profile, category)
+end
+
 --===== Public =====
 -- ctx (optional): { rebirths = number, nightmareTier = number }. Any missing
 -- field is treated as 0.
@@ -131,7 +142,7 @@ function RewardService.multiplier(player: Player, category: string, ctx: any): n
     local tier = tonumber(ctx.nightmareTier) or 0
     local nm = GameConfig.Nightmare
     local nightmareMult = (nm and nm.rewardMult and nm.rewardMult(tier)) or 1
-    local earned = nightmareMult * rebirthBonus(category, tonumber(ctx.rebirths) or 0)
+    local earned = nightmareMult * rebirthBonus(category, tonumber(ctx.rebirths) or 0) * codexBonus(player, category)
 
     return comfort * earned
 end

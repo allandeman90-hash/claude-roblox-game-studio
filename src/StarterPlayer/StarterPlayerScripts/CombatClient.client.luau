@@ -116,7 +116,6 @@ local artifactEnemyNameCard, artifactEnemyPvCard, artifactEnemyGoldCard, artifac
 local artifactProgressText, artifactProgressFill
 local artifactMenuButton
 local artifactTalentsButton
-local artifactMissionsButton
 
 -- The old prototype panels are not part of the final visual language. Keep
 -- their objects alive for legacy overlay wiring, but render a brand-new HUD.
@@ -445,7 +444,7 @@ do
     artifactHeroPetCard = card(left, "PetCard", 0.301, 0.072, { text = "Pets  \u{2014}" })
     artifactHeroStatsCard = card(left, "StatsCard", 0.384, 0.12,
         { text = "ATK 0 \u{00B7} DEF 0\nRES 0 \u{00B7} CRIT 0%", wrap = true })
-    _, artifactMissionsButton = footerButton(left, "Missions", "MISSIONS", 0.815, 0.08)
+    footerButton(left, "Missions", "MISSIONS", 0.815, 0.08)   -- click wired below via FindFirstChild (200-local budget)
     _, artifactTalentsButton = footerButton(left, "Talents", "TALENTS", 0.905, 0.08)
 
     -- right column: enemy name / enemy PV / your OR / enemy ATK ... INVENTAIRE + MENU
@@ -453,6 +452,7 @@ do
     artifactEnemyPvCard = card(right, "EnemyPvCard", 0.083, 0.072, { text = "PV  \u{2014}" })
     artifactHeroGoldCard = card(right, "GoldCard", 0.166, 0.072, { text = "OR  0" })
     artifactEnemyAtkCard = card(right, "AtkCard", 0.249, 0.072, { text = "ATK \u{2014}" })
+    footerButton(right, "Codex", "CODEX", 0.725, 0.08)   -- click wired below via FindFirstChild (200-local budget)
     footerButton(right, "Inventory", "INVENTAIRE", 0.815, 0.08)   -- InventoryClient wires .Click
     _, artifactMenuButton = footerButton(right, "Menu", "MENU", 0.905, 0.08)
     artifactEnemyPvCard.Visible = false
@@ -1224,7 +1224,9 @@ local DIFF_COLOR = {
 }
 local DIFF_TAG = { easy = "FACILE", hard = "DIFFICILE", veryHard = "TRES DUR" }
 
-local updateMissionsPanel
+-- Shared by MissionsPanel/CodexPanel below: one table instead of two
+-- top-level function locals (200-local budget, see GameOver block note).
+local panelUpdaters = {}
 
 do
     local panel = Instance.new("Frame")
@@ -1383,7 +1385,7 @@ do
         rows[i] = { frame = row, tag = tag, label = label, progress = progress, reroll = rerollBtn }
     end
 
-    updateMissionsPanel = function(state)
+    panelUpdaters.missions = function(state)
         if not state then return end
         summary.Text = string.format(
             "Termin\u{00E9}es : %d/%d%s",
@@ -1415,16 +1417,201 @@ do
     end
 end
 
-if artifactMissionsButton then
-    artifactMissionsButton.MouseButton1Click:Connect(function()
-        local p = background:FindFirstChild("MissionsPanel")
-        if p then
-            p.Visible = not p.Visible
-            if p.Visible then
-                combatEvent:FireServer({ type = "requestMissionsState" })
+do
+    -- Looked up by name instead of a persisted top-level local (200-local
+    -- budget) - the "Missions" card and its "Click" hit-button were built
+    -- by footerButton() above, under DescenteLeft.
+    local card = background:FindFirstChild("Missions", true)
+    local btn = card and card:FindFirstChild("Click")
+    if btn then
+        btn.MouseButton1Click:Connect(function()
+            local p = background:FindFirstChild("MissionsPanel")
+            if p then
+                p.Visible = not p.Visible
+                if p.Visible then
+                    combatEvent:FireServer({ type = "requestMissionsState" })
+                end
+            end
+        end)
+    end
+end
+
+--===== Codex panel (server "codexState" pushes) =====
+-- Opened from the DescenteRight "CODEX" footer button, same code-built
+-- language as MissionsPanel/TalentsPanel above. Text-only for now (no
+-- monster-portrait assets wired here yet) - per family: a completion bar
+-- + the full monster list (name once unlocked, "???" + kill counter until
+-- then, boss rows show "1/1"). "Objets" tab deferred, see CodexService header.
+-- 200-local budget (same constraint as the GameOver block above): reuses
+-- MISSION_ACCENT/MISSION_DONE (identical RGB, already escaping) instead of
+-- declaring 2 more top-level colors, and panelUpdaters (declared above,
+-- shared with MissionsPanel) instead of a 2nd top-level function local.
+do
+    local CODEX_BG     = Color3.fromRGB(16, 17, 21)
+    local CODEX_BORDER = Color3.fromRGB(150, 150, 155)
+    local CODEX_ACCENT = MISSION_ACCENT
+    local CODEX_TEXT   = Color3.fromRGB(242, 239, 226)
+    local CODEX_MUTED  = Color3.fromRGB(150, 150, 155)
+    local CODEX_DONE   = MISSION_DONE
+
+    local panel = Instance.new("Frame")
+    panel.Name = "CodexPanel"
+    panel.AnchorPoint = Vector2.new(0.5, 0.5)
+    panel.Position = UDim2.fromScale(0.5, 0.5)
+    panel.Size = UDim2.fromOffset(420, 480)
+    panel.BackgroundColor3 = CODEX_BG
+    panel.BorderColor3 = CODEX_BORDER
+    panel.BorderSizePixel = 1
+    panel.Visible = false
+    panel.ZIndex = 60
+    panel.Parent = background
+
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Position = UDim2.fromOffset(16, 12)
+    title.Size = UDim2.new(1, -32, 0, 24)
+    title.BackgroundTransparency = 1
+    title.Font = Enum.Font.GothamMedium
+    title.Text = "CODEX"
+    title.TextColor3 = CODEX_ACCENT
+    title.TextSize = 16
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.ZIndex = 61
+    title.Parent = panel
+
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Name = "CloseBtn"
+    closeBtn.Position = UDim2.new(1, -40, 0, 8)
+    closeBtn.Size = UDim2.fromOffset(32, 28)
+    closeBtn.BackgroundTransparency = 1
+    closeBtn.Font = Enum.Font.GothamMedium
+    closeBtn.Text = "X"
+    closeBtn.TextColor3 = CODEX_MUTED
+    closeBtn.TextSize = 16
+    closeBtn.ZIndex = 61
+    closeBtn.Parent = panel
+    closeBtn.MouseButton1Click:Connect(function() panel.Visible = false end)
+
+    local summary = Instance.new("TextLabel")
+    summary.Name = "Summary"
+    summary.Position = UDim2.fromOffset(16, 40)
+    summary.Size = UDim2.new(1, -32, 0, 18)
+    summary.BackgroundTransparency = 1
+    summary.Font = Enum.Font.Gotham
+    summary.Text = "0 / 0 entr\u{00E9}es \u{00B7} 0 kills"
+    summary.TextColor3 = CODEX_TEXT
+    summary.TextSize = 13
+    summary.TextXAlignment = Enum.TextXAlignment.Left
+    summary.ZIndex = 61
+    summary.Parent = panel
+
+    local list = Instance.new("ScrollingFrame")
+    list.Name = "List"
+    list.Position = UDim2.fromOffset(16, 64)
+    list.Size = UDim2.new(1, -32, 1, -80)
+    list.BackgroundTransparency = 1
+    list.BorderSizePixel = 0
+    list.ScrollBarThickness = 4
+    list.CanvasSize = UDim2.new(0, 0, 0, 0)
+    list.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    list.ZIndex = 61
+    list.Parent = panel
+
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 4)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Parent = list
+
+    -- One block per family: header (name + X/Y + bonus%) + its monster rows.
+    -- Rebuilt from scratch on every codexState push (families/entries never
+    -- shrink, so this is cheap and avoids a second index-by-name to reuse).
+    panelUpdaters.codex = function(state)
+        if not state then return end
+        summary.Text = string.format(
+            "%d / %d entr\u{00E9}es d\u{00E9}bloqu\u{00E9}es \u{00B7} %d kills au total",
+            state.totalUnlocked or 0, state.totalEntries or 0, state.totalKills or 0
+        )
+        for _, child in ipairs(list:GetChildren()) do
+            if child:IsA("Frame") then child:Destroy() end
+        end
+        for order, fam in ipairs(state.families or {}) do
+            local header = Instance.new("Frame")
+            header.Name = "Fam" .. order
+            header.LayoutOrder = order * 100
+            header.Size = UDim2.new(1, 0, 0, 24)
+            header.BackgroundColor3 = fam.isComplete and Color3.fromRGB(24, 34, 26) or Color3.fromRGB(21, 22, 27)
+            header.BorderColor3 = CODEX_BORDER
+            header.BorderSizePixel = 1
+            header.ZIndex = 61
+            header.Parent = list
+
+            local hLabel = Instance.new("TextLabel")
+            hLabel.Position = UDim2.fromOffset(8, 0)
+            hLabel.Size = UDim2.new(1, -16, 1, 0)
+            hLabel.BackgroundTransparency = 1
+            hLabel.Font = Enum.Font.GothamBold
+            hLabel.TextXAlignment = Enum.TextXAlignment.Left
+            hLabel.TextSize = 12
+            hLabel.TextColor3 = fam.isComplete and CODEX_DONE or CODEX_ACCENT
+            local tag = (fam.category == "gold") and "Or" or "XP"
+            hLabel.Text = fam.isComplete
+                and string.format("%s \u{2014} COMPL\u{00C8}TE (%d/%d) \u{00B7} +%.1f%% %s", fam.name, fam.unlockedCount, fam.total, fam.bonusPct, tag)
+                or string.format("%s \u{2014} %d/%d \u{00B7} +%.1f%% %s si compl\u{00E8}te", fam.name, fam.unlockedCount, fam.total, fam.bonusPct, tag)
+            hLabel.ZIndex = 62
+            hLabel.Parent = header
+
+            for i, mon in ipairs(fam.monsters) do
+                local row = Instance.new("Frame")
+                row.Name = "Mon" .. i
+                row.LayoutOrder = order * 100 + i
+                row.Size = UDim2.new(1, 0, 0, 20)
+                row.BackgroundTransparency = 1
+                row.ZIndex = 61
+                row.Parent = list
+
+                local nameLbl = Instance.new("TextLabel")
+                nameLbl.Position = UDim2.fromOffset(20, 0)
+                nameLbl.Size = UDim2.new(1, -100, 1, 0)
+                nameLbl.BackgroundTransparency = 1
+                nameLbl.Font = Enum.Font.Gotham
+                nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+                nameLbl.TextSize = 11
+                nameLbl.TextColor3 = mon.unlocked and CODEX_TEXT or CODEX_MUTED
+                nameLbl.Text = (mon.unlocked and mon.name or "???") .. (mon.isBoss and "  \u{2726}" or "")
+                nameLbl.ZIndex = 62
+                nameLbl.Parent = row
+
+                local prog = Instance.new("TextLabel")
+                prog.AnchorPoint = Vector2.new(1, 0)
+                prog.Position = UDim2.new(1, -8, 0, 0)
+                prog.Size = UDim2.fromOffset(70, 20)
+                prog.BackgroundTransparency = 1
+                prog.Font = Enum.Font.Gotham
+                prog.TextXAlignment = Enum.TextXAlignment.Right
+                prog.TextSize = 11
+                prog.TextColor3 = mon.unlocked and CODEX_DONE or CODEX_MUTED
+                prog.Text = mon.unlocked and "\u{2713}" or string.format("%d/%d", mon.kills, mon.target)
+                prog.ZIndex = 62
+                prog.Parent = row
             end
         end
-    end)
+    end
+end
+
+do
+    local card = background:FindFirstChild("Codex", true)
+    local btn = card and card:FindFirstChild("Click")
+    if btn then
+        btn.MouseButton1Click:Connect(function()
+            local p = background:FindFirstChild("CodexPanel")
+            if p then
+                p.Visible = not p.Visible
+                if p.Visible then
+                    combatEvent:FireServer({ type = "requestCodexState" })
+                end
+            end
+        end)
+    end
 end
 
 --===== Game Over panel (code-built, same language as the FTUE modal card) =====
@@ -1936,7 +2123,7 @@ combatEvent.OnClientEvent:Connect(function(data)
     elseif data.type == "reviveGranted" then
         hideGameOver()
     elseif data.type == "missionsState" then
-        updateMissionsPanel(data.state)
+        panelUpdaters.missions(data.state)
         if data.changeResult and not data.changeResult.ok and statusText then
             local reason = data.changeResult.reason
             statusText.Text = (reason == "already_used") and "Changement d\u{00E9}j\u{00E0} utilis\u{00E9} aujourd'hui"
@@ -1949,6 +2136,17 @@ combatEvent.OnClientEvent:Connect(function(data)
         if statusText then
             statusText.Text = string.format("Mission accomplie : %s (+%d pts)", first.label or "?", first.reward or 0)
             statusText.TextColor3 = MISSION_ACCENT
+        end
+    elseif data.type == "codexState" then
+        panelUpdaters.codex(data.state)
+        if data.unlocked and statusText then
+            if data.unlocked.familyCompleted then
+                statusText.Text = string.format("Famille %s COMPL\u{00C8}TE !", data.unlocked.familyCompleted)
+                statusText.TextColor3 = MISSION_DONE
+            else
+                statusText.Text = "Codex : nouvelle entr\u{00E9}e d\u{00E9}bloqu\u{00E9}e"
+                statusText.TextColor3 = MISSION_ACCENT
+            end
         end
     end
 end)

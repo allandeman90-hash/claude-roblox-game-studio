@@ -28,6 +28,7 @@ local InventoryService = require(script.Parent:WaitForChild("InventoryService"))
 local FtueService = require(script.Parent:WaitForChild("FtueService"))
 local DailyRewardService = require(script.Parent:WaitForChild("DailyRewardService"))
 local MissionsService = require(script.Parent:WaitForChild("MissionsService"))
+local CodexService = require(script.Parent:WaitForChild("CodexService"))
 
 -- Central tuning constants + formulas (pure data). Etape 1: every value
 -- pulled from here equals the previous inline constant EXCEPT the XP curve
@@ -448,6 +449,21 @@ function resolvePlayerHit(player, st)
         end
     end)
 
+    -- Codex: monster/boss kill tracking (codex-gdd.md). Never let a codex
+    -- bug break combat.
+    pcall(function()
+        local prof = PlayerDataService.getProfile(player)
+        if not prof then return end
+        local result = CodexService.onKill(prof, st.enemyId, st.isBoss)
+        if result.unlockedId then
+            markProfileDirty(player, st)
+            combatEvent:FireClient(player, {
+                type = "codexState", state = CodexService.state(prof),
+                unlocked = { id = result.unlockedId, familyCompleted = result.familyCompleted },
+            })
+        end
+    end)
+
     local lootMult = RewardService.multiplier(player, "loot", st)
     local petLootMult = RewardService.multiplier(player, "petLoot", st)
 
@@ -694,6 +710,7 @@ local function startCombat(player)
     if prof then
         MissionsService.ensureFresh(prof, s)
         combatEvent:FireClient(player, { type = "missionsState", state = MissionsService.state(prof) })
+        combatEvent:FireClient(player, { type = "codexState", state = CodexService.state(prof) })
     end
 
     -- Player attack loop. AUTO-ATTACK ONLY. Charge-based (st.atkCharge, reset by
@@ -1174,6 +1191,12 @@ combatEvent.OnServerEvent:Connect(function(player, data)
         if prof then
             MissionsService.ensureFresh(prof, st)
             combatEvent:FireClient(player, { type = "missionsState", state = MissionsService.state(prof) })
+        end
+
+    elseif data.type == "requestCodexState" then
+        local prof = PlayerDataService.getProfile(player)
+        if prof then
+            combatEvent:FireClient(player, { type = "codexState", state = CodexService.state(prof) })
         end
 
     elseif data.type == "changeMission" then

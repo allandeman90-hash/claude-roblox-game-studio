@@ -36,7 +36,7 @@ local PlayerDataService = {}
 --           `voie` -> the client shows the creation screen on first JOUER.
 -- v5 -> v6: daily reward chain (`dailyReward`), backfilled to a fresh chain.
 -- v6 -> v7: missions (`missions`), backfilled empty - regenerated on next read.
-PlayerDataService.PROFILE_VERSION = 7
+PlayerDataService.PROFILE_VERSION = 8
 
 local STORE_NAME = "FoG_PlayerData_v1"
 -- En vrai serveur game.JobId est un GUID stable. En Studio il vaut "" : on fixe
@@ -136,6 +136,11 @@ function PlayerDataService.defaultProfile()
         -- Missions (missions-gdd.md). dayKey = 0 forces a fresh 10-mission
         -- generation the first time MissionsService reads this profile.
         missions = { dayKey = 0, list = {}, changeUsedToday = false, bonusApplied = false },
+
+        -- Codex (codex-gdd.md): monster/boss kill-collection, never reset -
+        -- persists across Rebirth. `monsters` keyed by enemyId (see
+        -- CodexService), `families` keyed by famille name once complete.
+        codex = { monsters = {}, families = {} },
         -- One-time creation gift: the "Épée en bois" (epee_courte) minted on the
         -- FIRST KILL during the FTUE (InventoryService.grantStarterKit, called by
         -- FtueService.onFirstKill). migrate() backfills this as false, but the
@@ -414,6 +419,13 @@ local function migrate(profile, player: Player?)
             profile.missions = { dayKey = 0, list = {}, changeUsedToday = false, bonusApplied = false }
         end
         profile.version = 7
+    end
+
+    if profile.version < 8 then
+        if type(profile.codex) ~= "table" then
+            profile.codex = { monsters = {}, families = {} }
+        end
+        profile.version = 8
     end
 
     profile.version = PlayerDataService.PROFILE_VERSION
