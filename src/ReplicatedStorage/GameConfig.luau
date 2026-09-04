@@ -763,7 +763,14 @@ GameConfig.Enemy = {
     expPerLevel     = 1.02,   -- EXP  x this per mob level  (1.02^10 ~= 1.22 / zone, unchanged total)
     goldPerLevel    = 1.026,  -- [D2] gold x this per mob level. Flattened 1.03 -> 1.026 so
                               -- gold/climb grows ~x2.0/rebirth vs cost x2.2 (Q64: rebirth keeps the lead).
-    scaleExpCap  = 90,     -- clamp the per-level exponent. Past ~level 900 the numbers
+    -- [balance-check 2026-09-04] was 90 -> gold flatlined from level ~92 onward
+    -- (HP/ATK/XP keep climbing, uncapped, past that point) while the documented
+    -- level ceiling is 100 + 20*rebirths (see levelPerKm below) - so even a
+    -- lightly-rebirthed player spent most of their level range with gold/kill
+    -- stuck at its level-91 value. 400 comfortably covers that ceiling up to
+    -- ~15 rebirths (1.026^400 * base.gold ~= 2900, nowhere near overflow) with
+    -- zero change below level 92 (the old clamp had no effect there).
+    scaleExpCap  = 400,    -- clamp the per-level exponent. Past ~level 900 the numbers
                            -- stop being meaningful and (x boss mults, rounded) would
                            -- overflow int64.
     statHardMax  = 1e15,   -- absolute clamp on any generated enemy/boss stat (anti-overflow).
