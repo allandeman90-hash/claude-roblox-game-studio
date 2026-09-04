@@ -116,6 +116,7 @@ local artifactEnemyNameCard, artifactEnemyPvCard, artifactEnemyGoldCard, artifac
 local artifactProgressText, artifactProgressFill
 local artifactMenuButton
 local artifactTalentsButton
+local artifactMissionsButton
 
 -- The old prototype panels are not part of the final visual language. Keep
 -- their objects alive for legacy overlay wiring, but render a brand-new HUD.
@@ -444,6 +445,7 @@ do
     artifactHeroPetCard = card(left, "PetCard", 0.301, 0.072, { text = "Pets  \u{2014}" })
     artifactHeroStatsCard = card(left, "StatsCard", 0.384, 0.12,
         { text = "ATK 0 \u{00B7} DEF 0\nRES 0 \u{00B7} CRIT 0%", wrap = true })
+    _, artifactMissionsButton = footerButton(left, "Missions", "MISSIONS", 0.815, 0.08)
     _, artifactTalentsButton = footerButton(left, "Talents", "TALENTS", 0.905, 0.08)
 
     -- right column: enemy name / enemy PV / your OR / enemy ATK ... INVENTAIRE + MENU
@@ -1204,11 +1206,237 @@ if artifactTalentsButton then
     end)
 end
 
+--===== Missions panel (server "missionsState"/"missionsCompleted" pushes) =====
+-- Opened from the DescenteLeft "MISSIONS" footer button, same code-built
+-- language as TalentsPanel above. 10 daily objectives (7 easy / 2 hard / 1
+-- very hard), reset at UTC midnight server-side (MissionsService). One free
+-- reroll/day, spent on whichever row's reroll button is clicked first.
+local MISSION_BG     = Color3.fromRGB(16, 17, 21)
+local MISSION_BORDER = Color3.fromRGB(150, 150, 155)
+local MISSION_ACCENT = Color3.fromRGB(224, 196, 128)
+local MISSION_TEXT   = Color3.fromRGB(242, 239, 226)
+local MISSION_MUTED  = Color3.fromRGB(150, 150, 155)
+local MISSION_DONE   = Color3.fromRGB(110, 205, 120)
+local DIFF_COLOR = {
+    easy = Color3.fromRGB(140, 200, 140),
+    hard = MISSION_ACCENT,
+    veryHard = Color3.fromRGB(220, 110, 110),
+}
+local DIFF_TAG = { easy = "FACILE", hard = "DIFFICILE", veryHard = "TRES DUR" }
+
+local updateMissionsPanel
+
+do
+    local panel = Instance.new("Frame")
+    panel.Name = "MissionsPanel"
+    panel.AnchorPoint = Vector2.new(0.5, 0.5)
+    panel.Position = UDim2.fromScale(0.5, 0.5)
+    panel.Size = UDim2.fromOffset(400, 460)
+    panel.BackgroundColor3 = MISSION_BG
+    panel.BorderColor3 = MISSION_BORDER
+    panel.BorderSizePixel = 1
+    panel.Visible = false
+    panel.ZIndex = 60
+    panel.Parent = background
+
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Position = UDim2.fromOffset(16, 12)
+    title.Size = UDim2.new(1, -32, 0, 24)
+    title.BackgroundTransparency = 1
+    title.Font = Enum.Font.GothamMedium
+    title.Text = "MISSIONS"
+    title.TextColor3 = MISSION_ACCENT
+    title.TextSize = 16
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.ZIndex = 61
+    title.Parent = panel
+
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Name = "CloseBtn"
+    closeBtn.Position = UDim2.new(1, -40, 0, 8)
+    closeBtn.Size = UDim2.fromOffset(32, 28)
+    closeBtn.BackgroundTransparency = 1
+    closeBtn.Font = Enum.Font.GothamMedium
+    closeBtn.Text = "X"
+    closeBtn.TextColor3 = MISSION_MUTED
+    closeBtn.TextSize = 16
+    closeBtn.ZIndex = 61
+    closeBtn.Parent = panel
+    closeBtn.MouseButton1Click:Connect(function() panel.Visible = false end)
+
+    local summary = Instance.new("TextLabel")
+    summary.Name = "Summary"
+    summary.Position = UDim2.fromOffset(16, 40)
+    summary.Size = UDim2.new(1, -32, 0, 18)
+    summary.BackgroundTransparency = 1
+    summary.Font = Enum.Font.Gotham
+    summary.Text = "Termin\u{00E9}es : 0/10"
+    summary.TextColor3 = MISSION_TEXT
+    summary.TextSize = 13
+    summary.TextXAlignment = Enum.TextXAlignment.Left
+    summary.ZIndex = 61
+    summary.Parent = panel
+
+    local changeHint = Instance.new("TextLabel")
+    changeHint.Name = "ChangeHint"
+    changeHint.Position = UDim2.fromOffset(16, 58)
+    changeHint.Size = UDim2.new(1, -32, 0, 16)
+    changeHint.BackgroundTransparency = 1
+    changeHint.Font = Enum.Font.Gotham
+    changeHint.Text = "1 changement gratuit / jour disponible"
+    changeHint.TextColor3 = MISSION_MUTED
+    changeHint.TextSize = 11
+    changeHint.TextXAlignment = Enum.TextXAlignment.Left
+    changeHint.ZIndex = 61
+    changeHint.Parent = panel
+
+    local list = Instance.new("ScrollingFrame")
+    list.Name = "List"
+    list.Position = UDim2.fromOffset(16, 80)
+    list.Size = UDim2.new(1, -32, 1, -96)
+    list.BackgroundTransparency = 1
+    list.BorderSizePixel = 0
+    list.ScrollBarThickness = 4
+    list.CanvasSize = UDim2.new(0, 0, 0, 0)
+    list.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    list.ZIndex = 61
+    list.Parent = panel
+
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 6)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Parent = list
+
+    local rows = {}
+    for i = 1, 10 do
+        local row = Instance.new("Frame")
+        row.Name = "Row" .. i
+        row.LayoutOrder = i
+        row.Size = UDim2.new(1, 0, 0, 40)
+        row.BackgroundColor3 = Color3.fromRGB(21, 22, 27)
+        row.BorderColor3 = MISSION_BORDER
+        row.BorderSizePixel = 1
+        row.ZIndex = 61
+        row.Parent = list
+
+        local tag = Instance.new("TextLabel")
+        tag.Name = "Tag"
+        tag.Position = UDim2.fromOffset(8, 4)
+        tag.Size = UDim2.fromOffset(70, 12)
+        tag.BackgroundTransparency = 1
+        tag.Font = Enum.Font.GothamBold
+        tag.Text = "FACILE"
+        tag.TextColor3 = DIFF_COLOR.easy
+        tag.TextSize = 10
+        tag.TextXAlignment = Enum.TextXAlignment.Left
+        tag.ZIndex = 62
+        tag.Parent = row
+
+        local label = Instance.new("TextLabel")
+        label.Name = "Label"
+        label.Position = UDim2.fromOffset(8, 16)
+        label.Size = UDim2.new(1, -90, 0, 18)
+        label.BackgroundTransparency = 1
+        label.Font = Enum.Font.Gotham
+        label.Text = "..."
+        label.TextColor3 = MISSION_TEXT
+        label.TextSize = 12
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.TextTruncate = Enum.TextTruncate.AtEnd
+        label.ZIndex = 62
+        label.Parent = row
+
+        local progress = Instance.new("TextLabel")
+        progress.Name = "Progress"
+        progress.AnchorPoint = Vector2.new(1, 0)
+        progress.Position = UDim2.new(1, -44, 0, 4)
+        progress.Size = UDim2.fromOffset(80, 12)
+        progress.BackgroundTransparency = 1
+        progress.Font = Enum.Font.Gotham
+        progress.Text = "0/0"
+        progress.TextColor3 = MISSION_MUTED
+        progress.TextSize = 10
+        progress.TextXAlignment = Enum.TextXAlignment.Right
+        progress.ZIndex = 62
+        progress.Parent = row
+
+        local rerollBtn = Instance.new("TextButton")
+        rerollBtn.Name = "Reroll"
+        rerollBtn.AnchorPoint = Vector2.new(1, 0.5)
+        rerollBtn.Position = UDim2.new(1, -8, 0.5, 0)
+        rerollBtn.Size = UDim2.fromOffset(28, 26)
+        rerollBtn.BackgroundColor3 = Color3.fromRGB(11, 12, 16)
+        rerollBtn.BorderColor3 = MISSION_ACCENT
+        rerollBtn.BorderSizePixel = 1
+        rerollBtn.AutoButtonColor = false
+        rerollBtn.Font = Enum.Font.GothamMedium
+        rerollBtn.Text = "\u{21BB}"
+        rerollBtn.TextColor3 = MISSION_ACCENT
+        rerollBtn.TextSize = 14
+        rerollBtn.ZIndex = 62
+        rerollBtn.Parent = row
+        rerollBtn.MouseButton1Click:Connect(function()
+            combatEvent:FireServer({ type = "changeMission", missionId = i })
+        end)
+
+        rows[i] = { frame = row, tag = tag, label = label, progress = progress, reroll = rerollBtn }
+    end
+
+    updateMissionsPanel = function(state)
+        if not state then return end
+        summary.Text = string.format(
+            "Termin\u{00E9}es : %d/%d%s",
+            state.completedCount or 0, state.total or 10,
+            state.bonusApplied and ("  \u{00B7} bonus +" .. tostring(state.bonusPoints) .. " obtenu") or ""
+        )
+        changeHint.Text = state.changeAvailable
+            and "1 changement gratuit / jour disponible"
+            or "Changement d\u{00E9}j\u{00E0} utilis\u{00E9} aujourd'hui"
+        for i, row in ipairs(rows) do
+            local mission = state.list and state.list[i]
+            if mission then
+                row.frame.Visible = true
+                row.tag.Text = DIFF_TAG[mission.difficulty] or "?"
+                row.tag.TextColor3 = DIFF_COLOR[mission.difficulty] or MISSION_MUTED
+                row.label.Text = mission.label or "?"
+                row.label.TextColor3 = mission.completed and MISSION_DONE or MISSION_TEXT
+                row.progress.Text = string.format("%s/%s",
+                    tostring(mission.current or 0), tostring(mission.target or 0))
+                row.progress.TextColor3 = mission.completed and MISSION_DONE or MISSION_MUTED
+                local canReroll = state.changeAvailable and not mission.completed
+                row.reroll.Visible = not mission.completed
+                row.reroll.TextColor3 = canReroll and MISSION_ACCENT or MISSION_MUTED
+                row.reroll.BorderColor3 = canReroll and MISSION_ACCENT or MISSION_BORDER
+            else
+                row.frame.Visible = false
+            end
+        end
+    end
+end
+
+if artifactMissionsButton then
+    artifactMissionsButton.MouseButton1Click:Connect(function()
+        local p = background:FindFirstChild("MissionsPanel")
+        if p then
+            p.Visible = not p.Visible
+            if p.Visible then
+                combatEvent:FireServer({ type = "requestMissionsState" })
+            end
+        end
+    end)
+end
+
 --===== Game Over panel (code-built, same language as the FTUE modal card) =====
 -- The old RpgGui.GameOverWindow template (full-bleed black box, raw green/brown
 -- buttons, unwired "Reapparaitre 0 Robux") is retired - hidden below.
 -- Wrapped in `do` so its ~12 helper locals do not count against this script's
 -- 200-local budget; only these three escape.
+-- Only these three escape (200-local budget, see note above showGameOver).
+-- goPanel itself stays local to this block: updateUI and the dispatcher
+-- below used to peek at goPanel.Visible directly, which silently resolved
+-- as an unset global outside this scope and crashed on the first real
+-- death - fixed by making showGameOver/hideGameOver the only touch points.
 local showGameOver, hideGameOver, configureReviveBtn
 do
     local SC = StyleConstants
@@ -1347,8 +1575,14 @@ goReviveBtn.MouseButton1Click:Connect(function()
 end)
 
 function showGameOver(distanceKm: number?, isDev: boolean?, pendingRevives: number?)
-    goMsg.Text = string.format(GAME_OVER_LINES[math.random(#GAME_OVER_LINES)], playerHandle)
-    goDist.Text = string.format("Distance : %.1f km", distanceKm or 0)
+    -- Idempotent: updateUI calls this every tick while data.gameOver is true
+    -- (no goPanel.Visible check outside this block, see note above), so only
+    -- re-roll the encouragement line the first time the panel opens; always
+    -- refresh the revive button so the reserve count stays current.
+    if not goPanel.Visible then
+        goMsg.Text = string.format(GAME_OVER_LINES[math.random(#GAME_OVER_LINES)], playerHandle)
+        goDist.Text = string.format("Distance : %.1f km", distanceKm or 0)
+    end
     configureReviveBtn(isDev, pendingRevives)
     goDim.Visible = true
     goPanel.Visible = true
@@ -1559,13 +1793,9 @@ local function updateUI(data)
     -- Enemy visuals are driven by updateScene (2 enemies per step, positioned).
     if enemySlot then enemySlot.Visible = false end
 
-    -- Game Over state
+    -- Game Over state (showGameOver is idempotent - see its definition)
     if data.gameOver then
-        if not goPanel.Visible then
-            showGameOver(data.distance, data.isDev, data.pendingRevives)
-        else
-            configureReviveBtn(data.isDev, data.pendingRevives)  -- keep the reserve count fresh
-        end
+        showGameOver(data.distance, data.isDev, data.pendingRevives)
     else
         hideGameOver()
     end
@@ -1699,12 +1929,27 @@ combatEvent.OnClientEvent:Connect(function(data)
     elseif data.type == "gameOver" then
         showGameOver(data.distance, data.isDev, data.pendingRevives)
     elseif data.type == "purchaseGranted" and data.product == "reviveRun" then
-        -- Revive charge credited: spend it now if the player is still down.
-        if goPanel.Visible then
-            combatEvent:FireServer({ type = "claimRevive" })
-        end
+        -- Revive charge credited: spend it now. Server no-ops if the player
+        -- already respawned by the time the receipt lands (st.gameOver check
+        -- in claimRevive), so no client-side "still down" guard is needed.
+        combatEvent:FireServer({ type = "claimRevive" })
     elseif data.type == "reviveGranted" then
         hideGameOver()
+    elseif data.type == "missionsState" then
+        updateMissionsPanel(data.state)
+        if data.changeResult and not data.changeResult.ok and statusText then
+            local reason = data.changeResult.reason
+            statusText.Text = (reason == "already_used") and "Changement d\u{00E9}j\u{00E0} utilis\u{00E9} aujourd'hui"
+                or (reason == "already_completed") and "Mission d\u{00E9}j\u{00E0} termin\u{00E9}e"
+                or "Changement impossible"
+            statusText.TextColor3 = Color3.fromRGB(255, 120, 120)
+        end
+    elseif data.type == "missionsCompleted" and data.missions and data.missions[1] then
+        local first = data.missions[1]
+        if statusText then
+            statusText.Text = string.format("Mission accomplie : %s (+%d pts)", first.label or "?", first.reward or 0)
+            statusText.TextColor3 = MISSION_ACCENT
+        end
     end
 end)
 

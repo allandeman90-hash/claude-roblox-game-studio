@@ -35,7 +35,8 @@ local PlayerDataService = {}
 --           (ftue done) are backfilled voie="guerrier"; fresh profiles have no
 --           `voie` -> the client shows the creation screen on first JOUER.
 -- v5 -> v6: daily reward chain (`dailyReward`), backfilled to a fresh chain.
-PlayerDataService.PROFILE_VERSION = 6
+-- v6 -> v7: missions (`missions`), backfilled empty - regenerated on next read.
+PlayerDataService.PROFILE_VERSION = 7
 
 local STORE_NAME = "FoG_PlayerData_v1"
 -- En vrai serveur game.JobId est un GUID stable. En Studio il vaut "" : on fixe
@@ -131,6 +132,10 @@ function PlayerDataService.defaultProfile()
         -- CLAIMED (1..7); GameConfig.DailyReward.evaluate derives what to claim
         -- next from lastClaimTime. Preserved across a Rebirth.
         dailyReward = { currentDay = 1, lastClaimTime = 0 },
+
+        -- Missions (missions-gdd.md). dayKey = 0 forces a fresh 10-mission
+        -- generation the first time MissionsService reads this profile.
+        missions = { dayKey = 0, list = {}, changeUsedToday = false, bonusApplied = false },
         -- One-time creation gift: the "Épée en bois" (epee_courte) minted on the
         -- FIRST KILL during the FTUE (InventoryService.grantStarterKit, called by
         -- FtueService.onFirstKill). migrate() backfills this as false, but the
@@ -402,6 +407,13 @@ local function migrate(profile, player: Player?)
         profile.dailyReward.currentDay = profile.dailyReward.currentDay or 1
         profile.dailyReward.lastClaimTime = profile.dailyReward.lastClaimTime or 0
         profile.version = 6
+    end
+
+    if profile.version < 7 then
+        if type(profile.missions) ~= "table" then
+            profile.missions = { dayKey = 0, list = {}, changeUsedToday = false, bonusApplied = false }
+        end
+        profile.version = 7
     end
 
     profile.version = PlayerDataService.PROFILE_VERSION

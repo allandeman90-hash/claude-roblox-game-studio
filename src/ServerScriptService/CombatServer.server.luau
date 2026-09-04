@@ -27,6 +27,7 @@ local InventoryService = require(script.Parent:WaitForChild("InventoryService"))
 -- gifts (Épée en bois on the first kill, Fée pet at the end). Never blocks.
 local FtueService = require(script.Parent:WaitForChild("FtueService"))
 local DailyRewardService = require(script.Parent:WaitForChild("DailyRewardService"))
+local MissionsService = require(script.Parent:WaitForChild("MissionsService"))
 
 -- Central tuning constants + formulas (pure data). Etape 1: every value
 -- pulled from here equals the previous inline constant EXCEPT the XP curve
@@ -174,6 +175,21 @@ local function previewEncounter(s, enc)
 end
 
 local function sendUpdate(player, s)
+    -- Missions: km watermark (missions-gdd.md), only when the position actually
+    -- moved since the last check - sendUpdate fires many times/sec in combat.
+    if (s.pos or 0) ~= s._lastMissionsPos then
+        s._lastMissionsPos = s.pos or 0
+        pcall(function()
+            local prof = PlayerDataService.getProfile(player)
+            if not prof then return end
+            local done = MissionsService.onEvent(prof, s, "reach_km", s.pos or 0, "watermark")
+            if #done > 0 then
+                markProfileDirty(player, s)
+                combatEvent:FireClient(player, { type = "missionsCompleted", missions = done })
+            end
+        end)
+    end
+
     -- Current STEP's encounters (world-traversal minimap). A zone has
     -- GameConfig.World.stepsPerZone steps; each step has mobsPerStep encounters
     -- (the last step's last slot is the boss).
@@ -414,6 +430,24 @@ function resolvePlayerHit(player, st)
     st.exp  = st.exp + xpGain
     st.gold = st.gold + goldGain
 
+    -- Missions: kill / boss-kill / gold-earned progress (missions-gdd.md).
+    -- Never let a missions bug break combat.
+    pcall(function()
+        local prof = PlayerDataService.getProfile(player)
+        if not prof then return end
+        local done = MissionsService.onEvent(prof, st, "kill_mobs", 1)
+        if st.isBoss then
+            for _, c in ipairs(MissionsService.onEvent(prof, st, "kill_boss", 1)) do done[#done + 1] = c end
+        end
+        if goldGain > 0 then
+            for _, c in ipairs(MissionsService.onEvent(prof, st, "earn_gold", goldGain)) do done[#done + 1] = c end
+        end
+        if #done > 0 then
+            markProfileDirty(player, st)
+            combatEvent:FireClient(player, { type = "missionsCompleted", missions = done })
+        end
+    end)
+
     local lootMult = RewardService.multiplier(player, "loot", st)
     local petLootMult = RewardService.multiplier(player, "petLoot", st)
 
@@ -487,6 +521,16 @@ function resolvePlayerHit(player, st)
         StatsService.recalc(player, st)
         -- A level-up grants the newly-created HP, without becoming a full heal.
         st.playerHp = math.min(st.playerMaxHp, st.playerHp + math.max(0, st.playerMaxHp - oldMaxHp))
+
+        pcall(function()
+            local prof = PlayerDataService.getProfile(player)
+            if not prof then return end
+            local done = MissionsService.onEvent(prof, st, "reach_level", st.playerLevel, "watermark")
+            if #done > 0 then
+                markProfileDirty(player, st)
+                combatEvent:FireClient(player, { type = "missionsCompleted", missions = done })
+            end
+        end)
     end
 
     local wasBigBoss = false
@@ -643,6 +687,13 @@ local function startCombat(player)
     -- Daily reward: push the chain state so the menu can show the "a reclamer" band.
     if prof then
         combatEvent:FireClient(player, { type = "dailyState", state = DailyRewardService.state(prof) })
+    end
+
+    -- Missions: regenerate the 10-mission list if the UTC day rolled over,
+    -- then push the current state.
+    if prof then
+        MissionsService.ensureFresh(prof, s)
+        combatEvent:FireClient(player, { type = "missionsState", state = MissionsService.state(prof) })
     end
 
     -- Player attack loop. AUTO-ATTACK ONLY. Charge-based (st.atkCharge, reset by
@@ -1117,6 +1168,25 @@ combatEvent.OnServerEvent:Connect(function(player, data)
         if prof then
             combatEvent:FireClient(player, { type = "dailyState", state = DailyRewardService.state(prof) })
         end
+
+    elseif data.type == "requestMissionsState" then
+        local prof = PlayerDataService.getProfile(player)
+        if prof then
+            MissionsService.ensureFresh(prof, st)
+            combatEvent:FireClient(player, { type = "missionsState", state = MissionsService.state(prof) })
+        end
+
+    elseif data.type == "changeMission" then
+        local prof = PlayerDataService.getProfile(player)
+        if not prof then return end
+        local ok, reason = MissionsService.changeMission(prof, st, tonumber(data.missionId))
+        if ok then
+            markProfileDirty(player, st)
+        end
+        combatEvent:FireClient(player, {
+            type = "missionsState", state = MissionsService.state(prof),
+            changeResult = { ok = ok, reason = reason },
+        })
 
     elseif data.type == "createHero" then
         -- Hero creation (02-maquettes SS02). One-shot: only valid while the

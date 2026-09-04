@@ -111,6 +111,35 @@ function GameConfig.DailyReward.evaluate(lastClaimTime: number?, currentDay: num
 end
 
 --========================================================
+-- MISSIONS  (missions-gdd.md)
+--========================================================
+-- 10/day (7 easy / 2 hard / 1 very hard), reset at UTC midnight (a day index,
+-- not a rolling cooldown like Daily Reward - missions-gdd SS2.3 is explicit
+-- about "minuit serveur"). Every objective type maps to a system that is
+-- ACTUALLY LIVE today (kills, km, level, gold) on purpose: the GDD lists
+-- pouvoirs / forge / donjon / codex too, but none of those exist yet, and a
+-- mission for a system that cannot be interacted with is a mission that can
+-- never be "impossible" (SS2.7 grays it out) - it is *permanently* impossible,
+-- which is worse. TODO: fold those objective types in once Track G (abilities)
+-- / the Daily Dungeon / the Codex land.
+GameConfig.Missions = {
+    missionsPerDay = 10,
+    easyCount = 7,
+    hardCount = 2,
+    veryHardCount = 1,
+    skillPointRewards = { easy = 1, hard = 2, veryHard = 3 },
+    bonusForAllCompleted = 2,
+    orRewards = { easy = 60, hard = 140, veryHard = 220 },
+    changeFreePerDay = 1,
+}
+
+-- Current UTC day index. Missions regenerate whenever this changes vs the
+-- stored dayKey - a real "reset at midnight", unlike Daily Reward's grace window.
+function GameConfig.Missions.dayKey(t: number?)
+    return math.floor((t or os.time()) / 86400)
+end
+
+--========================================================
 -- HERO CREATION  (02-maquettes SS02, master-gdd SS5.2)
 --========================================================
 GameConfig.Hero = {
