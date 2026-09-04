@@ -227,6 +227,14 @@ local function sendUpdate(player, s)
         enemyLevel  = s.enemyLevel,
         enemyId     = s.enemyId,                              -- active enemy sprite slug (client art only)
         petRole     = EquipmentService.getPetSpriteRole(player),  -- "dps"|"tank"|"heal"|nil, pet sprite pick
+        heroTint    = (function()
+            local p = PlayerDataService.getProfile(player)
+            return p and p.teinte or "acier"
+        end)(),
+        heroName    = (function()
+            local p = PlayerDataService.getProfile(player)
+            return p and p.heroName or nil
+        end)(),
         exp         = s.exp,
         gold        = s.gold,
         playerLevel     = s.playerLevel,

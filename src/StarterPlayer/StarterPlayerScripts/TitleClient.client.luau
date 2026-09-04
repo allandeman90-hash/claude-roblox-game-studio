@@ -22,6 +22,7 @@ local TweenService = game:GetService("TweenService")
 
 local StyleConstants = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("StyleConstants"))
 local GameConfig = require(ReplicatedStorage:WaitForChild("GameConfig"))
+local AssetMap = require(ReplicatedStorage:WaitForChild("AssetMap"))
 
 local player = Players.LocalPlayer
 local combatEvent = ReplicatedStorage:WaitForChild("CombatEvent") :: RemoteEvent
@@ -212,9 +213,25 @@ local function voieCard(voie: string, blurb: string, xScale: number): TextButton
 end
 
 local cardGuerrier = voieCard("guerrier",
-    "Force -- degats stables, cadence rapide. Se blinde en DEF via l'armure.", 0.28)
+    "Force -- degats stables, cadence rapide. Se blinde en DEF via l'armure.", 0.24)
 local cardMage = voieCard("mage",
-    "Magie -- degats lourds, cadence lente. Resiste en RES via l'armure.", 0.72)
+    "Magie -- degats lourds, cadence lente. Resiste en RES via l'armure.", 0.76)
+
+-- live hero preview between the cards (sprite by voie, ImageColor3 by tint)
+local preview = Instance.new("ImageLabel")
+preview.Name = "Preview"
+preview.AnchorPoint = Vector2.new(0.5, 0.5)
+preview.Position = UDim2.fromScale(0.5, 0.46)
+preview.Size = UDim2.fromOffset(150, 190)
+preview.BackgroundTransparency = 1
+preview.ScaleType = Enum.ScaleType.Fit
+preview.ZIndex = TZ
+preview.Parent = create
+
+local function refreshPreview()
+    preview.Image = AssetMap[selectedVoie == "mage" and "hero_mage" or "hero_warrior"] or ""
+    preview.ImageColor3 = GameConfig.Hero.tints[selectedTint] or Color3.new(1, 1, 1)
+end
 
 local function refreshVoie()
     for voie, card in pairs({ guerrier = cardGuerrier, mage = cardMage }) do
@@ -226,6 +243,7 @@ local function refreshVoie()
         end
         card.BackgroundColor3 = on and Color3.fromRGB(24, 24, 20) or C.Panel
     end
+    refreshPreview()
 end
 cardGuerrier.MouseButton1Click:Connect(function() selectedVoie = "guerrier"; refreshVoie() end)
 cardMage.MouseButton1Click:Connect(function() selectedVoie = "mage"; refreshVoie() end)
@@ -273,6 +291,7 @@ for i, key in ipairs(GameConfig.Hero.tintOrder) do
             local st = s:FindFirstChildWhichIsA("UIStroke")
             if st then st.Color = (k == key) and StyleConstants.ButtonVariants.gold.border or C.Border end
         end
+        refreshPreview()
     end)
 end
 do

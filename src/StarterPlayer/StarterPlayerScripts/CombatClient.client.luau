@@ -732,7 +732,7 @@ end
 -- Paint <slug> on a slot (mirrored per faceRight). No matching asset -> the
 -- sprite hides and the slot's text label + box stay (discreet fallback, no
 -- emoji, no coloured placeholder frame).
-local function paintCombatant(slot, slug, faceRight, active, boss)
+local function paintCombatant(slot, slug, faceRight, active, boss, tint)
     if not slot then return end
     local img = ensureSprite(slot)
     local asset = spriteFor(slug, faceRight)
@@ -741,7 +741,9 @@ local function paintCombatant(slot, slug, faceRight, active, boss)
     img.Visible = asset ~= nil
     local mul = boss and BOSS_SPRITE_MUL or 1
     img.Size = UDim2.new(BASE_SPRITE_W * mul, 0, BASE_SPRITE_H * mul, 0)
-    img.ImageColor3 = (active ~= false) and Color3.new(1, 1, 1) or Color3.fromRGB(200, 200, 200)
+    -- `tint` (hero creation cosmetic) replaces plain white when the slot is active.
+    local base = tint or Color3.new(1, 1, 1)
+    img.ImageColor3 = (active ~= false) and base or Color3.fromRGB(200, 200, 200)
     slot.BackgroundTransparency = asset and 1 or 0
     local sk = slot:FindFirstChildWhichIsA("UIStroke")
     if sk then sk.Enabled = asset == nil end   -- the outline box is only for the text fallback
@@ -1518,7 +1520,8 @@ local function updateUI(data)
 
     -- Hero + pet sprites. sceneFacing is fresh (updateScene just set it).
     local heroFaceRight = (sceneFacing ~= "left")
-    paintCombatant(heroSlot, data.gearIsMagic and "hero_mage" or "hero_warrior", heroFaceRight, true, false)
+    local heroTint = (GameConfig.Hero and GameConfig.Hero.tints and GameConfig.Hero.tints[data.heroTint or "acier"]) or nil
+    paintCombatant(heroSlot, data.gearIsMagic and "hero_mage" or "hero_warrior", heroFaceRight, true, false, heroTint)
     if petSprite then
         petRole = data.petRole
         local petAsset = data.petRole and spriteFor("pet_" .. data.petRole, heroFaceRight) or nil
