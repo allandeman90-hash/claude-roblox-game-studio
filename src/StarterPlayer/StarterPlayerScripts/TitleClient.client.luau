@@ -142,9 +142,18 @@ resumeLbl.LayoutOrder = 1
 resumeLbl.ZIndex = TZ
 resumeLbl.Parent = right
 
+-- Daily reward band (02-maquettes SS01 "RECOMPENSE DU JOUR"). Hidden until the
+-- server confirms a day is claimable; pulses gently while it is.
+local dailyBand = StyleConstants.makeButton("\u{25C6} RECOMPENSE DU JOUR \u{00B7} A RECLAMER", "Label", "gold")
+dailyBand.Size = UDim2.new(1, 0, 0, 34)
+dailyBand.LayoutOrder = 2
+dailyBand.ZIndex = TZ
+dailyBand.Visible = false
+dailyBand.Parent = right
+
 local playBtn = StyleConstants.makeButton("\u{25B6}  JOUER", "Heading", "green")
 playBtn.Size = UDim2.new(1, 0, 0, 76)
-playBtn.LayoutOrder = 2
+playBtn.LayoutOrder = 3
 playBtn.ZIndex = TZ
 playBtn.Parent = right
 
@@ -153,7 +162,7 @@ local shortcutRow = Instance.new("Frame")
 shortcutRow.Name = "Shortcuts"
 shortcutRow.Size = UDim2.new(1, 0, 0, 104)
 shortcutRow.BackgroundTransparency = 1
-shortcutRow.LayoutOrder = 3
+shortcutRow.LayoutOrder = 4
 shortcutRow.ZIndex = TZ
 shortcutRow.Parent = right
 do
@@ -348,6 +357,187 @@ createHint.Size = UDim2.fromScale(0.8, 0.04)
 createHint.TextXAlignment = Enum.TextXAlignment.Center
 
 --============================================================
+-- SURFACE 3 -- recompense quotidienne (daily-reward-gdd.md SS6)
+--============================================================
+local dailyState = nil   -- last "dailyState" payload from the server
+
+local dailyDim = Instance.new("Frame")
+dailyDim.Name = "DailyDim"
+dailyDim.Size = UDim2.fromScale(1, 1)
+dailyDim.BackgroundColor3 = Color3.new(0, 0, 0)
+dailyDim.BackgroundTransparency = 0.5
+dailyDim.BorderSizePixel = 0
+dailyDim.Visible = false
+dailyDim.ZIndex = TZ + 1
+dailyDim.Parent = gui
+
+local dailyPanel = Instance.new("Frame")
+dailyPanel.Name = "DailyPanel"
+dailyPanel.AnchorPoint = Vector2.new(0.5, 0.5)
+dailyPanel.Position = UDim2.fromScale(0.5, 0.5)
+dailyPanel.Size = UDim2.fromOffset(620, 0)
+dailyPanel.AutomaticSize = Enum.AutomaticSize.Y
+dailyPanel.BackgroundColor3 = C.Panel
+dailyPanel.BorderSizePixel = 0
+dailyPanel.Visible = false
+dailyPanel.ZIndex = TZ + 2
+dailyPanel.Parent = gui
+do
+    local stroke = StyleConstants.addStroke(dailyPanel, 2, StyleConstants.ButtonVariants.gold.border)
+    stroke.LineJoinMode = Enum.LineJoinMode.Miter
+    local pad = Instance.new("UIPadding")
+    pad.PaddingTop = UDim.new(0, 24) ; pad.PaddingBottom = UDim.new(0, 24)
+    pad.PaddingLeft = UDim.new(0, 28) ; pad.PaddingRight = UDim.new(0, 28)
+    pad.Parent = dailyPanel
+    local list = Instance.new("UIListLayout")
+    list.FillDirection = Enum.FillDirection.Vertical
+    list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    list.Padding = UDim.new(0, 14)
+    list.SortOrder = Enum.SortOrder.LayoutOrder
+    list.Parent = dailyPanel
+end
+
+local dailyTitle = label(dailyPanel, "", 24, C.Accent)
+dailyTitle.Size = UDim2.new(1, 0, 0, 30)
+dailyTitle.TextXAlignment = Enum.TextXAlignment.Center
+dailyTitle.LayoutOrder = 1
+dailyTitle.ZIndex = TZ + 3   -- above the panel's own opaque bg (TZ+2)
+
+-- 7-day grid: a cell per day, current highlighted, past checked, future dim.
+local grid = Instance.new("Frame")
+grid.Name = "Grid"
+grid.Size = UDim2.new(1, 0, 0, 74)
+grid.BackgroundTransparency = 1
+grid.LayoutOrder = 2
+grid.ZIndex = TZ + 2
+grid.Parent = dailyPanel
+do
+    local gl = Instance.new("UIGridLayout")
+    gl.CellSize = UDim2.new(1/7, -6, 0, 74)
+    gl.CellPadding = UDim2.fromOffset(7, 0)
+    gl.SortOrder = Enum.SortOrder.LayoutOrder
+    gl.Parent = grid
+end
+local dayCells = {}
+for i = 1, GameConfig.DailyReward.chainLength do
+    local cell = Instance.new("Frame")
+    cell.Name = "Day" .. i
+    cell.LayoutOrder = i
+    cell.BackgroundColor3 = C.Slot
+    cell.BorderSizePixel = 0
+    cell.ZIndex = TZ + 2
+    cell.Parent = grid
+    StyleConstants.addStroke(cell, 1, C.Border)
+    local num = label(cell, "J" .. i, 15, C.TextSecondary)
+    num.Position = UDim2.fromOffset(0, 6)
+    num.Size = UDim2.new(1, 0, 0, 18)
+    num.TextXAlignment = Enum.TextXAlignment.Center
+    num.ZIndex = TZ + 3
+    local mark = label(cell, "", 22, StyleConstants.ButtonVariants.gold.border)
+    mark.Name = "Mark"
+    mark.Position = UDim2.fromOffset(0, 28)
+    mark.Size = UDim2.new(1, 0, 0, 30)
+    mark.TextXAlignment = Enum.TextXAlignment.Center
+    mark.ZIndex = TZ + 3
+    dayCells[i] = { cell = cell, num = num, mark = mark }
+end
+
+local dailyDesc = label(dailyPanel, "", 16, C.TextPrimary)
+dailyDesc.Size = UDim2.new(1, 0, 0, 24)
+dailyDesc.TextXAlignment = Enum.TextXAlignment.Center
+dailyDesc.LayoutOrder = 3
+dailyDesc.ZIndex = TZ + 3
+
+local dailyNext = label(dailyPanel, "", 13, C.TextSecondary)
+dailyNext.Size = UDim2.new(1, 0, 0, 18)
+dailyNext.TextXAlignment = Enum.TextXAlignment.Center
+dailyNext.LayoutOrder = 4
+dailyNext.ZIndex = TZ + 3
+
+local claimBtn = StyleConstants.makeButton("RECLAMER", "Body", "gold")
+claimBtn.Size = UDim2.fromOffset(220, 46)
+claimBtn.LayoutOrder = 5
+claimBtn.ZIndex = TZ + 2
+claimBtn.Parent = dailyPanel
+
+local dailyCloseBtn = StyleConstants.makeButton("Fermer", "Label", "gray")
+dailyCloseBtn.Size = UDim2.fromOffset(140, 30)
+dailyCloseBtn.LayoutOrder = 6
+dailyCloseBtn.ZIndex = TZ + 2
+dailyCloseBtn.Parent = dailyPanel
+
+local function renderDaily()
+    if not dailyState then return end
+    -- `day` = the day to claim now (canClaim) or the day just claimed (cooldown).
+    -- Chequered cells: everything before `day` when still claimable, everything
+    -- up to and including `day` once it's already been claimed today. A chain
+    -- reset wipes the checkmarks (fresh J1).
+    local checkedUpTo = dailyState.chainReset and 0
+        or (dailyState.canClaim and (dailyState.day - 1) or dailyState.day)
+    for i, c in ipairs(dayCells) do
+        local isCurrent = (i == dailyState.day)
+        local isChecked = (i <= checkedUpTo) and not isCurrent
+        local st = c.cell:FindFirstChildWhichIsA("UIStroke")
+        if isCurrent then
+            c.cell.BackgroundColor3 = Color3.fromRGB(28, 24, 16)
+            if st then st.Color = StyleConstants.ButtonVariants.gold.border; st.Thickness = 2 end
+            c.mark.Text = dailyState.canClaim and "\u{2726}" or "\u{2713}"
+            c.mark.TextColor3 = StyleConstants.ButtonVariants.gold.border
+        elseif isChecked then
+            c.cell.BackgroundColor3 = C.Slot
+            if st then st.Color = C.Border; st.Thickness = 1 end
+            c.mark.Text = "\u{2713}"
+            c.mark.TextColor3 = StyleConstants.BaseColors.Positive
+        else
+            c.cell.BackgroundColor3 = C.Slot
+            if st then st.Color = C.Border; st.Thickness = 1 end
+            c.mark.Text = "?"
+            c.mark.TextColor3 = C.TextSecondary
+        end
+    end
+    dailyTitle.Text = string.format("RECOMPENSE DU JOUR %d / %d", dailyState.day, dailyState.chainLength)
+    dailyDesc.Text = dailyState.labels and dailyState.labels[dailyState.day] or ""
+    if dailyState.canClaim then
+        claimBtn.Text = "RECLAMER"
+        claimBtn.Active = true
+        claimBtn.TextTransparency = 0
+        dailyNext.Text = ""
+    else
+        local nextDay = (dailyState.day % dailyState.chainLength) + 1
+        claimBtn.Text = "DEJA RECLAME"
+        claimBtn.Active = false
+        claimBtn.TextTransparency = 0.5
+        dailyNext.Text = "Demain : " .. (dailyState.labels and dailyState.labels[nextDay] or "?")
+    end
+end
+
+local function showDaily()
+    dailyDim.Visible = true
+    dailyPanel.Visible = true
+    renderDaily()
+end
+local function hideDaily()
+    dailyDim.Visible = false
+    dailyPanel.Visible = false
+end
+do
+    -- Frame has no click event: a transparent button over the dim closes on click-outside.
+    local clickCatcher = Instance.new("TextButton")
+    clickCatcher.BackgroundTransparency = 1
+    clickCatcher.Text = ""
+    clickCatcher.Size = UDim2.fromScale(1, 1)
+    clickCatcher.ZIndex = TZ + 1
+    clickCatcher.Parent = dailyDim
+    clickCatcher.MouseButton1Click:Connect(hideDaily)
+end
+dailyCloseBtn.MouseButton1Click:Connect(hideDaily)
+dailyBand.MouseButton1Click:Connect(showDaily)
+claimBtn.MouseButton1Click:Connect(function()
+    if not (dailyState and dailyState.canClaim) then return end
+    combatEvent:FireServer({ type = "claimDailyReward" })
+end)
+
+--============================================================
 -- Flow
 --============================================================
 local function hideAll()
@@ -426,5 +616,37 @@ combatEvent.OnClientEvent:Connect(function(data)
             heroOnLine.Image = AssetMap[data.gearIsMagic and "hero_mage" or "hero_warrior"] or heroOnLine.Image
             heroOnLine.ImageColor3 = GameConfig.Hero.tints[data.heroTint or "acier"] or Color3.new(1, 1, 1)
         end
+    elseif data.type == "dailyState" then
+        dailyState = data.state
+        dailyBand.Visible = (not dismissed) and dailyState ~= nil and dailyState.canClaim == true
+        if dailyPanel.Visible then renderDaily() end
+    elseif data.type == "dailyRewardClaimed" then
+        if data.ok then
+            claimBtn.Text = "RECU !"
+            dailyDesc.Text = data.label or dailyDesc.Text
+            dailyNext.Text = data.nextLabel and ("Demain : " .. data.nextLabel) or ""
+            dailyBand.Visible = false
+            task.delay(1.4, hideDaily)
+        else
+            claimBtn.Text = (data.reason == "cooldown") and "DEJA RECLAME" or "ERREUR"
+        end
     end
 end)
+
+-- Gentle pulse on the daily band while it is waiting to be claimed.
+task.spawn(function()
+    while true do
+        task.wait(1.1)
+        if dailyBand.Visible then
+            TweenService:Create(dailyBand, TweenInfo.new(0.55, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+                { BackgroundTransparency = 0.35 }):Play()
+            task.wait(0.55)
+            TweenService:Create(dailyBand, TweenInfo.new(0.55, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+                { BackgroundTransparency = 0 }):Play()
+        end
+    end
+end)
+
+-- Ask the server for the daily state once the connection is up (join already
+-- pushes it, but this covers a late listener / reconnect).
+combatEvent:FireServer({ type = "requestDailyState" })

@@ -107,7 +107,7 @@ local infoSpd      = enemyInfoBox:FindFirstChild("InfoSpd")
 if infoSpd then infoSpd.Visible = false end
 
 --===== "La Descente" landscape shell =====
-local artifactTopDeaths, artifactTopCenter, artifactTopEnemy
+local artifactTopDeaths, artifactTopCenter, artifactTopEnemy, artifactTopBoost
 local artifactHeroHpText, artifactHeroHpFill
 local artifactHeroXpText, artifactHeroXpFill
 local artifactEnemyHpLabel, artifactEnemyHpText, artifactEnemyHpFill
@@ -330,6 +330,10 @@ do
         topDivider(0.78)
         artifactTopEnemy = topLabel("ArtifactEnemy", 0.78, 0.22, Enum.TextXAlignment.Right, ACCENT, 14)
         artifactTopEnemy.Text = "EXPLORATION"
+        -- Active daily/pass boost chip (left of centre; clear of the reserved corner).
+        artifactTopBoost = topLabel("ArtifactBoost", 0.15, 0.20, Enum.TextXAlignment.Left, GREEN, 13)
+        artifactTopBoost.Text = ""
+        artifactTopBoost.Visible = false
     end
 
     -- ---- PV band (two bars, aligned over their columns) -----------------------
@@ -994,6 +998,18 @@ local function updateTopHud(data)
     if artifactTopCenter then
         artifactTopCenter.Text = string.format("\u{1F480} %d   \u{00B7}   Couche %d   \u{00B7}   %.1f km",
             data.deaths or 0, data.zone or 1, data.pos or 0)
+    end
+    if artifactTopBoost then
+        local b = data.boost
+        if b and b.secondsLeft and b.secondsLeft > 0 then
+            local s = math.floor(b.secondsLeft)
+            local hrs, mins = math.floor(s / 3600), math.floor((s % 3600) / 60)
+            local left = hrs > 0 and string.format("%dh%02d", hrs, mins) or string.format("%dm", mins)
+            artifactTopBoost.Text = string.format("BOOST x%g \u{00B7} %s", b.mult or 2, left)
+            artifactTopBoost.Visible = true
+        else
+            artifactTopBoost.Visible = false
+        end
     end
     if artifactTopEnemy then
         local inFight = false

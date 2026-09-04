@@ -34,7 +34,8 @@ local PlayerDataService = {}
 -- v4 -> v5: hero creation (`voie` / `heroName` / `teinte`). Existing players
 --           (ftue done) are backfilled voie="guerrier"; fresh profiles have no
 --           `voie` -> the client shows the creation screen on first JOUER.
-PlayerDataService.PROFILE_VERSION = 5
+-- v5 -> v6: daily reward chain (`dailyReward`), backfilled to a fresh chain.
+PlayerDataService.PROFILE_VERSION = 6
 
 local STORE_NAME = "FoG_PlayerData_v1"
 -- En vrai serveur game.JobId est un GUID stable. En Studio il vaut "" : on fixe
@@ -125,6 +126,11 @@ function PlayerDataService.defaultProfile()
         voie = nil,               -- "guerrier" | "mage" | nil (not created)
         heroName = nil,           -- chat-filtered display name
         teinte = "acier",         -- one of GameConfig.Hero.tints keys
+
+        -- Daily reward chain (daily-reward-gdd.md). currentDay = the last day
+        -- CLAIMED (1..7); GameConfig.DailyReward.evaluate derives what to claim
+        -- next from lastClaimTime. Preserved across a Rebirth.
+        dailyReward = { currentDay = 1, lastClaimTime = 0 },
         -- One-time creation gift: the "Épée en bois" (epee_courte) minted on the
         -- FIRST KILL during the FTUE (InventoryService.grantStarterKit, called by
         -- FtueService.onFirstKill). migrate() backfills this as false, but the
@@ -387,6 +393,15 @@ local function migrate(profile, player: Player?)
         end
         profile.teinte = profile.teinte or "acier"
         profile.version = 5
+    end
+
+    if profile.version < 6 then
+        if type(profile.dailyReward) ~= "table" then
+            profile.dailyReward = { currentDay = 1, lastClaimTime = 0 }
+        end
+        profile.dailyReward.currentDay = profile.dailyReward.currentDay or 1
+        profile.dailyReward.lastClaimTime = profile.dailyReward.lastClaimTime or 0
+        profile.version = 6
     end
 
     profile.version = PlayerDataService.PROFILE_VERSION

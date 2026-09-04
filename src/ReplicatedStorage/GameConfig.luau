@@ -34,6 +34,83 @@ function GameConfig.isDev(userId: number?): boolean
 end
 
 --========================================================
+-- DAILY REWARD  (daily-reward-gdd.md)
+--========================================================
+-- 7-day escalating chain. A "day" = 24 real hours since the last claim; a
+-- 48 h grace window lets a player resume mid-chain, past that it resets to J1.
+-- Rewards (client renders the teaser strings; the server applies `grants`):
+--   boost  -> profile.boosts[cat] = { mult, expiresAt } (RewardService reads it)
+--   pet    -> a rolled pet from the player's current zone (+ note the GDD bonus)
+--   armor  -> N Epic armor pieces from the zone just below the player's record
+--   weapon -> 1 Epic weapon of the player's voie, +weaponBonus stats
+-- TODO: J2/J4 also grant Donjon keys in the GDD - the Daily Dungeon does not
+-- exist yet, so the key grant is omitted (see missions/daily-dungeon tracks).
+GameConfig.DailyReward = {
+    chainLength      = 7,
+    cooldownHours    = 24,
+    graceHours       = 48,
+    boostMult        = 2.0,
+    weaponBonusJ7    = 1.30,
+    setPiecesJ6      = 4,
+    familiarBonusJ3  = 1.20,   -- +20% vs a normally-looted pet of the same tier
+
+    -- One entry per day. `label` is shown in the popup; `grants` is applied server-side.
+    days = {
+        [1] = { label = "Boost Or + XP x2 - 4 h",
+            grants = { { kind = "boost", cats = { "gold", "xp" }, hours = 4 } } },
+        [2] = { label = "Boost Or + XP x2 - 6 h",
+            grants = { { kind = "boost", cats = { "gold", "xp" }, hours = 6 } } },
+        [3] = { label = "Familier de ta couche (+20 %) + boost 6 h",
+            grants = {
+                { kind = "boost", cats = { "gold", "xp" }, hours = 6 },
+                { kind = "pet" },
+            } },
+        [4] = { label = "Boost Or + XP x2 - 6 h",
+            grants = { { kind = "boost", cats = { "gold", "xp" }, hours = 6 } } },
+        [5] = { label = "Gros boost Or + XP + Butin x2 - 8 h",
+            grants = { { kind = "boost", cats = { "gold", "xp", "loot" }, hours = 8 } } },
+        [6] = { label = "Set d'armure Epique complet",
+            grants = {
+                { kind = "boost", cats = { "gold", "xp" }, hours = 6 },
+                { kind = "armor", pieces = 4 },
+            } },
+        [7] = { label = "Arme d'exception (+30 %)",
+            grants = {
+                { kind = "boost", cats = { "gold", "xp", "loot" }, hours = 8 },
+                { kind = "weapon" },
+            } },
+    },
+}
+
+-- Given `lastClaimTime` (0 = never) and `currentDay` (1..7), return
+--   day       : the day to claim NOW (1..7)
+--   canClaim  : true if the 24 h cooldown has elapsed (or never claimed)
+--   chainReset: true if the chain broke (past the grace window) -> back to J1
+--   nextResetAt : unix time the current progress is lost if not claimed
+function GameConfig.DailyReward.evaluate(lastClaimTime: number?, currentDay: number?)
+    local D = GameConfig.DailyReward
+    local now = os.time()
+    local last = tonumber(lastClaimTime) or 0
+    local day = math.clamp(math.floor(tonumber(currentDay) or 1), 1, D.chainLength)
+    local elapsedH = (now - last) / 3600
+
+    if last == 0 then
+        return { day = 1, canClaim = true, chainReset = true, nextResetAt = now + D.graceHours * 3600 }
+    end
+    if elapsedH < D.cooldownHours then
+        -- already claimed today; the chain is safe until grace runs out
+        return { day = day, canClaim = false, chainReset = false,
+            nextResetAt = last + D.graceHours * 3600 }
+    end
+    if elapsedH >= D.graceHours then
+        return { day = 1, canClaim = true, chainReset = true, nextResetAt = now + D.graceHours * 3600 }
+    end
+    -- inside the window: advance one day (wrap 7 -> 1)
+    local nextDay = (day % D.chainLength) + 1
+    return { day = nextDay, canClaim = true, chainReset = false, nextResetAt = now + D.graceHours * 3600 }
+end
+
+--========================================================
 -- HERO CREATION  (02-maquettes SS02, master-gdd SS5.2)
 --========================================================
 GameConfig.Hero = {

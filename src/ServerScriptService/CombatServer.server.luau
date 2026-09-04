@@ -26,6 +26,7 @@ local InventoryService = require(script.Parent:WaitForChild("InventoryService"))
 -- Server-authoritative FTUE (onboarding-gdd.md). Coach-marks + the tutorial
 -- gifts (Épée en bois on the first kill, Fée pet at the end). Never blocks.
 local FtueService = require(script.Parent:WaitForChild("FtueService"))
+local DailyRewardService = require(script.Parent:WaitForChild("DailyRewardService"))
 
 -- Central tuning constants + formulas (pure data). Etape 1: every value
 -- pulled from here equals the previous inline constant EXCEPT the XP curve
@@ -230,6 +231,21 @@ local function sendUpdate(player, s)
         heroTint    = (function()
             local p = PlayerDataService.getProfile(player)
             return p and p.teinte or "acier"
+        end)(),
+        boost       = (function()
+            -- Active temp boost for the HUD chip: highest mult + soonest expiry.
+            local p = PlayerDataService.getProfile(player)
+            if not p or type(p.boosts) ~= "table" then return nil end
+            local now = os.time()
+            local mult, soonest = 1, nil
+            for _, entry in pairs(p.boosts) do
+                if type(entry) == "table" and (entry.expiresAt or 0) > now then
+                    mult = math.max(mult, entry.mult or 1)
+                    soonest = math.min(soonest or entry.expiresAt, entry.expiresAt)
+                end
+            end
+            if not soonest then return nil end
+            return { mult = mult, secondsLeft = math.max(0, soonest - now) }
         end)(),
         heroName    = (function()
             local p = PlayerDataService.getProfile(player)
@@ -612,6 +628,11 @@ local function startCombat(player)
         -- FTUE: send the tutorial state + (re)issue the current coach-mark. Safe
         -- for returning players - onSpawn no-ops once ftue.completed is true.
         FtueService.onSpawn(player)
+    end
+
+    -- Daily reward: push the chain state so the menu can show the "a reclamer" band.
+    if prof then
+        combatEvent:FireClient(player, { type = "dailyState", state = DailyRewardService.state(prof) })
     end
 
     -- Player attack loop. AUTO-ATTACK ONLY. Charge-based (st.atkCharge, reset by
@@ -1061,6 +1082,31 @@ combatEvent.OnServerEvent:Connect(function(player, data)
     elseif data.type == "ftueRequestState" then
         -- Client (re)connected its FTUE listener - resend state + current step.
         FtueService.onSpawn(player)
+
+    elseif data.type == "claimDailyReward" then
+        local prof = PlayerDataService.getProfile(player)
+        if not prof then
+            combatEvent:FireClient(player, { type = "dailyRewardClaimed", ok = false, reason = "no_profile" })
+            return
+        end
+        local res = DailyRewardService.claim(player, prof, st)
+        combatEvent:FireClient(player, {
+            type = "dailyRewardClaimed",
+            ok = res.ok, reason = res.reason,
+            day = res.day, label = res.label, nextDay = res.nextDay, nextLabel = res.nextLabel,
+        })
+        if res.ok then
+            -- refresh HUD (boost may now be active) + resend the chain state
+            StatsService.recalc(player, st)
+            sendUpdate(player, st)
+            combatEvent:FireClient(player, { type = "dailyState", state = DailyRewardService.state(prof) })
+        end
+
+    elseif data.type == "requestDailyState" then
+        local prof = PlayerDataService.getProfile(player)
+        if prof then
+            combatEvent:FireClient(player, { type = "dailyState", state = DailyRewardService.state(prof) })
+        end
 
     elseif data.type == "createHero" then
         -- Hero creation (02-maquettes SS02). One-shot: only valid while the
