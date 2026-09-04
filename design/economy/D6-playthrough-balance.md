@@ -3,12 +3,22 @@
 **Statut :** tableur 2026-09-01. Modèle sur les paramètres validés D1-D5. Verdict `/balance-check` en fin.
 Le jeu doit être **DUR** (Q119).
 
+> ⚠️ **PÉRIMÉ (2026-09-04) — à refaire.** Ce modèle repose sur `mob niv = round(km × 3.5)`
+> et une courbe d'XP `round(6 + 0.5·n^1.10)`. Les deux ont changé dans le code :
+> - `GameConfig.Enemy.levelPerKm` = **1.15** (le 3.5 créait une falaise : boss couche 1
+>   niv.10 → mobs couche 2 niv.35 à km 10, joueur niv.13 → farm couche 1 forcé). Les
+>   mobs sont aussi clampés à `zone×10 − 1` (rampent vers, jamais au-dessus de, leur boss).
+> - La courbe d'XP réelle est `GameConfig.Level.xpForNextLevel` (`enemyXpBase 8`,
+>   `killsPerLevelBase 8`, croissances 1.085 / 1.02) — pas la formule de ce doc.
+> Tout le tableau §1 (« niveau joueur ~41 à km 10 » etc.) est donc faux. Refaire un
+> `/balance-check` avec les vrais paramètres avant la GATE PHASE 2.
+
 Paramètres injectés :
 ```
 Stats     : 4 auto/niv (Guerrier 45 POW / 40 VIT / 10 SPD / 5 LUK) + 1 libre/5niv
 Ennemi    : combatBaseForLevel, refPointsPerLevel 4.7, enemyAttackInterval 2.0
-Mob niv   : round(km × 3.5)          [PRÉREQUIS CODE - voir §0]
-XP        : xpForNextLevel(n) = round(6 + 0.5·n^1.10) ; Σ→L100 = 4331 (vérifié Studio)
+Mob niv   : round(km × 3.5)          [PÉRIMÉ - maintenant round(km × 1.15), clampé zone×10-1]
+XP        : xpForNextLevel(n) = round(6 + 0.5·n^1.10) ; Σ→L100 = 4331 (vérifié Studio)   [PÉRIMÉ]
 Or        : base.gold 8 · goldPerLevel 1.026 ; coût rebirth 10000·2.2^(n-1)
 Rebirth   : skillMult(n) = 1 + 0.10n + 0.01n(n-1) ; xpMult(n) = 1 + 0.25n
 Arme      : weaponBase 100 ; rareté 1.0/1.5/2.2/3.5/6.0 ; arme boss = ×2.5 boutique
