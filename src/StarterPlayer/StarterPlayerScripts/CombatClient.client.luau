@@ -1054,16 +1054,27 @@ local STAT_DESC = {
     SPD = "Vitesse \u{2014} cadence d'attaque",
     LUK = "Chance \u{2014} taux de critique",
 }
+-- One accent colour per stat (2026-09-04 visual pass): the chip + left
+-- stripe on each card are the only "icon" - plain ASCII letters inside the
+-- chip, never a Unicode symbol (Gotham has shown missing-glyph boxes for
+-- some of those, see the Codex boss-marker fix).
+local STAT_COLOUR = {
+    POW = Color3.fromRGB(214, 96, 76),
+    INT = Color3.fromRGB(120, 140, 214),
+    VIT = Color3.fromRGB(120, 189, 120),
+    SPD = Color3.fromRGB(108, 196, 200),
+    LUK = Color3.fromRGB(196, 130, 200),
+}
 
 local talentsPointsLabel
-local talentsRows = {}   -- statName -> { value = TextLabel, btn = TextButton }
+local talentsRows = {}   -- statName -> { value = TextLabel, sub = TextLabel, btn = TextButton }
 
 do
     local panel = Instance.new("Frame")
     panel.Name = "TalentsPanel"
     panel.AnchorPoint = Vector2.new(0.5, 0.5)
     panel.Position = UDim2.fromScale(0.5, 0.5)
-    panel.Size = UDim2.fromOffset(360, 360)
+    panel.Size = UDim2.fromOffset(440, 470)
     panel.BackgroundColor3 = TALENT_BG
     panel.BorderColor3 = TALENT_BORDER
     panel.BorderSizePixel = 1
@@ -1073,20 +1084,20 @@ do
 
     local title = Instance.new("TextLabel")
     title.Name = "Title"
-    title.Position = UDim2.fromOffset(16, 12)
-    title.Size = UDim2.new(1, -32, 0, 24)
+    title.Position = UDim2.fromOffset(18, 14)
+    title.Size = UDim2.new(1, -36, 0, 26)
     title.BackgroundTransparency = 1
-    title.Font = Enum.Font.GothamMedium
+    title.Font = Enum.Font.GothamBold
     title.Text = "TALENTS"
     title.TextColor3 = TALENT_ACCENT
-    title.TextSize = 16
+    title.TextSize = 18
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.ZIndex = 61
     title.Parent = panel
 
     local closeBtn = Instance.new("TextButton")
     closeBtn.Name = "CloseBtn"
-    closeBtn.Position = UDim2.new(1, -40, 0, 8)
+    closeBtn.Position = UDim2.new(1, -42, 0, 10)
     closeBtn.Size = UDim2.fromOffset(32, 28)
     closeBtn.BackgroundTransparency = 1
     closeBtn.Font = Enum.Font.GothamMedium
@@ -1099,63 +1110,124 @@ do
 
     talentsPointsLabel = Instance.new("TextLabel")
     talentsPointsLabel.Name = "Points"
-    talentsPointsLabel.Position = UDim2.fromOffset(16, 40)
-    talentsPointsLabel.Size = UDim2.new(1, -32, 0, 20)
+    talentsPointsLabel.Position = UDim2.fromOffset(18, 44)
+    talentsPointsLabel.Size = UDim2.new(1, -36, 0, 20)
     talentsPointsLabel.BackgroundTransparency = 1
-    talentsPointsLabel.Font = Enum.Font.Gotham
+    talentsPointsLabel.Font = Enum.Font.GothamMedium
     talentsPointsLabel.Text = "Points \u{00E0} r\u{00E9}partir : 0"
     talentsPointsLabel.TextColor3 = TALENT_TEXT
-    talentsPointsLabel.TextSize = 13
+    talentsPointsLabel.TextSize = 14
     talentsPointsLabel.TextXAlignment = Enum.TextXAlignment.Left
     talentsPointsLabel.ZIndex = 61
     talentsPointsLabel.Parent = panel
 
     for i, statName in ipairs(STAT_ORDER) do
-        local y = 70 + (i - 1) * 52
+        local y = 76 + (i - 1) * 68
+        local colour = STAT_COLOUR[statName]
         local row = Instance.new("Frame")
         row.Name = "Row" .. statName
-        row.Position = UDim2.fromOffset(16, y)
-        row.Size = UDim2.new(1, -32, 0, 46)
+        row.Position = UDim2.fromOffset(18, y)
+        row.Size = UDim2.new(1, -36, 0, 60)
         row.BackgroundColor3 = Color3.fromRGB(21, 22, 27)
-        row.BorderColor3 = TALENT_BORDER
-        row.BorderSizePixel = 1
+        row.BorderSizePixel = 0
         row.ZIndex = 61
         row.Parent = panel
+        local rowCorner = Instance.new("UICorner")
+        rowCorner.CornerRadius = UDim.new(0, 6)
+        rowCorner.Parent = row
+        local rowStroke = Instance.new("UIStroke")
+        rowStroke.Thickness = 1
+        rowStroke.Color = TALENT_BORDER
+        rowStroke.Transparency = 0.5
+        rowStroke.Parent = row
+
+        -- Coloured left stripe (the "icon"): a thin accent bar, no glyph risk.
+        local stripe = Instance.new("Frame")
+        stripe.Size = UDim2.new(0, 4, 1, -12)
+        stripe.Position = UDim2.fromOffset(0, 6)
+        stripe.BackgroundColor3 = colour
+        stripe.BorderSizePixel = 0
+        stripe.ZIndex = 62
+        stripe.Parent = row
+        local stripeCorner = Instance.new("UICorner")
+        stripeCorner.CornerRadius = UDim.new(1, 0)
+        stripeCorner.Parent = stripe
+
+        local chip = Instance.new("Frame")
+        chip.Position = UDim2.fromOffset(14, 12)
+        chip.Size = UDim2.fromOffset(36, 36)
+        chip.BackgroundColor3 = colour
+        chip.BackgroundTransparency = 0.78
+        chip.BorderSizePixel = 0
+        chip.ZIndex = 62
+        chip.Parent = row
+        local chipCorner = Instance.new("UICorner")
+        chipCorner.CornerRadius = UDim.new(0, 8)
+        chipCorner.Parent = chip
+        local chipLabel = Instance.new("TextLabel")
+        chipLabel.Size = UDim2.fromScale(1, 1)
+        chipLabel.BackgroundTransparency = 1
+        chipLabel.Font = Enum.Font.GothamBold
+        chipLabel.Text = statName:sub(1, 1)   -- P / I / V / S / L - plain ASCII, always renders
+        chipLabel.TextColor3 = colour
+        chipLabel.TextSize = 18
+        chipLabel.ZIndex = 63
+        chipLabel.Parent = chip
 
         local value = Instance.new("TextLabel")
         value.Name = "Value"
-        value.Position = UDim2.fromOffset(10, 0)
-        value.Size = UDim2.new(1, -80, 1, 0)
+        value.Position = UDim2.fromOffset(60, 8)
+        value.Size = UDim2.new(1, -132, 0, 18)
         value.BackgroundTransparency = 1
-        value.Font = Enum.Font.Gotham
+        value.Font = Enum.Font.GothamBold
         value.Text = string.format("%s  0", statName)
         value.TextColor3 = TALENT_TEXT
-        value.TextSize = 13
+        value.TextSize = 14
         value.TextXAlignment = Enum.TextXAlignment.Left
-        value.TextWrapped = true
         value.ZIndex = 62
         value.Parent = row
+
+        local sub = Instance.new("TextLabel")
+        sub.Name = "Sub"
+        sub.Position = UDim2.fromOffset(60, 28)
+        sub.Size = UDim2.new(1, -132, 0, 24)
+        sub.BackgroundTransparency = 1
+        sub.Font = Enum.Font.Gotham
+        sub.Text = STAT_DESC[statName] or ""
+        sub.TextColor3 = TALENT_MUTED
+        sub.TextSize = 11
+        sub.TextWrapped = true
+        sub.TextXAlignment = Enum.TextXAlignment.Left
+        sub.TextYAlignment = Enum.TextYAlignment.Top
+        sub.ZIndex = 62
+        sub.Parent = row
 
         local btn = Instance.new("TextButton")
         btn.Name = "Add"
         btn.AnchorPoint = Vector2.new(1, 0.5)
-        btn.Position = UDim2.new(1, -8, 0.5, 0)
-        btn.Size = UDim2.fromOffset(52, 30)
+        btn.Position = UDim2.new(1, -12, 0.5, 0)
+        btn.Size = UDim2.fromOffset(58, 38)
         btn.BackgroundColor3 = Color3.fromRGB(11, 12, 16)
-        btn.BorderColor3 = TALENT_ACCENT
-        btn.BorderSizePixel = 1
+        btn.BorderSizePixel = 0
         btn.AutoButtonColor = false
-        btn.Font = Enum.Font.GothamMedium
+        btn.Font = Enum.Font.GothamBold
         btn.Text = "+"
         btn.TextColor3 = TALENT_ACCENT
-        btn.TextSize = 15
+        btn.TextSize = 18
         btn.ZIndex = 62
         btn.Parent = row
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 6)
+        btnCorner.Parent = btn
+        local btnStroke = Instance.new("UIStroke")
+        btnStroke.Thickness = 1
+        btnStroke.Color = TALENT_ACCENT
+        btnStroke.Parent = btn
         btn.MouseButton1Click:Connect(function()
             combatEvent:FireServer({ type = "allocateStat", stat = statName })
         end)
 
-        talentsRows[statName] = { value = value, btn = btn }
+        talentsRows[statName] = { value = value, sub = sub, btn = btn, stroke = btnStroke }
     end
 end
 
@@ -1178,22 +1250,23 @@ local function updateTalentsPanel(data)
             if statName == "VIT" then gear = data.gearHpPoints or 0
             elseif statName == "POW" and not data.gearIsMagic then gear = data.gearAtkPoints or 0
             elseif statName == "INT" and data.gearIsMagic then gear = data.gearAtkPoints or 0 end
-            local head = (gear > 0)
+            row.value.Text = (gear > 0)
                 and string.format("%s  %d  (+%d \u{00E9}quip.)", statName, base, gear)
                 or  string.format("%s  %d", statName, base)
-            if statName == "SPD" and data.spdAtMax then head = string.format("%s  %d  (MAX)", statName, base) end
-            row.value.Text = head .. "\n" .. (STAT_DESC[statName] or "")
+            if statName == "SPD" and data.spdAtMax then
+                row.value.Text = string.format("%s  %d  (MAX)", statName, base)
+            end
 
             if statName == "SPD" and data.spdAtMax then
                 row.btn.Text = "MAX"
                 row.btn.TextColor3 = TALENT_MUTED
-                row.btn.BorderColor3 = TALENT_BORDER
+                row.stroke.Color = TALENT_BORDER
             else
                 local cost = (statName == "SPD") and (data.spdNextCost or 1) or 1
                 row.btn.Text = (cost > 1) and ("+" .. cost) or "+"
                 local affordable = points >= cost
                 row.btn.TextColor3 = affordable and TALENT_ACCENT or TALENT_MUTED
-                row.btn.BorderColor3 = affordable and TALENT_ACCENT or TALENT_BORDER
+                row.stroke.Color = affordable and TALENT_ACCENT or TALENT_BORDER
             end
         end
     end
@@ -1233,7 +1306,7 @@ do
     panel.Name = "MissionsPanel"
     panel.AnchorPoint = Vector2.new(0.5, 0.5)
     panel.Position = UDim2.fromScale(0.5, 0.5)
-    panel.Size = UDim2.fromOffset(400, 460)
+    panel.Size = UDim2.fromOffset(460, 560)
     panel.BackgroundColor3 = MISSION_BG
     panel.BorderColor3 = MISSION_BORDER
     panel.BorderSizePixel = 1
@@ -1243,20 +1316,20 @@ do
 
     local title = Instance.new("TextLabel")
     title.Name = "Title"
-    title.Position = UDim2.fromOffset(16, 12)
-    title.Size = UDim2.new(1, -32, 0, 24)
+    title.Position = UDim2.fromOffset(18, 14)
+    title.Size = UDim2.new(1, -36, 0, 26)
     title.BackgroundTransparency = 1
-    title.Font = Enum.Font.GothamMedium
+    title.Font = Enum.Font.GothamBold
     title.Text = "MISSIONS"
     title.TextColor3 = MISSION_ACCENT
-    title.TextSize = 16
+    title.TextSize = 18
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.ZIndex = 61
     title.Parent = panel
 
     local closeBtn = Instance.new("TextButton")
     closeBtn.Name = "CloseBtn"
-    closeBtn.Position = UDim2.new(1, -40, 0, 8)
+    closeBtn.Position = UDim2.new(1, -42, 0, 10)
     closeBtn.Size = UDim2.fromOffset(32, 28)
     closeBtn.BackgroundTransparency = 1
     closeBtn.Font = Enum.Font.GothamMedium
@@ -1269,21 +1342,21 @@ do
 
     local summary = Instance.new("TextLabel")
     summary.Name = "Summary"
-    summary.Position = UDim2.fromOffset(16, 40)
-    summary.Size = UDim2.new(1, -32, 0, 18)
+    summary.Position = UDim2.fromOffset(18, 44)
+    summary.Size = UDim2.new(1, -36, 0, 18)
     summary.BackgroundTransparency = 1
-    summary.Font = Enum.Font.Gotham
+    summary.Font = Enum.Font.GothamMedium
     summary.Text = "Termin\u{00E9}es : 0/10"
     summary.TextColor3 = MISSION_TEXT
-    summary.TextSize = 13
+    summary.TextSize = 14
     summary.TextXAlignment = Enum.TextXAlignment.Left
     summary.ZIndex = 61
     summary.Parent = panel
 
     local changeHint = Instance.new("TextLabel")
     changeHint.Name = "ChangeHint"
-    changeHint.Position = UDim2.fromOffset(16, 58)
-    changeHint.Size = UDim2.new(1, -32, 0, 16)
+    changeHint.Position = UDim2.fromOffset(18, 64)
+    changeHint.Size = UDim2.new(1, -36, 0, 16)
     changeHint.BackgroundTransparency = 1
     changeHint.Font = Enum.Font.Gotham
     changeHint.Text = "1 changement gratuit / jour disponible"
@@ -1295,37 +1368,60 @@ do
 
     local list = Instance.new("ScrollingFrame")
     list.Name = "List"
-    list.Position = UDim2.fromOffset(16, 80)
-    list.Size = UDim2.new(1, -32, 1, -96)
+    list.Position = UDim2.fromOffset(18, 88)
+    list.Size = UDim2.new(1, -36, 1, -104)
     list.BackgroundTransparency = 1
     list.BorderSizePixel = 0
-    list.ScrollBarThickness = 4
+    list.ScrollBarThickness = 5
+    list.ScrollBarImageColor3 = MISSION_BORDER
     list.CanvasSize = UDim2.new(0, 0, 0, 0)
     list.AutomaticCanvasSize = Enum.AutomaticSize.Y
     list.ZIndex = 61
     list.Parent = panel
 
     local layout = Instance.new("UIListLayout")
-    layout.Padding = UDim.new(0, 6)
+    layout.Padding = UDim.new(0, 8)
     layout.SortOrder = Enum.SortOrder.LayoutOrder
     layout.Parent = list
 
+    -- Cards, not thin rows (2026-09-04 visual pass): a coloured difficulty
+    -- stripe, a real fill bar (not just "x/y" text), and the reroll button
+    -- redesigned as a plain "R" chip - the earlier "\u{21BB}" reroll-arrow
+    -- glyph was the same missing-glyph risk as the Codex star, see its fix.
     local rows = {}
     for i = 1, 10 do
         local row = Instance.new("Frame")
         row.Name = "Row" .. i
         row.LayoutOrder = i
-        row.Size = UDim2.new(1, 0, 0, 40)
+        row.Size = UDim2.new(1, 0, 0, 64)
         row.BackgroundColor3 = Color3.fromRGB(21, 22, 27)
-        row.BorderColor3 = MISSION_BORDER
-        row.BorderSizePixel = 1
+        row.BorderSizePixel = 0
         row.ZIndex = 61
         row.Parent = list
+        local rowCorner = Instance.new("UICorner")
+        rowCorner.CornerRadius = UDim.new(0, 6)
+        rowCorner.Parent = row
+        local rowStroke = Instance.new("UIStroke")
+        rowStroke.Thickness = 1
+        rowStroke.Color = MISSION_BORDER
+        rowStroke.Transparency = 0.5
+        rowStroke.Parent = row
+
+        local stripe = Instance.new("Frame")
+        stripe.Size = UDim2.new(0, 4, 1, -12)
+        stripe.Position = UDim2.fromOffset(0, 6)
+        stripe.BackgroundColor3 = DIFF_COLOR.easy
+        stripe.BorderSizePixel = 0
+        stripe.ZIndex = 62
+        stripe.Parent = row
+        local stripeCorner = Instance.new("UICorner")
+        stripeCorner.CornerRadius = UDim.new(1, 0)
+        stripeCorner.Parent = stripe
 
         local tag = Instance.new("TextLabel")
         tag.Name = "Tag"
-        tag.Position = UDim2.fromOffset(8, 4)
-        tag.Size = UDim2.fromOffset(70, 12)
+        tag.Position = UDim2.fromOffset(16, 8)
+        tag.Size = UDim2.fromOffset(90, 14)
         tag.BackgroundTransparency = 1
         tag.Font = Enum.Font.GothamBold
         tag.Text = "FACILE"
@@ -1337,28 +1433,50 @@ do
 
         local label = Instance.new("TextLabel")
         label.Name = "Label"
-        label.Position = UDim2.fromOffset(8, 16)
-        label.Size = UDim2.new(1, -90, 0, 18)
+        label.Position = UDim2.fromOffset(16, 23)
+        label.Size = UDim2.new(1, -108, 0, 18)
         label.BackgroundTransparency = 1
-        label.Font = Enum.Font.Gotham
+        label.Font = Enum.Font.GothamMedium
         label.Text = "..."
         label.TextColor3 = MISSION_TEXT
-        label.TextSize = 12
+        label.TextSize = 13
         label.TextXAlignment = Enum.TextXAlignment.Left
         label.TextTruncate = Enum.TextTruncate.AtEnd
         label.ZIndex = 62
         label.Parent = row
 
+        local barTrack = Instance.new("Frame")
+        barTrack.Name = "BarTrack"
+        barTrack.Position = UDim2.fromOffset(16, 46)
+        barTrack.Size = UDim2.new(1, -108, 0, 8)
+        barTrack.BackgroundColor3 = Color3.fromRGB(11, 12, 16)
+        barTrack.BorderSizePixel = 0
+        barTrack.ZIndex = 62
+        barTrack.Parent = row
+        local barTrackCorner = Instance.new("UICorner")
+        barTrackCorner.CornerRadius = UDim.new(1, 0)
+        barTrackCorner.Parent = barTrack
+        local barFill = Instance.new("Frame")
+        barFill.Name = "Fill"
+        barFill.Size = UDim2.new(0, 0, 1, 0)
+        barFill.BackgroundColor3 = DIFF_COLOR.easy
+        barFill.BorderSizePixel = 0
+        barFill.ZIndex = 63
+        barFill.Parent = barTrack
+        local barFillCorner = Instance.new("UICorner")
+        barFillCorner.CornerRadius = UDim.new(1, 0)
+        barFillCorner.Parent = barFill
+
         local progress = Instance.new("TextLabel")
         progress.Name = "Progress"
         progress.AnchorPoint = Vector2.new(1, 0)
-        progress.Position = UDim2.new(1, -44, 0, 4)
-        progress.Size = UDim2.fromOffset(80, 12)
+        progress.Position = UDim2.new(1, -50, 0, 8)
+        progress.Size = UDim2.fromOffset(80, 14)
         progress.BackgroundTransparency = 1
         progress.Font = Enum.Font.Gotham
         progress.Text = "0/0"
         progress.TextColor3 = MISSION_MUTED
-        progress.TextSize = 10
+        progress.TextSize = 11
         progress.TextXAlignment = Enum.TextXAlignment.Right
         progress.ZIndex = 62
         progress.Parent = row
@@ -1366,23 +1484,32 @@ do
         local rerollBtn = Instance.new("TextButton")
         rerollBtn.Name = "Reroll"
         rerollBtn.AnchorPoint = Vector2.new(1, 0.5)
-        rerollBtn.Position = UDim2.new(1, -8, 0.5, 0)
-        rerollBtn.Size = UDim2.fromOffset(28, 26)
+        rerollBtn.Position = UDim2.new(1, -12, 0.5, 0)
+        rerollBtn.Size = UDim2.fromOffset(34, 34)
         rerollBtn.BackgroundColor3 = Color3.fromRGB(11, 12, 16)
-        rerollBtn.BorderColor3 = MISSION_ACCENT
-        rerollBtn.BorderSizePixel = 1
+        rerollBtn.BorderSizePixel = 0
         rerollBtn.AutoButtonColor = false
-        rerollBtn.Font = Enum.Font.GothamMedium
-        rerollBtn.Text = "\u{21BB}"
+        rerollBtn.Font = Enum.Font.GothamBold
+        rerollBtn.Text = "R"
         rerollBtn.TextColor3 = MISSION_ACCENT
         rerollBtn.TextSize = 14
         rerollBtn.ZIndex = 62
         rerollBtn.Parent = row
+        local rerollCorner = Instance.new("UICorner")
+        rerollCorner.CornerRadius = UDim.new(1, 0)
+        rerollCorner.Parent = rerollBtn
+        local rerollStroke = Instance.new("UIStroke")
+        rerollStroke.Thickness = 1
+        rerollStroke.Color = MISSION_ACCENT
+        rerollStroke.Parent = rerollBtn
         rerollBtn.MouseButton1Click:Connect(function()
             combatEvent:FireServer({ type = "changeMission", missionId = i })
         end)
 
-        rows[i] = { frame = row, tag = tag, label = label, progress = progress, reroll = rerollBtn }
+        rows[i] = {
+            frame = row, tag = tag, label = label, progress = progress,
+            reroll = rerollBtn, rerollStroke = rerollStroke, stripe = stripe, fill = barFill,
+        }
     end
 
     panelUpdaters.missions = function(state)
@@ -1399,17 +1526,22 @@ do
             local mission = state.list and state.list[i]
             if mission then
                 row.frame.Visible = true
+                local diffColour = DIFF_COLOR[mission.difficulty] or MISSION_MUTED
                 row.tag.Text = DIFF_TAG[mission.difficulty] or "?"
-                row.tag.TextColor3 = DIFF_COLOR[mission.difficulty] or MISSION_MUTED
+                row.tag.TextColor3 = diffColour
+                row.stripe.BackgroundColor3 = mission.completed and MISSION_DONE or diffColour
                 row.label.Text = mission.label or "?"
                 row.label.TextColor3 = mission.completed and MISSION_DONE or MISSION_TEXT
                 row.progress.Text = string.format("%s/%s",
                     tostring(mission.current or 0), tostring(mission.target or 0))
                 row.progress.TextColor3 = mission.completed and MISSION_DONE or MISSION_MUTED
+                local pct = math.clamp((mission.current or 0) / math.max(1, mission.target or 1), 0, 1)
+                row.fill.Size = UDim2.new(pct, 0, 1, 0)
+                row.fill.BackgroundColor3 = mission.completed and MISSION_DONE or diffColour
                 local canReroll = state.changeAvailable and not mission.completed
                 row.reroll.Visible = not mission.completed
                 row.reroll.TextColor3 = canReroll and MISSION_ACCENT or MISSION_MUTED
-                row.reroll.BorderColor3 = canReroll and MISSION_ACCENT or MISSION_BORDER
+                row.rerollStroke.Color = canReroll and MISSION_ACCENT or MISSION_BORDER
             else
                 row.frame.Visible = false
             end
@@ -1437,28 +1569,32 @@ do
 end
 
 --===== Codex panel (server "codexState" pushes) =====
--- Opened from the DescenteRight "CODEX" footer button, same code-built
--- language as MissionsPanel/TalentsPanel above. Text-only for now (no
--- monster-portrait assets wired here yet) - per family: a completion bar
--- + the full monster list (name once unlocked, "???" + kill counter until
--- then, boss rows show "1/1"). "Objets" tab deferred, see CodexService header.
+-- Opened from the DescenteRight "CODEX" footer button. Cards, not text rows
+-- (2026-09-04, Allan): each monster/boss already has real pixel-art in
+-- AssetMap (same sprites the combat scene renders) - so a locked card shows
+-- the REAL silhouette (art tinted black) instead of a generic "???" box, and
+-- pops to full colour the moment it unlocks. "Objets" tab still deferred,
+-- see CodexService header.
 -- 200-local budget (same constraint as the GameOver block above): reuses
 -- MISSION_ACCENT/MISSION_DONE (identical RGB, already escaping) instead of
 -- declaring 2 more top-level colors, and panelUpdaters (declared above,
 -- shared with MissionsPanel) instead of a 2nd top-level function local.
 do
-    local CODEX_BG     = Color3.fromRGB(16, 17, 21)
-    local CODEX_BORDER = Color3.fromRGB(150, 150, 155)
-    local CODEX_ACCENT = MISSION_ACCENT
-    local CODEX_TEXT   = Color3.fromRGB(242, 239, 226)
-    local CODEX_MUTED  = Color3.fromRGB(150, 150, 155)
-    local CODEX_DONE   = MISSION_DONE
+    local CODEX_BG      = Color3.fromRGB(16, 17, 21)
+    local CODEX_BORDER  = Color3.fromRGB(150, 150, 155)
+    local CODEX_ACCENT  = MISSION_ACCENT
+    local CODEX_TEXT    = Color3.fromRGB(242, 239, 226)
+    local CODEX_MUTED   = Color3.fromRGB(150, 150, 155)
+    local CODEX_DONE    = MISSION_DONE
+    local CARD_BG       = Color3.fromRGB(21, 22, 27)
+    local CARD_BG_DONE  = Color3.fromRGB(26, 32, 24)
+    local SILHOUETTE    = Color3.fromRGB(8, 8, 10)   -- near-black tint for a locked sprite
 
     local panel = Instance.new("Frame")
     panel.Name = "CodexPanel"
     panel.AnchorPoint = Vector2.new(0.5, 0.5)
     panel.Position = UDim2.fromScale(0.5, 0.5)
-    panel.Size = UDim2.fromOffset(420, 480)
+    panel.Size = UDim2.fromOffset(600, 560)
     panel.BackgroundColor3 = CODEX_BG
     panel.BorderColor3 = CODEX_BORDER
     panel.BorderSizePixel = 1
@@ -1468,20 +1604,20 @@ do
 
     local title = Instance.new("TextLabel")
     title.Name = "Title"
-    title.Position = UDim2.fromOffset(16, 12)
-    title.Size = UDim2.new(1, -32, 0, 24)
+    title.Position = UDim2.fromOffset(18, 14)
+    title.Size = UDim2.new(1, -36, 0, 26)
     title.BackgroundTransparency = 1
-    title.Font = Enum.Font.GothamMedium
+    title.Font = Enum.Font.GothamBold
     title.Text = "CODEX"
     title.TextColor3 = CODEX_ACCENT
-    title.TextSize = 16
+    title.TextSize = 18
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.ZIndex = 61
     title.Parent = panel
 
     local closeBtn = Instance.new("TextButton")
     closeBtn.Name = "CloseBtn"
-    closeBtn.Position = UDim2.new(1, -40, 0, 8)
+    closeBtn.Position = UDim2.new(1, -42, 0, 10)
     closeBtn.Size = UDim2.fromOffset(32, 28)
     closeBtn.BackgroundTransparency = 1
     closeBtn.Font = Enum.Font.GothamMedium
@@ -1494,11 +1630,11 @@ do
 
     local summary = Instance.new("TextLabel")
     summary.Name = "Summary"
-    summary.Position = UDim2.fromOffset(16, 40)
-    summary.Size = UDim2.new(1, -32, 0, 18)
+    summary.Position = UDim2.fromOffset(18, 42)
+    summary.Size = UDim2.new(1, -36, 0, 18)
     summary.BackgroundTransparency = 1
     summary.Font = Enum.Font.Gotham
-    summary.Text = "0 / 0 entr\u{00E9}es \u{00B7} 0 kills"
+    summary.Text = "0 / 0 entr\u{00E9}es d\u{00E9}bloqu\u{00E9}es \u{00B7} 0 kills"
     summary.TextColor3 = CODEX_TEXT
     summary.TextSize = 13
     summary.TextXAlignment = Enum.TextXAlignment.Left
@@ -1507,22 +1643,88 @@ do
 
     local list = Instance.new("ScrollingFrame")
     list.Name = "List"
-    list.Position = UDim2.fromOffset(16, 64)
-    list.Size = UDim2.new(1, -32, 1, -80)
+    list.Position = UDim2.fromOffset(18, 68)
+    list.Size = UDim2.new(1, -36, 1, -84)
     list.BackgroundTransparency = 1
     list.BorderSizePixel = 0
-    list.ScrollBarThickness = 4
+    list.ScrollBarThickness = 5
+    list.ScrollBarImageColor3 = CODEX_BORDER
     list.CanvasSize = UDim2.new(0, 0, 0, 0)
     list.AutomaticCanvasSize = Enum.AutomaticSize.Y
     list.ZIndex = 61
     list.Parent = panel
 
-    local layout = Instance.new("UIListLayout")
-    layout.Padding = UDim.new(0, 4)
-    layout.SortOrder = Enum.SortOrder.LayoutOrder
-    layout.Parent = list
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.Padding = UDim.new(0, 14)
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    listLayout.Parent = list
 
-    -- One block per family: header (name + X/Y + bonus%) + its monster rows.
+    -- One card per monster/boss: sprite (silhouette while locked, real art
+    -- once unlocked) + a bottom strip (progress "x/y" or the name).
+    local function buildCard(grid, order, mon)
+        local card = Instance.new("Frame")
+        card.Name = "Mon" .. order
+        card.LayoutOrder = order
+        card.BackgroundColor3 = mon.unlocked and CARD_BG_DONE or CARD_BG
+        card.BorderSizePixel = 0
+        card.ZIndex = 61
+        card.Parent = grid
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 6)
+        corner.Parent = card
+        local stroke = Instance.new("UIStroke")
+        stroke.Thickness = mon.isBoss and 2 or 1
+        stroke.Color = mon.unlocked and (mon.isBoss and CODEX_ACCENT or CODEX_DONE) or CODEX_BORDER
+        stroke.Transparency = mon.unlocked and 0 or 0.35
+        stroke.Parent = card
+
+        local art = Instance.new("ImageLabel")
+        art.Name = "Art"
+        art.AnchorPoint = Vector2.new(0.5, 0)
+        art.Position = UDim2.new(0.5, 0, 0, 6)
+        art.Size = UDim2.new(1, -16, 0, 62)
+        art.BackgroundTransparency = 1
+        art.Image = AssetMap[mon.id] or ""
+        art.ScaleType = Enum.ScaleType.Fit
+        art.ResampleMode = Enum.ResamplerMode.Pixelated
+        art.ImageColor3 = mon.unlocked and Color3.new(1, 1, 1) or SILHOUETTE
+        art.ImageTransparency = (AssetMap[mon.id] == nil) and 1 or 0
+        art.ZIndex = 62
+        art.Parent = card
+
+        if mon.isBoss then
+            -- A diamond Frame, not a Unicode glyph: some symbol characters
+            -- (e.g. the star U+2726 tried first) render as a tofu box in
+            -- Gotham - a shape has no font-support risk.
+            local marker = Instance.new("Frame")
+            marker.AnchorPoint = Vector2.new(1, 0)
+            marker.Position = UDim2.new(1, -6, 0, 6)
+            marker.Size = UDim2.fromOffset(9, 9)
+            marker.Rotation = 45
+            marker.BackgroundColor3 = mon.unlocked and CODEX_ACCENT or CODEX_MUTED
+            marker.BorderSizePixel = 0
+            marker.ZIndex = 63
+            marker.Parent = card
+        end
+
+        local bottom = Instance.new("TextLabel")
+        bottom.AnchorPoint = Vector2.new(0.5, 1)
+        bottom.Position = UDim2.new(0.5, 0, 1, -6)
+        bottom.Size = UDim2.new(1, -10, 0, 26)
+        bottom.BackgroundTransparency = 1
+        bottom.Font = mon.unlocked and Enum.Font.GothamMedium or Enum.Font.Gotham
+        bottom.TextWrapped = true
+        bottom.TextScaled = false
+        bottom.TextXAlignment = Enum.TextXAlignment.Center
+        bottom.TextYAlignment = Enum.TextYAlignment.Top
+        bottom.TextSize = mon.unlocked and 11 or 10
+        bottom.TextColor3 = mon.unlocked and CODEX_TEXT or CODEX_MUTED
+        bottom.Text = mon.unlocked and mon.name or string.format("%d/%d", mon.kills, mon.target)
+        bottom.ZIndex = 62
+        bottom.Parent = card
+    end
+
+    -- One block per family: header (name + X/Y + bonus%) + a card grid.
     -- Rebuilt from scratch on every codexState push (families/entries never
     -- shrink, so this is cheap and avoids a second index-by-name to reuse).
     panelUpdaters.codex = function(state)
@@ -1535,15 +1737,27 @@ do
             if child:IsA("Frame") then child:Destroy() end
         end
         for order, fam in ipairs(state.families or {}) do
+            local famFrame = Instance.new("Frame")
+            famFrame.Name = "Fam" .. order
+            famFrame.LayoutOrder = order
+            famFrame.Size = UDim2.new(1, 0, 0, 0)
+            famFrame.AutomaticSize = Enum.AutomaticSize.Y
+            famFrame.BackgroundTransparency = 1
+            famFrame.ZIndex = 61
+            famFrame.Parent = list
+            local famLayout = Instance.new("UIListLayout")
+            famLayout.Padding = UDim.new(0, 8)
+            famLayout.SortOrder = Enum.SortOrder.LayoutOrder
+            famLayout.Parent = famFrame
+
             local header = Instance.new("Frame")
-            header.Name = "Fam" .. order
-            header.LayoutOrder = order * 100
+            header.LayoutOrder = 1
             header.Size = UDim2.new(1, 0, 0, 24)
             header.BackgroundColor3 = fam.isComplete and Color3.fromRGB(24, 34, 26) or Color3.fromRGB(21, 22, 27)
             header.BorderColor3 = CODEX_BORDER
             header.BorderSizePixel = 1
             header.ZIndex = 61
-            header.Parent = list
+            header.Parent = famFrame
 
             local hLabel = Instance.new("TextLabel")
             hLabel.Position = UDim2.fromOffset(8, 0)
@@ -1560,39 +1774,21 @@ do
             hLabel.ZIndex = 62
             hLabel.Parent = header
 
+            local grid = Instance.new("Frame")
+            grid.LayoutOrder = 2
+            grid.Size = UDim2.new(1, 0, 0, 0)
+            grid.AutomaticSize = Enum.AutomaticSize.Y
+            grid.BackgroundTransparency = 1
+            grid.ZIndex = 61
+            grid.Parent = famFrame
+            local gridLayout = Instance.new("UIGridLayout")
+            gridLayout.CellSize = UDim2.fromOffset(84, 96)
+            gridLayout.CellPadding = UDim2.fromOffset(8, 8)
+            gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+            gridLayout.Parent = grid
+
             for i, mon in ipairs(fam.monsters) do
-                local row = Instance.new("Frame")
-                row.Name = "Mon" .. i
-                row.LayoutOrder = order * 100 + i
-                row.Size = UDim2.new(1, 0, 0, 20)
-                row.BackgroundTransparency = 1
-                row.ZIndex = 61
-                row.Parent = list
-
-                local nameLbl = Instance.new("TextLabel")
-                nameLbl.Position = UDim2.fromOffset(20, 0)
-                nameLbl.Size = UDim2.new(1, -100, 1, 0)
-                nameLbl.BackgroundTransparency = 1
-                nameLbl.Font = Enum.Font.Gotham
-                nameLbl.TextXAlignment = Enum.TextXAlignment.Left
-                nameLbl.TextSize = 11
-                nameLbl.TextColor3 = mon.unlocked and CODEX_TEXT or CODEX_MUTED
-                nameLbl.Text = (mon.unlocked and mon.name or "???") .. (mon.isBoss and "  \u{2726}" or "")
-                nameLbl.ZIndex = 62
-                nameLbl.Parent = row
-
-                local prog = Instance.new("TextLabel")
-                prog.AnchorPoint = Vector2.new(1, 0)
-                prog.Position = UDim2.new(1, -8, 0, 0)
-                prog.Size = UDim2.fromOffset(70, 20)
-                prog.BackgroundTransparency = 1
-                prog.Font = Enum.Font.Gotham
-                prog.TextXAlignment = Enum.TextXAlignment.Right
-                prog.TextSize = 11
-                prog.TextColor3 = mon.unlocked and CODEX_DONE or CODEX_MUTED
-                prog.Text = mon.unlocked and "\u{2713}" or string.format("%d/%d", mon.kills, mon.target)
-                prog.ZIndex = 62
-                prog.Parent = row
+                buildCard(grid, i, mon)
             end
         end
     end

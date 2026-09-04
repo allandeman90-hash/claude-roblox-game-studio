@@ -154,7 +154,10 @@ end
 -- deferred, same as DailyRewardService's dungeon-key TODO.
 --========================================================
 GameConfig.Codex = {
-    killsToUnlockMonster = 10,  -- boss: unlocked at kill #1 (see CodexService)
+    -- [balance 2026-09-04, Allan] a real grind, not a side-effect of playing
+    -- normally: 100 kills to unlock a regular monster, 10 to unlock a boss.
+    killsToUnlockMonster = 100,
+    killsToUnlockBoss    = 10,
     bonusPerFamilyBase   = 0.05,  -- +5% at the 1st family completed for a category
     bonusGrowthPerFamily = 0.15,  -- each LATER family on the same category is bigger
     -- Families alternate which reward category their bonus lands on, in this

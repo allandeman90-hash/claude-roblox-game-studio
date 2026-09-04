@@ -102,7 +102,7 @@ function CodexService.onKill(profile, enemyId: string?, isBoss: boolean?): { unl
         return {}
     end
     m.kills += 1
-    local threshold = isBoss and 1 or GameConfig.Codex.killsToUnlockMonster
+    local threshold = isBoss and GameConfig.Codex.killsToUnlockBoss or GameConfig.Codex.killsToUnlockMonster
     if m.kills < threshold then
         return {}
     end
@@ -160,7 +160,7 @@ function CodexService.state(profile)
                 name = unlocked and entry.name or "???",
                 isBoss = entry.isBoss,
                 kills = kills,
-                target = entry.isBoss and 1 or C.killsToUnlockMonster,
+                target = entry.isBoss and C.killsToUnlockBoss or C.killsToUnlockMonster,
                 unlocked = unlocked,
             }
         end
