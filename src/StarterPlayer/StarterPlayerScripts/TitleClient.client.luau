@@ -77,23 +77,45 @@ menu.BackgroundTransparency = 1
 menu.ZIndex = TZ
 menu.Parent = gui
 
--- left half: logo
-local logo = label(menu, "QUETE MINUTE", 52, C.TextPrimary)
-logo.AnchorPoint = Vector2.new(0, 0.5)
-logo.Position = UDim2.fromScale(0.08, 0.40)
-logo.Size = UDim2.fromScale(0.5, 0.12)
+-- left half: logo + hero on the line (02-maquettes SS01)
+local logo = label(menu, "QUETE MINUTE", 68, C.TextPrimary)
+logo.AnchorPoint = Vector2.new(0, 1)
+logo.Position = UDim2.fromScale(0.08, 0.44)
+logo.Size = UDim2.fromScale(0.52, 0.14)
 
-local sub = label(menu, "-- La Descente --", 20, C.TextSecondary)
-sub.AnchorPoint = Vector2.new(0, 0.5)
-sub.Position = UDim2.fromScale(0.08, 0.50)
+local sub = label(menu, "\u{2014} La Descente \u{2014}", 22, C.Accent)
+sub.AnchorPoint = Vector2.new(0, 0)
+sub.Position = UDim2.fromScale(0.085, 0.45)
 sub.Size = UDim2.fromScale(0.5, 0.06)
+
+-- ground line + a small idle hero standing on it
+local line = Instance.new("Frame")
+line.Name = "Line"
+line.AnchorPoint = Vector2.new(0, 0.5)
+line.Position = UDim2.fromScale(0.08, 0.66)
+line.Size = UDim2.new(0.46, 0, 0, 2)
+line.BackgroundColor3 = C.Border
+line.BorderSizePixel = 0
+line.ZIndex = TZ
+line.Parent = menu
+
+local heroOnLine = Instance.new("ImageLabel")
+heroOnLine.Name = "HeroOnLine"
+heroOnLine.AnchorPoint = Vector2.new(0.5, 1)
+heroOnLine.Position = UDim2.fromScale(0.14, 0.665)
+heroOnLine.Size = UDim2.fromOffset(150, 190)
+heroOnLine.BackgroundTransparency = 1
+heroOnLine.ScaleType = Enum.ScaleType.Fit
+heroOnLine.Image = AssetMap.hero_warrior or ""
+heroOnLine.ZIndex = TZ
+heroOnLine.Parent = menu
 
 -- right half: play + resume line + shortcuts
 local right = Instance.new("Frame")
 right.Name = "Right"
 right.AnchorPoint = Vector2.new(1, 0.5)
-right.Position = UDim2.fromScale(0.92, 0.5)
-right.Size = UDim2.fromScale(0.36, 0)
+right.Position = UDim2.fromScale(0.93, 0.5)
+right.Size = UDim2.fromScale(0.34, 0)
 right.AutomaticSize = Enum.AutomaticSize.Y
 right.BackgroundTransparency = 1
 right.ZIndex = TZ
@@ -102,7 +124,7 @@ do
     local list = Instance.new("UIListLayout")
     list.FillDirection = Enum.FillDirection.Vertical
     list.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    list.Padding = UDim.new(0, 12)
+    list.Padding = UDim.new(0, 16)
     list.SortOrder = Enum.SortOrder.LayoutOrder
     list.Parent = right
 end
@@ -121,7 +143,7 @@ resumeLbl.ZIndex = TZ
 resumeLbl.Parent = right
 
 local playBtn = StyleConstants.makeButton("\u{25B6}  JOUER", "Heading", "green")
-playBtn.Size = UDim2.new(1, 0, 0, 64)
+playBtn.Size = UDim2.new(1, 0, 0, 76)
 playBtn.LayoutOrder = 2
 playBtn.ZIndex = TZ
 playBtn.Parent = right
@@ -129,15 +151,15 @@ playBtn.Parent = right
 -- 6 raccourcis (02-maquettes SS01). Ceux dont le systeme est absent = grises.
 local shortcutRow = Instance.new("Frame")
 shortcutRow.Name = "Shortcuts"
-shortcutRow.Size = UDim2.new(1, 0, 0, 76)
+shortcutRow.Size = UDim2.new(1, 0, 0, 104)
 shortcutRow.BackgroundTransparency = 1
 shortcutRow.LayoutOrder = 3
 shortcutRow.ZIndex = TZ
 shortcutRow.Parent = right
 do
     local grid = Instance.new("UIGridLayout")
-    grid.CellSize = UDim2.new(1/3, -6, 0, 34)
-    grid.CellPadding = UDim2.fromOffset(9, 8)
+    grid.CellSize = UDim2.new(1/3, -8, 0, 46)
+    grid.CellPadding = UDim2.fromOffset(12, 12)
     grid.SortOrder = Enum.SortOrder.LayoutOrder
     grid.Parent = shortcutRow
 end
@@ -151,17 +173,14 @@ local SHORTCUTS = {
     { key = "reglages", text = "\u{2699}", ready = false },
 }
 for i, sc in ipairs(SHORTCUTS) do
-    local b = StyleConstants.makeButton(sc.text, "Label", sc.ready and "gray" or "gray")
+    local b = StyleConstants.makeButton(sc.text, "Body", "gray")
     b.Name = "Sc_" .. sc.key
     b.LayoutOrder = i
     b.ZIndex = TZ
     b.Active = sc.ready
-    b.TextTransparency = sc.ready and 0 or 0.5
+    b.AutoButtonColor = false
+    b.TextTransparency = sc.ready and 0 or 0.45
     b.Parent = shortcutRow
-    if not sc.ready then
-        -- a "bientot" hint on hover would be nice; keep it simple for v0.
-        b.Text = sc.text
-    end
 end
 
 --============================================================
@@ -403,6 +422,9 @@ combatEvent.OnClientEvent:Connect(function(data)
             resumeLbl.Text = (km > 0 or rb > 0)
                 and string.format("COUCHE %d  \u{00B7}  KM %.1f  \u{00B7}  REBIRTH %d", zone, km, rb)
                 or ""
+            -- the hero on the line reflects a returning player's build
+            heroOnLine.Image = AssetMap[data.gearIsMagic and "hero_mage" or "hero_warrior"] or heroOnLine.Image
+            heroOnLine.ImageColor3 = GameConfig.Hero.tints[data.heroTint or "acier"] or Color3.new(1, 1, 1)
         end
     end
 end)
