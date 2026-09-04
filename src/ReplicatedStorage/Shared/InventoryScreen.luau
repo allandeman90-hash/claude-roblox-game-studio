@@ -77,9 +77,12 @@ local ITEM_TYPE_TO_SLOT_TAB: { [string]: string } = {
     hands = "gants", legs = "jambieres", feet = "bottes",
 }
 local SLOT_TABS = { "all", "arme", "casque", "plastron", "jambieres", "bottes", "gants" }
-local SLOT_TAB_LABELS: { [string]: string } = {
-    all = "TOUS", arme = "ARME", casque = "CASQUE", plastron = "PLASTRON",
-    jambieres = "JAMBIERES", bottes = "BOTTES", gants = "GANTS",
+-- Short captions under each rail icon (2026-09-04) - abbreviated so they fit
+-- the narrow 60px rail without truncation; the full name still shows in the
+-- item detail panel via SLOT_LABELS_FR.
+local SLOT_TAB_SHORT: { [string]: string } = {
+    all = "TOUS", arme = "ARME", casque = "CASQ.", plastron = "PLAST.",
+    jambieres = "JAMB.", bottes = "BOTT.", gants = "GANTS",
 }
 
 local RARITY_ORDER = { "commun", "rare", "epique", "legendaire", "mythique" }
@@ -141,6 +144,66 @@ end
 local function hex(c: Color3): string
     return string.format("#%02X%02X%02X",
         math.floor(c.R * 255 + 0.5), math.floor(c.G * 255 + 0.5), math.floor(c.B * 255 + 0.5))
+end
+
+-- One flat-colour part of a slot pictogram (2026-09-04, Allan: "icone de
+-- l'equipement en 2d... genre un plastron pour plastron"). Every shape is
+-- built from plain Frames sized in SCALE relative to its icon container, not
+-- a Unicode glyph or an image asset (none exist per equipment slot) - a
+-- silhouette good enough to read at a glance, resolution-independent.
+local function iconPart(container: Frame, x: number, y: number, w: number, h: number,
+    colour: Color3, rotation: number?, cornerScale: number?, zIndex: number)
+    local p = Instance.new("Frame")
+    p.AnchorPoint = Vector2.new(0.5, 0.5)
+    p.Position = UDim2.fromScale(x, y)
+    p.Size = UDim2.fromScale(w, h)
+    p.BackgroundColor3 = colour
+    p.BorderSizePixel = 0
+    p.Rotation = rotation or 0
+    p.ZIndex = zIndex
+    p.Parent = container
+    if cornerScale then
+        local c = Instance.new("UICorner")
+        c.CornerRadius = UDim.new(cornerScale, 0)
+        c.Parent = p
+    end
+    return p
+end
+
+-- Draws the pictogram for `slotId` inside `container` (any size - everything
+-- is scale-based). `bg` fills the "cut line" details (plastron seam, gap
+-- between glove fingers) so they read against the icon's own background.
+local function buildSlotIcon(container: Frame, slotId: string, colour: Color3, bg: Color3, zIndex: number)
+    if slotId == "all" then
+        iconPart(container, 0.28, 0.28, 0.34, 0.34, colour, 0, 0.25, zIndex)
+        iconPart(container, 0.72, 0.28, 0.34, 0.34, colour, 0, 0.25, zIndex)
+        iconPart(container, 0.28, 0.72, 0.34, 0.34, colour, 0, 0.25, zIndex)
+        iconPart(container, 0.72, 0.72, 0.34, 0.34, colour, 0, 0.25, zIndex)
+    elseif slotId == "arme" then
+        iconPart(container, 0.5, 0.46, 0.16, 0.7, colour, 45, 1, zIndex)   -- blade
+        iconPart(container, 0.5, 0.46, 0.05, 0.7, colour, -45, 1, zIndex) -- point taper (cross)
+        iconPart(container, 0.34, 0.72, 0.34, 0.13, colour, 45, 1, zIndex) -- guard
+        iconPart(container, 0.24, 0.86, 0.13, 0.13, colour, 0, 0.5, zIndex) -- pommel
+    elseif slotId == "casque" then
+        iconPart(container, 0.5, 0.42, 0.62, 0.5, colour, 0, 1, zIndex)   -- dome
+        iconPart(container, 0.5, 0.62, 0.05, 0.24, colour, 0, 1, zIndex)  -- nose guard
+        iconPart(container, 0.5, 0.78, 0.8, 0.14, colour, 0, 0.3, zIndex) -- brim
+    elseif slotId == "plastron" then
+        iconPart(container, 0.5, 0.5, 0.6, 0.72, colour, 0, 0.22, zIndex) -- torso plate
+        iconPart(container, 0.5, 0.5, 0.05, 0.6, bg, 0, 1, zIndex)        -- centre seam
+    elseif slotId == "jambieres" then
+        iconPart(container, 0.34, 0.5, 0.24, 0.84, colour, 0, 0.3, zIndex)
+        iconPart(container, 0.66, 0.5, 0.24, 0.84, colour, 0, 0.3, zIndex)
+    elseif slotId == "bottes" then
+        iconPart(container, 0.4, 0.36, 0.28, 0.56, colour, 0, 0.3, zIndex) -- shaft
+        iconPart(container, 0.6, 0.74, 0.5, 0.26, colour, 0, 0.3, zIndex)  -- foot
+    elseif slotId == "gants" then
+        iconPart(container, 0.5, 0.64, 0.58, 0.46, colour, 0, 0.35, zIndex) -- palm
+        iconPart(container, 0.24, 0.3, 0.13, 0.34, colour, 0, 1, zIndex)    -- thumb
+        iconPart(container, 0.42, 0.22, 0.13, 0.4, colour, 0, 1, zIndex)    -- finger
+        iconPart(container, 0.58, 0.22, 0.13, 0.4, colour, 0, 1, zIndex)    -- finger
+        iconPart(container, 0.74, 0.28, 0.13, 0.36, colour, 0, 1, zIndex)   -- finger
+    end
 end
 
 local function itemDescription(item: Types.ItemInstance): string
@@ -222,31 +285,37 @@ function InventoryScreen.mount(rpgGui: ScreenGui, combatEvent: RemoteEvent, deps
     closeBtn.ZIndex = ZS
     closeBtn.Parent = root
 
-    --== Left panel : tabs + filters + grid ==--
+    --== Vertical slot-icon rail (2026-09-04, Allan: "je prefere vertical avec
+    --   l'icone de l'equipement en 2d") - own column at the far left of root,
+    --   independent of leftPanel so the grid/filters shift right to make room.
+    local RAIL_W = 60
+    local tabRail = Instance.new("Frame")
+    tabRail.Name = "SlotTabRail"
+    tabRail.BackgroundTransparency = 1
+    tabRail.Position = UDim2.new(0, 0, 0, 36)
+    tabRail.Size = UDim2.fromOffset(RAIL_W, 0)
+    tabRail.AutomaticSize = Enum.AutomaticSize.Y
+    tabRail.ZIndex = ZS
+    tabRail.Parent = root
+    local railLayout = Instance.new("UIListLayout")
+    railLayout.FillDirection = Enum.FillDirection.Vertical
+    railLayout.Padding = UDim.new(0, 6)
+    railLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    railLayout.Parent = tabRail
+
+    --== Left panel : filters + grid (starts after the rail) ==--
     local leftPanel = Instance.new("Frame")
     leftPanel.Name = "LeftPanel"
     leftPanel.BackgroundTransparency = 1
-    leftPanel.Position = UDim2.new(0, 0, 0, 36)
-    leftPanel.Size = UDim2.new(0.62, -8, 1, -36)
+    leftPanel.Position = UDim2.new(0, RAIL_W + 10, 0, 36)
+    leftPanel.Size = UDim2.new(0.62, -8 - RAIL_W - 10, 1, -36)
     leftPanel.ZIndex = ZS
     leftPanel.Parent = root
-
-    local tabsRow = Instance.new("Frame")
-    tabsRow.Name = "SlotTabs"
-    tabsRow.BackgroundTransparency = 1
-    tabsRow.Position = UDim2.new(0, 0, 0, 0)
-    tabsRow.Size = UDim2.new(1, 0, 0, 24)
-    tabsRow.ZIndex = ZS
-    tabsRow.Parent = leftPanel
-    local tabsLayout = Instance.new("UIListLayout")
-    tabsLayout.FillDirection = Enum.FillDirection.Horizontal
-    tabsLayout.Padding = UDim.new(0, 3)
-    tabsLayout.Parent = tabsRow
 
     local filterRow = Instance.new("Frame")
     filterRow.Name = "FilterRow"
     filterRow.BackgroundTransparency = 1
-    filterRow.Position = UDim2.new(0, 0, 0, 30)
+    filterRow.Position = UDim2.new(0, 0, 0, 0)
     filterRow.Size = UDim2.new(1, 0, 0, 22)
     filterRow.ZIndex = ZS
     filterRow.Parent = leftPanel
@@ -276,8 +345,8 @@ function InventoryScreen.mount(rpgGui: ScreenGui, combatEvent: RemoteEvent, deps
 
     local grid = Instance.new("ScrollingFrame")
     grid.Name = "Grid"
-    grid.Position = UDim2.new(0, 0, 0, 60)
-    grid.Size = UDim2.new(1, 0, 1, -60)
+    grid.Position = UDim2.new(0, 0, 0, 30)
+    grid.Size = UDim2.new(1, 0, 1, -30)
     grid.BackgroundColor3 = COL.Slot
     grid.BackgroundTransparency = 0.35
     grid.BorderSizePixel = 0
@@ -764,24 +833,67 @@ function InventoryScreen.mount(rpgGui: ScreenGui, combatEvent: RemoteEvent, deps
                 or StyleConstants.BaseColors.TextPrimary
     end
 
-    --== Slot tabs ==--
+    --== Slot tabs: vertical icon rail (2026-09-04, Allan) ==--
     local tabButtons: { [string]: TextButton } = {}
-    for _, tabId in ipairs(SLOT_TABS) do
-        local btn = StyleConstants.makeButton(SLOT_TAB_LABELS[tabId], "Label")
-        btn.Size = UDim2.new(0, 84, 1, 0)
+    local tabIcons: { [string]: Frame } = {}
+    for i, tabId in ipairs(SLOT_TABS) do
+        local btn = Instance.new("TextButton")
+        btn.Name = "Tab_" .. tabId
+        btn.LayoutOrder = i
+        btn.Size = UDim2.new(0, RAIL_W, 0, RAIL_W + 16)
+        btn.BackgroundColor3 = COL.Slot
+        btn.AutoButtonColor = false
+        btn.BorderSizePixel = 0
+        btn.Text = ""
         btn.ZIndex = ZS
-        btn.Parent = tabsRow
-        trackLabel(btn, "Label")
+        btn.Parent = tabRail
+        StyleConstants.addCorner(btn, 8)
+        local stroke = StyleConstants.addStroke(btn, 1, COL.Border)
+
+        local iconBox = Instance.new("Frame")
+        iconBox.Name = "Icon"
+        iconBox.AnchorPoint = Vector2.new(0.5, 0)
+        iconBox.Position = UDim2.new(0.5, 0, 0, 6)
+        iconBox.Size = UDim2.fromOffset(34, 34)
+        iconBox.BackgroundTransparency = 1
+        iconBox.ZIndex = ZS
+        iconBox.Parent = btn
+        buildSlotIcon(iconBox, tabId, COL.TextSecondary, COL.Slot, ZS + 1)
+
+        local caption = Instance.new("TextLabel")
+        caption.Name = "Caption"
+        caption.AnchorPoint = Vector2.new(0.5, 1)
+        caption.Position = UDim2.new(0.5, 0, 1, -4)
+        caption.Size = UDim2.new(1, -4, 0, 12)
+        caption.BackgroundTransparency = 1
+        caption.Font = StyleConstants.Fonts.Label
+        caption.Text = SLOT_TAB_SHORT[tabId] or ""
+        caption.TextColor3 = COL.TextSecondary
+        caption.ZIndex = ZS
+        caption.Parent = btn
+        trackLabel(caption, "Label")
+
         tabButtons[tabId] = btn
+        tabIcons[tabId] = iconBox
+        -- Active state = the BUTTON'S background/border only, never the icon
+        -- shapes themselves: some of those Frames are deliberately drawn in
+        -- the button's own background colour (plastron seam, glove gaps) to
+        -- read as a cut-line, not a colour that should ever shift.
         btn.MouseButton1Click:Connect(function()
             slotFilter = tabId
             for id, b in pairs(tabButtons) do
-                b.TextColor3 = (id == slotFilter) and StyleConstants.BaseColors.Accent or StyleConstants.BaseColors.TextPrimary
+                local active = (id == slotFilter)
+                b.BackgroundColor3 = active and COL.Panel or COL.Slot
+                local st = b:FindFirstChildOfClass("UIStroke")
+                if st then st.Color = active and COL.Accent or COL.Border end
             end
             render()
         end)
+        if tabId == "all" then
+            btn.BackgroundColor3 = COL.Panel
+            stroke.Color = COL.Accent
+        end
     end
-    tabButtons.all.TextColor3 = StyleConstants.BaseColors.Accent
 
     --== Sort toggle (client-side; server has no sort remote yet) ==--
     local SORT_CYCLE = { "rarity", "recent", "couche" }

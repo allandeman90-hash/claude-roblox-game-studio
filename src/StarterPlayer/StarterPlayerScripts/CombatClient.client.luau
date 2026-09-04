@@ -1569,17 +1569,24 @@ do
 end
 
 --===== Codex panel (server "codexState" pushes) =====
--- Opened from the DescenteRight "CODEX" footer button. Cards, not text rows
--- (2026-09-04, Allan): each monster/boss already has real pixel-art in
--- AssetMap (same sprites the combat scene renders) - so a locked card shows
--- the REAL silhouette (art tinted black) instead of a generic "???" box, and
--- pops to full colour the moment it unlocks. "Objets" tab still deferred,
--- see CodexService header.
+-- Opened from the DescenteRight "CODEX" footer button. List + detail split
+-- (2026-09-04, Allan asked to rework the first pass, "inspire toi d'image
+-- deja existante de jeu utilisant la meme fonctionalite" - this is the
+-- standard Pokedex/Hunter's-Journal layout: a scrollable list of small
+-- entries on the left, a big detail pane on the right for whatever's
+-- selected). Each monster/boss already has real pixel-art in AssetMap (same
+-- sprites the combat scene renders) - a locked entry shows the REAL
+-- silhouette (art tinted black) instead of a generic "???" box, and pops to
+-- full colour + a large portrait in the detail pane the moment it unlocks.
+-- "Objets" tab still deferred, see CodexService header.
 -- 200-local budget (same constraint as the GameOver block above): reuses
--- MISSION_ACCENT/MISSION_DONE (identical RGB, already escaping) instead of
--- declaring 2 more top-level colors, and panelUpdaters (declared above,
--- shared with MissionsPanel) instead of a 2nd top-level function local.
+-- MISSION_ACCENT/MISSION_DONE instead of declaring 2 more top-level colors,
+-- panelUpdaters (declared above, shared with MissionsPanel) instead of a 2nd
+-- top-level function local, and ONE table (codexUi) for every detail-pane
+-- widget + selection state instead of ~8 separate locals (codexUi itself
+-- stays INSIDE this do-block - nothing outside it needs to reach in).
 do
+    local codexUi = { selectedId = nil, cardById = {} }
     local CODEX_BG      = Color3.fromRGB(16, 17, 21)
     local CODEX_BORDER  = Color3.fromRGB(150, 150, 155)
     local CODEX_ACCENT  = MISSION_ACCENT
@@ -1594,7 +1601,7 @@ do
     panel.Name = "CodexPanel"
     panel.AnchorPoint = Vector2.new(0.5, 0.5)
     panel.Position = UDim2.fromScale(0.5, 0.5)
-    panel.Size = UDim2.fromOffset(600, 560)
+    panel.Size = UDim2.fromOffset(780, 600)
     panel.BackgroundColor3 = CODEX_BG
     panel.BorderColor3 = CODEX_BORDER
     panel.BorderSizePixel = 1
@@ -1641,10 +1648,11 @@ do
     summary.ZIndex = 61
     summary.Parent = panel
 
+    --== Left: scrollable list (family sections + card grid) ==--
     local list = Instance.new("ScrollingFrame")
     list.Name = "List"
     list.Position = UDim2.fromOffset(18, 68)
-    list.Size = UDim2.new(1, -36, 1, -84)
+    list.Size = UDim2.fromOffset(478, 516)
     list.BackgroundTransparency = 1
     list.BorderSizePixel = 0
     list.ScrollBarThickness = 5
@@ -1659,12 +1667,146 @@ do
     listLayout.SortOrder = Enum.SortOrder.LayoutOrder
     listLayout.Parent = list
 
+    --== Right: detail pane for whatever's selected (Pokedex-style) ==--
+    local detailPanel = Instance.new("Frame")
+    detailPanel.Name = "Detail"
+    detailPanel.Position = UDim2.fromOffset(514, 68)
+    detailPanel.Size = UDim2.fromOffset(248, 516)
+    detailPanel.BackgroundColor3 = CARD_BG
+    detailPanel.BorderSizePixel = 0
+    detailPanel.ZIndex = 61
+    detailPanel.Parent = panel
+    local detailCorner = Instance.new("UICorner")
+    detailCorner.CornerRadius = UDim.new(0, 8)
+    detailCorner.Parent = detailPanel
+    local detailStroke = Instance.new("UIStroke")
+    detailStroke.Thickness = 1
+    detailStroke.Color = CODEX_BORDER
+    detailStroke.Transparency = 0.5
+    detailStroke.Parent = detailPanel
+
+    local detailHint = Instance.new("TextLabel")
+    detailHint.AnchorPoint = Vector2.new(0.5, 0.5)
+    detailHint.Position = UDim2.fromScale(0.5, 0.5)
+    detailHint.Size = UDim2.new(1, -32, 0, 60)
+    detailHint.BackgroundTransparency = 1
+    detailHint.Font = Enum.Font.Gotham
+    detailHint.Text = "S\u{00E9}lectionne une entr\u{00E9}e \u{00E0} gauche"
+    detailHint.TextColor3 = CODEX_MUTED
+    detailHint.TextSize = 13
+    detailHint.TextWrapped = true
+    detailHint.ZIndex = 62
+    detailHint.Parent = detailPanel
+
+    local detailArt = Instance.new("ImageLabel")
+    detailArt.AnchorPoint = Vector2.new(0.5, 0)
+    detailArt.Position = UDim2.new(0.5, 0, 0, 20)
+    detailArt.Size = UDim2.new(0.5, 0, 0, 170)
+    detailArt.BackgroundTransparency = 1
+    detailArt.ScaleType = Enum.ScaleType.Fit
+    detailArt.ResampleMode = Enum.ResamplerMode.Pixelated
+    detailArt.Visible = false
+    detailArt.ZIndex = 62
+    detailArt.Parent = detailPanel
+
+    local detailName = Instance.new("TextLabel")
+    detailName.Position = UDim2.fromOffset(16, 202)
+    detailName.Size = UDim2.new(1, -32, 0, 26)
+    detailName.BackgroundTransparency = 1
+    detailName.Font = Enum.Font.GothamBold
+    detailName.Text = ""
+    detailName.TextColor3 = CODEX_TEXT
+    detailName.TextSize = 18
+    detailName.TextXAlignment = Enum.TextXAlignment.Center
+    detailName.Visible = false
+    detailName.ZIndex = 62
+    detailName.Parent = detailPanel
+
+    local detailFamily = Instance.new("TextLabel")
+    detailFamily.Position = UDim2.fromOffset(16, 230)
+    detailFamily.Size = UDim2.new(1, -32, 0, 18)
+    detailFamily.BackgroundTransparency = 1
+    detailFamily.Font = Enum.Font.Gotham
+    detailFamily.Text = ""
+    detailFamily.TextColor3 = CODEX_MUTED
+    detailFamily.TextSize = 12
+    detailFamily.TextXAlignment = Enum.TextXAlignment.Center
+    detailFamily.Visible = false
+    detailFamily.ZIndex = 62
+    detailFamily.Parent = detailPanel
+
+    local detailBarTrack = Instance.new("Frame")
+    detailBarTrack.Position = UDim2.fromOffset(16, 270)
+    detailBarTrack.Size = UDim2.new(1, -32, 0, 10)
+    detailBarTrack.BackgroundColor3 = Color3.fromRGB(11, 12, 16)
+    detailBarTrack.BorderSizePixel = 0
+    detailBarTrack.Visible = false
+    detailBarTrack.ZIndex = 62
+    detailBarTrack.Parent = detailPanel
+    local detailBarCorner = Instance.new("UICorner")
+    detailBarCorner.CornerRadius = UDim.new(1, 0)
+    detailBarCorner.Parent = detailBarTrack
+    local detailBarFill = Instance.new("Frame")
+    detailBarFill.Size = UDim2.new(0, 0, 1, 0)
+    detailBarFill.BackgroundColor3 = CODEX_ACCENT
+    detailBarFill.BorderSizePixel = 0
+    detailBarFill.ZIndex = 63
+    detailBarFill.Parent = detailBarTrack
+    local detailBarFillCorner = Instance.new("UICorner")
+    detailBarFillCorner.CornerRadius = UDim.new(1, 0)
+    detailBarFillCorner.Parent = detailBarFill
+
+    local detailProgress = Instance.new("TextLabel")
+    detailProgress.Position = UDim2.fromOffset(16, 286)
+    detailProgress.Size = UDim2.new(1, -32, 0, 16)
+    detailProgress.BackgroundTransparency = 1
+    detailProgress.Font = Enum.Font.Gotham
+    detailProgress.Text = ""
+    detailProgress.TextColor3 = CODEX_MUTED
+    detailProgress.TextSize = 11
+    detailProgress.TextXAlignment = Enum.TextXAlignment.Center
+    detailProgress.Visible = false
+    detailProgress.ZIndex = 62
+    detailProgress.Parent = detailPanel
+
+    local codexDetailW = { -- widget refs, kept off the outer chunk (own table)
+        hint = detailHint, art = detailArt, name = detailName,
+        family = detailFamily, barFill = detailBarFill, progress = detailProgress,
+    }
+
+    -- Own function = own 200-local budget, isolated from the outer chunk
+    -- (same reasoning as buildCard below).
+    local function renderCodexDetail(mon, famName)
+        local w = codexDetailW
+        local has = mon ~= nil
+        w.hint.Visible = not has
+        w.art.Visible = has
+        w.name.Visible = has
+        w.family.Visible = has
+        w.barFill.Parent.Visible = has
+        w.progress.Visible = has
+        if not has then return end
+        w.art.Image = AssetMap[mon.id] or ""
+        w.art.ImageColor3 = mon.unlocked and Color3.new(1, 1, 1) or SILHOUETTE
+        w.name.Text = mon.unlocked and mon.name or "???"
+        w.family.Text = famName .. (mon.isBoss and "  \u{00B7}  Boss" or "  \u{00B7}  Monstre")
+        local pct = math.clamp((mon.kills or 0) / math.max(1, mon.target or 1), 0, 1)
+        w.barFill.Size = UDim2.new(pct, 0, 1, 0)
+        w.barFill.BackgroundColor3 = mon.unlocked and CODEX_DONE or CODEX_ACCENT
+        w.progress.Text = mon.unlocked
+            and string.format("D\u{00E9}bloqu\u{00E9} \u{00B7} %d kills", mon.kills or 0)
+            or string.format("%d / %d kills", mon.kills or 0, mon.target or 0)
+    end
+
     -- One card per monster/boss: sprite (silhouette while locked, real art
-    -- once unlocked) + a bottom strip (progress "x/y" or the name).
-    local function buildCard(grid, order, mon)
-        local card = Instance.new("Frame")
+    -- once unlocked) + a bottom strip (progress "x/y" or the name). Clicking
+    -- selects it into the detail pane on the right and highlights the card.
+    local function buildCard(grid, order, mon, famName)
+        local card = Instance.new("TextButton")
         card.Name = "Mon" .. order
         card.LayoutOrder = order
+        card.Text = ""
+        card.AutoButtonColor = false
         card.BackgroundColor3 = mon.unlocked and CARD_BG_DONE or CARD_BG
         card.BorderSizePixel = 0
         card.ZIndex = 61
@@ -1673,8 +1815,9 @@ do
         corner.CornerRadius = UDim.new(0, 6)
         corner.Parent = card
         local stroke = Instance.new("UIStroke")
-        stroke.Thickness = mon.isBoss and 2 or 1
-        stroke.Color = mon.unlocked and (mon.isBoss and CODEX_ACCENT or CODEX_DONE) or CODEX_BORDER
+        stroke.Thickness = (mon.id == codexUi.selectedId) and 2 or (mon.isBoss and 2 or 1)
+        stroke.Color = (mon.id == codexUi.selectedId) and CODEX_ACCENT
+            or (mon.unlocked and (mon.isBoss and CODEX_ACCENT or CODEX_DONE) or CODEX_BORDER)
         stroke.Transparency = mon.unlocked and 0 or 0.35
         stroke.Parent = card
 
@@ -1722,6 +1865,19 @@ do
         bottom.Text = mon.unlocked and mon.name or string.format("%d/%d", mon.kills, mon.target)
         bottom.ZIndex = 62
         bottom.Parent = card
+
+        codexUi.cardById[mon.id] = { card = card, stroke = stroke, mon = mon, famName = famName }
+        card.MouseButton1Click:Connect(function()
+            local prev = codexUi.selectedId and codexUi.cardById[codexUi.selectedId]
+            if prev then
+                prev.stroke.Thickness = prev.mon.isBoss and 2 or 1
+                prev.stroke.Color = prev.mon.unlocked and (prev.mon.isBoss and CODEX_ACCENT or CODEX_DONE) or CODEX_BORDER
+            end
+            codexUi.selectedId = mon.id
+            stroke.Thickness = 2
+            stroke.Color = CODEX_ACCENT
+            renderCodexDetail(mon, famName)
+        end)
     end
 
     -- One block per family: header (name + X/Y + bonus%) + a card grid.
@@ -1736,6 +1892,7 @@ do
         for _, child in ipairs(list:GetChildren()) do
             if child:IsA("Frame") then child:Destroy() end
         end
+        codexUi.cardById = {}
         for order, fam in ipairs(state.families or {}) do
             local famFrame = Instance.new("Frame")
             famFrame.Name = "Fam" .. order
@@ -1788,9 +1945,14 @@ do
             gridLayout.Parent = grid
 
             for i, mon in ipairs(fam.monsters) do
-                buildCard(grid, i, mon)
+                buildCard(grid, i, mon, fam.name)
             end
         end
+        -- Selection survives the rebuild (same monster id, fresh data);
+        -- clears cleanly if that id somehow vanished (never happens today,
+        -- entries only ever get added, but harmless either way).
+        local sel = codexUi.selectedId and codexUi.cardById[codexUi.selectedId]
+        renderCodexDetail(sel and sel.mon, sel and sel.famName)
     end
 end
 
