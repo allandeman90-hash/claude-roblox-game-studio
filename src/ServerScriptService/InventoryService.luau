@@ -731,12 +731,16 @@ function InventoryService.grantStarterKit(player: Player, autoEquip: boolean?): 
         return true, nil
     end
 
+    -- Tier-1 weapon type = the voie picked at hero creation (master-gdd SS5.2).
+    -- Falls back to the sword for a profile with no voie (pre-v5 / creation skipped).
+    local weaponId = GameConfig.Hero.starterWeaponByVoie[profile.voie or ""] or STARTER_WEAPON_ID
+
     local added = InventoryService.addItem(player, {
-        id = STARTER_WEAPON_ID, rarete = "commun", zone = 1,
+        id = weaponId, rarete = "commun", zone = 1,
     })
     if added and autoEquip then
         for key, item in pairs(inv.items) do
-            if item.id == STARTER_WEAPON_ID and item.equippedSlot == nil then
+            if item.id == weaponId and item.equippedSlot == nil then
                 InventoryService.equipItem(player, key)
                 break
             end
@@ -745,7 +749,7 @@ function InventoryService.grantStarterKit(player: Player, autoEquip: boolean?): 
 
     profile.starterKitGranted = true
     PlayerDataService.markDirty(player, profile)
-    logAction(player, "granted starter weapon (%s, autoEquip=%s)", STARTER_WEAPON_ID, tostring(autoEquip == true))
+    logAction(player, "granted starter weapon (%s, autoEquip=%s)", weaponId, tostring(autoEquip == true))
     return true, nil
 end
 

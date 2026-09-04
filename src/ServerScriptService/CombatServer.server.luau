@@ -5,6 +5,7 @@
 --==============================================================
 
 local Players = game:GetService("Players")
+local TextService = game:GetService("TextService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Zone system (decor + enemy roster) and progression milestones
@@ -593,9 +594,17 @@ local function startCombat(player)
     -- Initial sync
     sendUpdate(player, s)
 
-    -- FTUE: send the tutorial state + (re)issue the current coach-mark. Safe
-    -- for returning players - onSpawn no-ops once ftue.completed is true.
-    FtueService.onSpawn(player)
+    -- Hero creation gate (02-maquettes SS02). A brand-new profile has no `voie`:
+    -- the client shows the creation screen and the FTUE waits until "createHero"
+    -- is received (handled below). The game world still runs underneath.
+    local prof = PlayerDataService.getProfile(player)
+    if prof and prof.voie == nil and not (prof.ftue and prof.ftue.completed) then
+        combatEvent:FireClient(player, { type = "needHeroCreation" })
+    else
+        -- FTUE: send the tutorial state + (re)issue the current coach-mark. Safe
+        -- for returning players - onSpawn no-ops once ftue.completed is true.
+        FtueService.onSpawn(player)
+    end
 
     -- Player attack loop. AUTO-ATTACK ONLY. Charge-based (st.atkCharge, reset by
     -- startEncounter so the opening hit is free and the timer starts after it).
@@ -1043,6 +1052,47 @@ combatEvent.OnServerEvent:Connect(function(player, data)
 
     elseif data.type == "ftueRequestState" then
         -- Client (re)connected its FTUE listener - resend state + current step.
+        FtueService.onSpawn(player)
+
+    elseif data.type == "createHero" then
+        -- Hero creation (02-maquettes SS02). One-shot: only valid while the
+        -- profile has no `voie`. Sets the class-defining tier-1 weapon voie,
+        -- a cosmetic tint, a chat-filtered name, then releases the FTUE.
+        local prof = PlayerDataService.getProfile(player)
+        if not prof or prof.voie ~= nil then
+            combatEvent:FireClient(player, { type = "heroCreated", ok = false, reason = "already" })
+            return
+        end
+        if not GameConfig.Hero.isValidVoie(data.voie) then
+            combatEvent:FireClient(player, { type = "heroCreated", ok = false, reason = "voie" })
+            return
+        end
+        local tint = GameConfig.Hero.isValidTint(data.teinte) and data.teinte or "acier"
+
+        -- Name: trim, length-check, then Roblox text filter (broadcast-safe).
+        local raw = type(data.name) == "string" and data.name:gsub("^%s+", ""):gsub("%s+$", "") or ""
+        local name = "Heros"
+        if #raw >= GameConfig.Hero.nameMinLen then
+            raw = raw:sub(1, GameConfig.Hero.nameMaxLen)
+            local ok, filtered = pcall(function()
+                local res = TextService:FilterStringAsync(raw, player.UserId, Enum.TextFilterContext.PublicChat)
+                return res:GetNonChatStringForBroadcastAsync()
+            end)
+            if ok and type(filtered) == "string" and filtered ~= "" then
+                name = filtered
+            end
+        end
+
+        prof.voie = data.voie
+        prof.teinte = tint
+        prof.heroName = name
+        markProfileDirty(player, st)
+
+        -- Recalc: class-driven stat growth now knows the voie.
+        StatsService.recalc(player, st)
+        sendUpdate(player, st)
+        combatEvent:FireClient(player, { type = "heroCreated", ok = true, voie = prof.voie, teinte = tint, name = name })
+        -- Now start the tutorial.
         FtueService.onSpawn(player)
 
     elseif data.type == "unequipItem" then

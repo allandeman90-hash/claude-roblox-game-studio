@@ -31,7 +31,10 @@ local PlayerDataService = {}
 -- v1 -> v2 (Inventory Sprint Day 1, 2026-09-02): stacked-count `inventaire`
 -- replaced by unique-instance `inventory` (see migrateInventoryV1toV2 below).
 -- v3 -> v4: pets gain a visible XP bar (`petXp`), backfilled to 0.
-PlayerDataService.PROFILE_VERSION = 4
+-- v4 -> v5: hero creation (`voie` / `heroName` / `teinte`). Existing players
+--           (ftue done) are backfilled voie="guerrier"; fresh profiles have no
+--           `voie` -> the client shows the creation screen on first JOUER.
+PlayerDataService.PROFILE_VERSION = 5
 
 local STORE_NAME = "FoG_PlayerData_v1"
 -- En vrai serveur game.JobId est un GUID stable. En Studio il vaut "" : on fixe
@@ -113,6 +116,15 @@ function PlayerDataService.defaultProfile()
         pointsNonAlloues = 0,
         equipe = {},
         owned = {},
+
+        -- Hero creation (02-maquettes §02, master-gdd §5.2). `voie` ABSENT means
+        -- the player has not created a hero yet -> the client shows the creation
+        -- screen on first JOUER. It sets the tier-1 weapon type the FTUE grants
+        -- on the first kill (guerrier -> epee_courte, mage -> baguette_simple)
+        -- and therefore the class. `teinte`/`heroName` are cosmetic + leaderboard.
+        voie = nil,               -- "guerrier" | "mage" | nil (not created)
+        heroName = nil,           -- chat-filtered display name
+        teinte = "acier",         -- one of GameConfig.Hero.tints keys
         -- One-time creation gift: the "Épée en bois" (epee_courte) minted on the
         -- FIRST KILL during the FTUE (InventoryService.grantStarterKit, called by
         -- FtueService.onFirstKill). migrate() backfills this as false, but the
@@ -361,6 +373,20 @@ local function migrate(profile, player: Player?)
             backfillPetXp(profile.equipe.pet)
         end
         profile.version = 4
+    end
+
+    if profile.version < 5 then
+        -- Hero creation. A player who has already played (ftue done, or any
+        -- progress) skips the creation screen -> default to "guerrier" (the
+        -- FTUE always granted the wooden sword). A brand-new profile keeps
+        -- voie = nil so the client shows the creation screen.
+        local alreadyPlaying = (type(profile.ftue) == "table" and profile.ftue.completed == true)
+            or (profile.niveau or 1) > 1 or (profile.bestKm or 0) > 0 or (profile.rebirths or 0) > 0
+        if alreadyPlaying and profile.voie == nil then
+            profile.voie = "guerrier"
+        end
+        profile.teinte = profile.teinte or "acier"
+        profile.version = 5
     end
 
     profile.version = PlayerDataService.PROFILE_VERSION

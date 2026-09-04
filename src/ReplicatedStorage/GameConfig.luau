@@ -34,6 +34,37 @@ function GameConfig.isDev(userId: number?): boolean
 end
 
 --========================================================
+-- HERO CREATION  (02-maquettes SS02, master-gdd SS5.2)
+--========================================================
+GameConfig.Hero = {
+    -- The choice that matters: voie sets the tier-1 weapon the FTUE grants on
+    -- the first kill (-> class, per master-gdd SS5.2 "classe pilotee par l'arme").
+    starterWeaponByVoie = {
+        guerrier = "epee_courte",     -- "Epee en bois"
+        mage     = "baguette_simple", -- "Badine felee"
+    },
+    -- 4 free cosmetic tints (others in the shop later). Applied as an ImageColor3
+    -- on the hero sprite. `acier` = neutral default.
+    tints = {
+        acier   = Color3.fromRGB(210, 214, 222),
+        sang    = Color3.fromRGB(196, 88, 78),
+        foret   = Color3.fromRGB(104, 156, 96),
+        nuit    = Color3.fromRGB(108, 116, 168),
+    },
+    tintOrder = { "acier", "sang", "foret", "nuit" },
+    nameMinLen = 3,
+    nameMaxLen = 16,
+}
+
+function GameConfig.Hero.isValidVoie(v: any): boolean
+    return v == "guerrier" or v == "mage"
+end
+
+function GameConfig.Hero.isValidTint(t: any): boolean
+    return type(t) == "string" and GameConfig.Hero.tints[t] ~= nil
+end
+
+--========================================================
 -- LEVEL & XP
 --========================================================
 GameConfig.Level = {
