@@ -622,6 +622,16 @@ local function startCombat(player)
     -- the client shows the creation screen and the FTUE waits until "createHero"
     -- is received (handled below). The game world still runs underneath.
     local prof = PlayerDataService.getProfile(player)
+
+    -- Repair: a profile hit by the "starter weapon silently swallowed by a
+    -- non-empty bag" bug (fixed in InventoryService.grantStarterKit, but an
+    -- already-broken save stays broken forever otherwise - the FTUE step is
+    -- already past "kill" so onFirstKill never fires again). Idempotent /
+    -- no-op once the player owns any weapon.
+    if prof and prof.voie ~= nil and prof.ftue and not prof.ftue.completed then
+        pcall(InventoryService.grantStarterKit, player, false)
+    end
+
     if prof and prof.voie == nil and not (prof.ftue and prof.ftue.completed) then
         combatEvent:FireClient(player, { type = "needHeroCreation" })
     else

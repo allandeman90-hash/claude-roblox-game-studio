@@ -53,6 +53,7 @@ local function emptyLoadout()
         plastron = nil,
         jambieres = nil,
         bottes = nil,
+        gants = nil,
         pet = nil,
     }
 end
@@ -454,7 +455,8 @@ function EquipmentService.describeArmorSummary(player)
     local b = EquipmentService.getStatBonuses(player)
     if b.setPieces >= 2 and b.setName then
         local setNom = (EquipmentConfig.Sets[b.setName] and EquipmentConfig.Sets[b.setName].nom) or b.setName
-        return string.format("%s %d/4 (+%d%% dgt)", setNom, b.setPieces, math.floor(b.setDamagePct * 100))
+        return string.format("%s %d/%d (+%d%% dgt)", setNom, b.setPieces, #EquipmentConfig.ARMOR_SLOTS,
+            math.floor(b.setDamagePct * 100))
     end
 
     -- No active bonus: name the dominant set (set only), or "Mixte".

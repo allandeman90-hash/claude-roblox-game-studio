@@ -719,13 +719,31 @@ function InventoryService.grantStarterKit(player: Player, autoEquip: boolean?): 
         return false, "no_profile"
     end
 
-    if profile.starterKitGranted then
-        return true, nil
+    -- "Already owns a weapon" is judged on the WEAPON only (equipped, or
+    -- sitting in the bag) - never "the bag isn't empty". The old check used
+    -- countItems(inv) > 0, which silently ate the starter weapon grant the
+    -- moment ANYTHING else landed in the bag first (e.g. a Daily Reward
+    -- pet/armor claimed before the FTUE's first kill) - production bug:
+    -- player permanently stuck with no weapon, unable to play. Non-weapon
+    -- gear must never block the one grant that matters.
+    local hasWeaponEquipped = inv.equipped and inv.equipped.arme ~= nil
+    local hasWeaponInBag = false
+    for _, item in pairs(inv.items) do
+        if item.itemType == "weapon" then
+            hasWeaponInBag = true
+            break
+        end
     end
 
-    local hasWeaponEquipped = inv.equipped and inv.equipped.arme ~= nil
-    if countItems(inv) > 0 or hasWeaponEquipped then
-        -- Player already owns gear: assume they've had their starter, just flag it.
+    if profile.starterKitGranted then
+        if hasWeaponEquipped or hasWeaponInBag then
+            return true, nil
+        end
+        -- Repair path: a profile the bug above already hit (flag set, weapon
+        -- never actually granted). Fall through and grant it now instead of
+        -- leaving the player permanently weaponless.
+    elseif hasWeaponEquipped or hasWeaponInBag then
+        -- Player already owns a weapon (pre-existing save): just flag it.
         profile.starterKitGranted = true
         PlayerDataService.markDirty(player, profile)
         return true, nil

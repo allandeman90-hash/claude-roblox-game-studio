@@ -51,7 +51,7 @@ GameConfig.DailyReward = {
     graceHours       = 48,
     boostMult        = 2.0,
     weaponBonusJ7    = 1.30,
-    setPiecesJ6      = 4,
+    setPiecesJ6      = 5,   -- casque/plastron/jambieres/bottes/gants
     familiarBonusJ3  = 1.20,   -- +20% vs a normally-looted pet of the same tier
 
     -- One entry per day. `label` is shown in the popup; `grants` is applied server-side.
@@ -72,7 +72,7 @@ GameConfig.DailyReward = {
         [6] = { label = "Set d'armure Epique complet",
             grants = {
                 { kind = "boost", cats = { "gold", "xp" }, hours = 6 },
-                { kind = "armor", pieces = 4 },
+                { kind = "armor", pieces = 5 },
             } },
         [7] = { label = "Arme d'exception (+30 %)",
             grants = {

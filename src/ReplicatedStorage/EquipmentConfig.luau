@@ -15,11 +15,13 @@
 
 local EquipmentConfig = {}
 
--- The 6 equipment slots (section 4.2).
-EquipmentConfig.SLOTS = { "arme", "casque", "plastron", "jambieres", "bottes", "pet" }
+-- The 7 equipment slots (section 4.2). "gants" was missing here for a while
+-- (InventoryService/Types already expected it) -> EquipmentService rejected
+-- it as an "invalid slot", so gants could never be equipped or counted.
+EquipmentConfig.SLOTS = { "arme", "casque", "plastron", "jambieres", "bottes", "gants", "pet" }
 
--- The 4 armor slots, in display order (used for the HUD set summary).
-EquipmentConfig.ARMOR_SLOTS = { "casque", "plastron", "jambieres", "bottes" }
+-- The 5 armor slots, in display order (used for the HUD set summary).
+EquipmentConfig.ARMOR_SLOTS = { "casque", "plastron", "jambieres", "bottes", "gants" }
 
 --===== Rarity table (section 4.3) =====
 -- Ordered weakest -> strongest. `mult` scales an item's DERIVED power
@@ -153,6 +155,9 @@ EquipmentConfig.Sets = {
 }
 
 -- Bonus for `count` matching pieces of set `setId` (same voie). nil below 2.
+-- Tiers only go up to 4 (SetBonusTiers) even though ARMOR_SLOTS has 5 (gants
+-- added later): the top tier is reached at 4/5, gants is a straight stat/loot
+-- piece on top, not a 5th bonus tier - no redesign of the curve intended here.
 function EquipmentConfig.getSetBonus(count, setId)
     local tier = EquipmentConfig.SetBonusTiers[math.clamp(math.floor(count or 0), 0, 4)]
     if not tier then return nil end
@@ -177,11 +182,13 @@ EquipmentConfig.Armor = {
     plastron_toile_g  = { nom = "Tunique de toile",  slot = "plastron",  voie = "guerrier", set = "toile", zone = 1, lvIndicatif = 1 },
     jambieres_toile_g = { nom = "Chausses de toile", slot = "jambieres", voie = "guerrier", set = "toile", zone = 1, lvIndicatif = 1 },
     bottes_toile_g    = { nom = "Bottes de toile",   slot = "bottes",    voie = "guerrier", set = "toile", zone = 1, lvIndicatif = 1 },
+    gants_toile_g     = { nom = "Gants de toile",    slot = "gants",     voie = "guerrier", set = "toile", zone = 1, lvIndicatif = 1 },
 
     casque_toile_m    = { nom = "Coiffe de toile",   slot = "casque",    voie = "mage", set = "toile", zone = 1, lvIndicatif = 1 },
     plastron_toile_m  = { nom = "Tunique de toile",  slot = "plastron",  voie = "mage", set = "toile", zone = 1, lvIndicatif = 1 },
     jambieres_toile_m = { nom = "Chausses de toile", slot = "jambieres", voie = "mage", set = "toile", zone = 1, lvIndicatif = 1 },
     bottes_toile_m    = { nom = "Bottes de toile",   slot = "bottes",    voie = "mage", set = "toile", zone = 1, lvIndicatif = 1 },
+    gants_toile_m     = { nom = "Gants de toile",    slot = "gants",     voie = "mage", set = "toile", zone = 1, lvIndicatif = 1 },
 }
 
 --===== Pets (sample: one per role - section 4.4 lists 40 at launch) =====
@@ -203,6 +210,7 @@ EquipmentConfig.LootPool = {
     { slot = "plastron",  guerrier = "plastron_toile_g",  mage = "plastron_toile_m" },
     { slot = "jambieres", guerrier = "jambieres_toile_g", mage = "jambieres_toile_m" },
     { slot = "bottes",    guerrier = "bottes_toile_g",    mage = "bottes_toile_m" },
+    { slot = "gants",     guerrier = "gants_toile_g",     mage = "gants_toile_m" },
 }
 
 --===== Boss set + boss weapon content (GAME_SPEC.md 4.4 / 5.1 / 7.2) =====
@@ -234,6 +242,7 @@ local ARMOR_PIECES = {
     { slot = "plastron",  label = "Plastron" },
     { slot = "jambieres", label = "Jambieres" },
     { slot = "bottes",    label = "Bottes" },
+    { slot = "gants",     label = "Gants" },
 }
 
 EquipmentConfig.BossSetIds = {}

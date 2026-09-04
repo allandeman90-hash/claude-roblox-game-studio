@@ -43,10 +43,12 @@ local STOCK = {
 	{ id = "plastron_toile_g",  slot = "plastron",  voie = "guerrier" },
 	{ id = "jambieres_toile_g", slot = "jambieres", voie = "guerrier" },
 	{ id = "bottes_toile_g",    slot = "bottes",    voie = "guerrier" },
+	{ id = "gants_toile_g",     slot = "gants",     voie = "guerrier" },
 	{ id = "casque_toile_m",    slot = "casque",    voie = "mage" },
 	{ id = "plastron_toile_m",  slot = "plastron",  voie = "mage" },
 	{ id = "jambieres_toile_m", slot = "jambieres", voie = "mage" },
 	{ id = "bottes_toile_m",    slot = "bottes",    voie = "mage" },
+	{ id = "gants_toile_m",     slot = "gants",     voie = "mage" },
 }
 local OFFER_RARITIES = { "commun", "rare" }
 

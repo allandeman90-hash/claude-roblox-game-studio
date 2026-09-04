@@ -106,7 +106,7 @@ local function grantArmor(player, profile, pieces: number)
     -- Fallback to the toile set if the boss set ids don't resolve (early content).
     if given == 0 then
         local suffix = (voie == "guerrier") and "_g" or "_m"
-        for _, slot in ipairs({ "casque", "plastron", "jambieres", "bottes" }) do
+        for _, slot in ipairs(EquipmentConfig.ARMOR_SLOTS) do
             if given >= pieces then break end
             pcall(invService().addItem, player, { id = slot .. "_toile" .. suffix, rarete = "epique", zone = 1 })
             given += 1
